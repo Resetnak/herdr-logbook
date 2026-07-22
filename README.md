@@ -1,4 +1,29 @@
-# Herdr Logbook
+<div align="center">
+
+# 📓 Herdr Logbook
+
+**Local, offline, Markdown-first working memory for developers using Herdr.**
+
+Keep the active task, quick captures, technical decisions, and project notes right next to the terminal — no proprietary format, no cloud, no telemetry.
+
+<br>
+
+[![CI](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml/badge.svg)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
+[![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](docs/herdr-compatibility.md)
+[![Herdr](https://img.shields.io/badge/Herdr-%E2%89%A50.7.0-2088FF)](herdr-plugin.toml)
+[![Status](https://img.shields.io/badge/status-pre--release-orange)](CHANGELOG.md)
+
+<br>
+
+**English** · [Čeština](README.cs.md)
+
+[Installation](#installation) · [Commands](#commands) · [Storage](#storage-and-project-resolution) · [Configuration](#configuration) · [Privacy](#privacy-and-data-safety) · [Contributing](CONTRIBUTING.md)
+
+</div>
+
+---
 
 Herdr Logbook is a local, Markdown-first working logbook for developers using Herdr. It keeps the active task, quick captures, technical decisions, and project notes close to the terminal without introducing a proprietary document format.
 
@@ -16,6 +41,14 @@ The core loop is intentionally small: open the Hub for the active repository, ca
  api-gateway · feature/token-rotation · central store · / search · ? help
 ```
 
+## Highlights
+
+- **Markdown stays canonical.** Every note is a plain `.md` file you own. The search cache is disposable and rebuilds itself.
+- **Project-aware.** Notes are scoped to the repository you are in, resolved through Herdr context, Git worktrees, or the current directory.
+- **Offline and private.** No telemetry, network calls, cloud sync, AI, automatic Git operations, or execution of commands found in notes.
+- **Responsive TUI.** The Bubble Tea Hub adapts from three panes to one below 70 columns and never blocks first render on an index scan.
+- **Bring your own editor.** Full editing is delegated to `$EDITOR`; the TUI does not reimplement a text editor.
+
 ## Workflows
 
 - `c` and `C` capture into the project or global monthly inbox.
@@ -28,7 +61,7 @@ The Hub uses Bubble Tea and adapts from three panes at 110 columns to one active
 
 ## Installation
 
-Herdr Logbook currently installs from source. You need Herdr 0.7.0 or newer, Git, and Go 1.24.2 or newer.
+Herdr Logbook currently installs from source. You need Herdr 0.7.0 or newer, Git, and Go 1.25 or newer (see [`go.mod`](go.mod)).
 
 ### macOS, Linux, and WSL
 
@@ -78,6 +111,8 @@ herdr-logbook version
 
 Without a capture source, `capture` opens the textarea UI. Without `--title`, `decision` prompts for a title. Decision creation opens the configured external editor unless `--no-edit` is used for automation.
 
+Exit codes carry meaning: `2` usage, `3` context/state resolution, `4` storage lock/write, `5` Herdr context, `6` editor.
+
 ## Storage and project resolution
 
 Central storage is the default and leaves repositories untouched:
@@ -110,8 +145,15 @@ The index reads only Markdown under known memory roots, skips hidden directories
 
 Herdr Logbook is not a general knowledge-management system, collaboration service, sync engine, browser UI, or custom text editor. Archive/trash, saved searches, templates, backlinks, and optional external Glow integration are deferred until the core workflow has real usage evidence. AI, cloud sync, and graph visualization are explicit non-goals.
 
-Screenshots or a terminal recording will be added only after the real-host release matrix passes. See [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
+Screenshots or a terminal recording will be added only after the real-host release matrix passes.
+
+## Documentation
+
+- [CHANGELOG.md](CHANGELOG.md) — release notes.
+- [SECURITY.md](SECURITY.md) — vulnerability reporting and the runtime security model.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — development workflow and verification steps.
+- [docs/herdr-compatibility.md](docs/herdr-compatibility.md) — the real-host compatibility matrix.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © 2026 Alexandr Rešetňak

@@ -1,6 +1,6 @@
 id = "herdr-logbook"
 name = "Herdr Logbook"
-version = "0.0.1"
+version = "0.0.2"
 min_herdr_version = "0.7.0"
 description = "Project-aware, local Markdown working memory for Herdr."
 platforms = ["linux", "macos", "windows"]
