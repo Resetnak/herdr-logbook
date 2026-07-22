@@ -655,17 +655,3 @@ func clamp(value, low, high int) int {
 	}
 	return value
 }
-
-func max(left, right int) int {
-	if left > right {
-		return left
-	}
-	return right
-}
-
-func min(left, right int) int {
-	if left < right {
-		return left
-	}
-	return right
-}

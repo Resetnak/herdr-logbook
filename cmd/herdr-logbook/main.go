@@ -626,7 +626,7 @@ func runCompatibility(args []string, getenv func(string) string, stdin io.Reader
 		return 1
 	}
 	if len(args) == 1 {
-		fmt.Fprintln(stdout, "Press Enter to close.")
+		fmt.Fprintln(stdout, "Diagnostics stay open for 30 seconds; press Enter to close afterward.")
 		waitForClose(stdin, 30*time.Second)
 	}
 	return 0

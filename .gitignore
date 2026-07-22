@@ -6,9 +6,8 @@
 *.test
 coverage.out
 
-/docs
-
 # Local workspace and tool state
+/docs/superpowers/
 /.claude/
 /.code-review-graph/
 /.tokensave/

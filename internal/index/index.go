@@ -228,17 +228,3 @@ func noteType(relative string) string {
 		return "note"
 	}
 }
-
-func max(left, right int) int {
-	if left > right {
-		return left
-	}
-	return right
-}
-
-func min(left, right int) int {
-	if left < right {
-		return left
-	}
-	return right
-}
