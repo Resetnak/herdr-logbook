@@ -6,6 +6,8 @@
 *.test
 coverage.out
 
+/docs
+
 # Local workspace and tool state
 /.claude/
 /.code-review-graph/
