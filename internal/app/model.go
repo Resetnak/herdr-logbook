@@ -70,6 +70,8 @@ type HubModel struct {
 	authorKind       string
 	authorFn         AuthorFunc
 	editFn           EditFunc
+	previewRenderer  *glamour.TermRenderer
+	previewWidth     int
 }
 
 func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
@@ -619,8 +621,16 @@ func (m *HubModel) refreshPreview() {
 		width = max(20, m.width-4)
 	}
 	rendered := notes[m.noteIndex].Content
-	if renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(width)); err == nil {
-		if output, renderErr := renderer.Render(rendered); renderErr == nil {
+	// ponytail: cache the renderer; NewTermRenderer loads chroma styles and is the
+	// expensive part, so only rebuild it when the wrap width actually changes.
+	if m.previewRenderer == nil || m.previewWidth != width {
+		if renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(width)); err == nil {
+			m.previewRenderer = renderer
+			m.previewWidth = width
+		}
+	}
+	if m.previewRenderer != nil {
+		if output, renderErr := m.previewRenderer.Render(rendered); renderErr == nil {
 			rendered = output
 		}
 	}

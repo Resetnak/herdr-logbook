@@ -41,6 +41,27 @@ func TestHubNavigationSelectsNoteAndPreview(t *testing.T) {
 	}
 }
 
+func TestHubPreviewRendererIsCachedByWidth(t *testing.T) {
+	model := NewHub([]Note{
+		{Title: "Now", Type: NoteNow, Content: "# Now\n\nCurrent"},
+		{Title: "Later", Type: NoteNow, Content: "# Later\n\nNext"},
+	}, "api", "main", "central")
+	renderer := model.previewRenderer
+	if renderer == nil {
+		t.Fatal("preview renderer was not initialized")
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRight})
+	if model.previewRenderer != renderer {
+		t.Fatal("preview renderer was rebuilt for an unchanged width")
+	}
+
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 30})
+	if model.previewRenderer == renderer {
+		t.Fatalf("preview renderer %p was reused after wrap width changed to %d", renderer, model.previewWidth)
+	}
+}
+
 func TestHubScopeNavigationFiltersNotes(t *testing.T) {
 	model := NewHub([]Note{
 		{Title: "Now", Type: NoteNow, Content: "# Now"},

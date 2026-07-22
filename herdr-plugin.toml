@@ -49,7 +49,7 @@ command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "s
 id = "hub"
 platforms = ["linux", "macos"]
 title = "Herdr Logbook"
-placement = "overlay"
+placement = "split"
 command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-logbook\" tui"]
 
 [[panes]]
