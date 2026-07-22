@@ -1,0 +1,29 @@
+version = 1
+
+[storage]
+project_mode = "central"
+repo_directory = ".herdr/memory"
+
+[project]
+root_strategy = "git"
+share_across_worktrees = true
+
+[editor]
+command = []
+
+[ui]
+theme = "auto"
+preview_style = "auto"
+show_branch = true
+popup_width = "92%"
+popup_height = "86%"
+
+[search]
+max_index_file_bytes = 262144
+max_preview_file_bytes = 2097152
+follow_symlinks = false
+
+[capture]
+max_selection_bytes = 524288
+include_branch = true
+include_source_cwd = true

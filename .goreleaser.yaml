@@ -1,0 +1,26 @@
+version: 2
+project_name: herdr-memory
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: herdr-memory
+    main: ./cmd/herdr-memory
+    binary: herdr-memory
+    ldflags: -s -w -X main.version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+checksum:
+  name_template: checksums.txt
+changelog:
+  sort: asc
+release:
+  draft: true

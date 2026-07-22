@@ -1,0 +1,88 @@
+id = "herdr-memory"
+name = "Herdr Memory"
+version = "0.0.1"
+min_herdr_version = "0.7.0"
+description = "Project-aware, local Markdown working memory for Herdr."
+platforms = ["linux", "macos", "windows"]
+
+[[build]]
+platforms = ["linux", "macos"]
+command = ["bash", "scripts/install.sh"]
+
+[[build]]
+platforms = ["windows"]
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/install.ps1"]
+
+[[actions]]
+id = "open"
+platforms = ["linux", "macos"]
+title = "Open Memory Hub"
+description = "Open project memory, preview notes, and search all registered projects."
+contexts = ["workspace"]
+command = ["bash", "scripts/open.sh", "hub"]
+
+[[actions]]
+id = "capture"
+platforms = ["linux", "macos"]
+title = "Capture project memory"
+description = "Append a note to the active project's monthly inbox."
+contexts = ["workspace"]
+command = ["bash", "scripts/open.sh", "capture"]
+
+[[actions]]
+id = "open-windows"
+platforms = ["windows"]
+title = "Open Memory Hub"
+description = "Open project memory, preview notes, and search all registered projects."
+contexts = ["workspace"]
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/open.ps1", "hub-windows"]
+
+[[actions]]
+id = "capture-windows"
+platforms = ["windows"]
+title = "Capture project memory"
+description = "Append a note to the active project's monthly inbox."
+contexts = ["workspace"]
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/open.ps1", "capture-windows"]
+
+[[panes]]
+id = "hub"
+platforms = ["linux", "macos"]
+title = "Herdr Memory"
+placement = "overlay"
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-memory\" tui"]
+
+[[panes]]
+id = "capture"
+platforms = ["linux", "macos"]
+title = "Capture Memory"
+placement = "overlay"
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-memory\" capture"]
+
+[[panes]]
+id = "compatibility"
+platforms = ["linux", "macos"]
+title = "Herdr Memory Diagnostics"
+placement = "overlay"
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-memory\" compatibility --wait"]
+
+[[panes]]
+id = "hub-windows"
+platforms = ["windows"]
+title = "Herdr Memory"
+placement = "overlay"
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-memory.exe') tui"]
+
+[[panes]]
+id = "capture-windows"
+platforms = ["windows"]
+title = "Capture Memory"
+placement = "overlay"
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-memory.exe') capture"]
+
+[[panes]]
+id = "compatibility-windows"
+platforms = ["windows"]
+title = "Herdr Memory Diagnostics"
+placement = "overlay"
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-memory.exe') compatibility --wait"]

@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test ./...
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+      - run: staticcheck ./...
+      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+      - run: govulncheck ./...
+      - run: go build -ldflags "-X main.version=ci" -o herdr-memory${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/herdr-memory
+      - if: runner.os != 'Windows'
+        run: bash -n scripts/open.sh scripts/install.sh
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $allErrors = @()
+          foreach ($script in @('scripts/open.ps1', 'scripts/install.ps1')) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script), [ref]$tokens, [ref]$parseErrors) | Out-Null
+            $allErrors += $parseErrors
+          }
+          if ($allErrors.Count -gt 0) { $allErrors | Write-Error; exit 1 }
