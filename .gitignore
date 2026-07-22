@@ -1,1 +1,21 @@
+# Build, test, and release output
 /bin/
+/dist/
+/herdr-logbook
+/herdr-logbook.exe
+*.test
+coverage.out
+
+# Local workspace and tool state
+/.claude/
+/.code-review-graph/
+/.tokensave/
+go.work
+go.work.sum
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
