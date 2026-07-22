@@ -1,4 +1,4 @@
-# Herdr Memory Read-only Hub Implementation Plan
+# Herdr Logbook Read-only Hub Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 

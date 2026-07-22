@@ -49,7 +49,7 @@ func TestRunCompatibilityRejectsMalformedContext(t *testing.T) {
 
 func TestRunVersionAndInvalidCommand(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if code := run([]string{"version"}, func(string) string { return "" }, strings.NewReader(""), &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "herdr-memory dev") {
+	if code := run([]string{"version"}, func(string) string { return "" }, strings.NewReader(""), &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "herdr-logbook dev") {
 		t.Fatalf("version code = %d, stdout = %q", code, stdout.String())
 	}
 	stdout.Reset()
@@ -119,10 +119,10 @@ func TestRunInitRepoPrintsIgnoreGuidance(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("init repo code = %d, stderr = %q", code, stderr.String())
 	}
-	if _, err := os.Stat(filepath.Join(repo, ".herdr", "memory", "now.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(repo, ".herdr", "logbook", "now.md")); err != nil {
 		t.Fatalf("repo now.md missing: %v", err)
 	}
-	if !strings.Contains(stdout.String(), ".herdr/memory/") || !strings.Contains(stdout.String(), "may be committed") {
+	if !strings.Contains(stdout.String(), ".herdr/logbook/") || !strings.Contains(stdout.String(), "may be committed") {
 		t.Fatalf("repo init output = %q", stdout.String())
 	}
 	if _, err := os.Stat(filepath.Join(repo, ".gitignore")); !os.IsNotExist(err) {
@@ -142,7 +142,7 @@ func TestRunInitRepoGuidanceUsesConfiguredDirectory(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("init repo code = %d, stderr = %q", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "private-memory/") || strings.Contains(stdout.String(), ".herdr/memory/") {
+	if !strings.Contains(stdout.String(), "private-memory/") || strings.Contains(stdout.String(), ".herdr/logbook/") {
 		t.Fatalf("repo init output = %q", stdout.String())
 	}
 }
@@ -169,11 +169,18 @@ func TestRunDoctorJSONRedactsSelectionAndRemoteCredentials(t *testing.T) {
 	repo := t.TempDir()
 	gitCommand(t, repo, "init")
 	gitCommand(t, repo, "remote", "add", "origin", "https://user:secret@GitHub.COM/Org/Repo.git?token=secret")
+	contextJSON, err := json.Marshal(map[string]string{
+		"focused_pane_cwd": repo,
+		"selected_text":    "private terminal output",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	env := map[string]string{
 		"HERDR_PLUGIN_STATE_DIR":    t.TempDir(),
 		"HERDR_PLUGIN_CONFIG_DIR":   t.TempDir(),
 		"HERDR_BIN_PATH":            filepath.Join(t.TempDir(), "missing-herdr"),
-		"HERDR_PLUGIN_CONTEXT_JSON": `{"focused_pane_cwd":"` + repo + `","selected_text":"private terminal output"}`,
+		"HERDR_PLUGIN_CONTEXT_JSON": string(contextJSON),
 	}
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"doctor", "--json", "--project-root", repo}, func(key string) string { return env[key] }, strings.NewReader(""), &stdout, &stderr)
@@ -261,9 +268,16 @@ func TestRunCaptureGlobalReadsStdin(t *testing.T) {
 func TestRunCaptureSelectedUsesRedactedContextOnlyForCapture(t *testing.T) {
 	repo := t.TempDir()
 	stateDir := t.TempDir()
+	contextJSON, err := json.Marshal(map[string]string{
+		"focused_pane_cwd": repo,
+		"selected_text":    "line one\n```\nline two",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	env := map[string]string{
 		"HERDR_PLUGIN_STATE_DIR": stateDir, "HERDR_PLUGIN_CONFIG_DIR": t.TempDir(),
-		"HERDR_PLUGIN_CONTEXT_JSON": "{\"focused_pane_cwd\":\"" + repo + "\",\"selected_text\":\"line one\\n```\\nline two\"}",
+		"HERDR_PLUGIN_CONTEXT_JSON": string(contextJSON),
 	}
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"capture", "--selected", "--project-root", repo}, func(key string) string { return env[key] }, strings.NewReader(""), &stdout, &stderr)

@@ -172,7 +172,7 @@ func findGitRoot(start string) string {
 }
 
 func loadOverride(gitRoot string) (overrideConfig, error) {
-	path := filepath.Join(gitRoot, ".herdr-memory.toml")
+	path := filepath.Join(gitRoot, ".herdr-logbook.toml")
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return overrideConfig{}, nil

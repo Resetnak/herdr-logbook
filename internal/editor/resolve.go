@@ -15,7 +15,7 @@ func Resolve(configured []string, getenv func(string) string, goos string, lookP
 	if len(configured) > 0 {
 		return resolveCommand(configured, "config", lookPath)
 	}
-	for _, key := range []string{"HERDR_MEMORY_EDITOR", "VISUAL", "EDITOR"} {
+	for _, key := range []string{"HERDR_LOGBOOK_EDITOR", "VISUAL", "EDITOR"} {
 		if value := strings.TrimSpace(getenv(key)); value != "" {
 			command, err := parseCommand(value)
 			if err != nil {

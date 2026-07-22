@@ -1,4 +1,4 @@
-# Herdr Memory Core Domain Implementation Plan
+# Herdr Logbook Core Domain Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -88,8 +88,8 @@
 **Files:**
 - Create: `internal/editor/resolve_test.go`
 - Create: `internal/editor/resolve.go`
-- Modify: `cmd/herdr-memory/main_test.go`
-- Modify: `cmd/herdr-memory/main.go`
+- Modify: `cmd/herdr-logbook/main_test.go`
+- Modify: `cmd/herdr-logbook/main.go`
 - Modify: `README.md`
 - Modify: `docs/herdr-compatibility.md`
 

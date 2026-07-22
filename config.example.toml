@@ -2,7 +2,7 @@ version = 1
 
 [storage]
 project_mode = "central"
-repo_directory = ".herdr/memory"
+repo_directory = ".herdr/logbook"
 
 [project]
 root_strategy = "git"

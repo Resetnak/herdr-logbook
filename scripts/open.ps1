@@ -6,11 +6,11 @@ $PluginRoot = $env:HERDR_PLUGIN_ROOT
 if (-not $PluginRoot) { throw 'HERDR_PLUGIN_ROOT is required' }
 if ($PluginRoot.StartsWith('\\?\')) { $PluginRoot = $PluginRoot.Substring(4) }
 
-$MemoryBin = Join-Path $PluginRoot 'bin\herdr-memory.exe'
-$Cwd = (& $MemoryBin resolve-cwd | Select-Object -First 1)
+$LogbookBin = Join-Path $PluginRoot 'bin\herdr-logbook.exe'
+$Cwd = (& $LogbookBin resolve-cwd | Select-Object -First 1)
 $Arguments = @(
     'plugin', 'pane', 'open',
-    '--plugin', 'herdr-memory',
+    '--plugin', 'herdr-logbook',
     '--entrypoint', $Entrypoint,
     '--placement', 'overlay',
     '--focus'

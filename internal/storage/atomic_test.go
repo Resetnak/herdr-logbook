@@ -3,6 +3,7 @@ package storage
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -23,8 +24,11 @@ func TestAtomicWriteReplacesContentAndPreservesPermissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(data) != "new" || info.Mode().Perm() != 0o600 {
-		t.Fatalf("AtomicWrite() data = %q mode = %o", data, info.Mode().Perm())
+	if string(data) != "new" {
+		t.Fatalf("AtomicWrite() data = %q", data)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("AtomicWrite() mode = %o", info.Mode().Perm())
 	}
 }
 

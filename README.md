@@ -1,6 +1,6 @@
-# Herdr Memory
+# Herdr Logbook
 
-Herdr Memory is a local, Markdown-first working logbook for developers using Herdr. It keeps the active task, quick captures, technical decisions, and project notes close to the terminal without introducing a proprietary document format.
+Herdr Logbook is a local, Markdown-first working logbook for developers using Herdr. It keeps the active task, quick captures, technical decisions, and project notes close to the terminal without introducing a proprietary document format.
 
 The core loop is intentionally small: open the Hub for the active repository, capture context before it disappears, preview Markdown, search registered projects, and continue full editing in your normal editor.
 
@@ -26,41 +26,54 @@ The core loop is intentionally small: open the Hub for the active repository, ca
 
 The Hub uses Bubble Tea and adapts from three panes at 110 columns to one active pane below 70 columns. Markdown preview is rendered in process with Glamour; an external `glow` binary is not required.
 
-## Installation status
+## Installation
 
-Release packaging is configured for Linux, macOS, and Windows on amd64 and arm64. The install scripts download the exact manifest version and verify `checksums.txt`. A public `v0.1.0` release must not be claimed until the manual compatibility matrix in [docs/herdr-compatibility.md](docs/herdr-compatibility.md) is complete.
+Herdr Logbook currently installs from source. You need Herdr 0.7.0 or newer, Git, and Go 1.24.2 or newer.
 
-For local development:
+### macOS, Linux, and WSL
 
 ```bash
-go test ./...
-go build -o bin/herdr-memory ./cmd/herdr-memory
+git clone https://github.com/Resetnak/herdr-logbook.git
+cd herdr-logbook
+mkdir -p bin
+go build -o bin/herdr-logbook ./cmd/herdr-logbook
 herdr plugin link "$(pwd)" --enabled
-herdr plugin action invoke open --plugin herdr-memory
+herdr plugin action invoke open --plugin herdr-logbook
 ```
 
-On Windows PowerShell:
+### Windows PowerShell
 
 ```powershell
-go test ./...
-go build -o bin\herdr-memory.exe .\cmd\herdr-memory
-herdr plugin link (Get-Location)
+git clone https://github.com/Resetnak/herdr-logbook.git
+Set-Location herdr-logbook
+New-Item -ItemType Directory -Force bin | Out-Null
+go build -o bin\herdr-logbook.exe .\cmd\herdr-logbook
+herdr plugin link (Get-Location) --enabled
+herdr plugin action invoke open-windows --plugin herdr-logbook
 ```
 
 `herdr plugin link` does not run build commands. Build the binary first.
 
+After a tagged release is published, Herdr can install it directly:
+
+```bash
+herdr plugin install Resetnak/herdr-logbook --ref vX.Y.Z -y
+```
+
+Release packaging is configured for Linux, macOS, and Windows on amd64 and arm64. The installers download the exact manifest version and verify `checksums.txt`. A public `v0.1.0` release must not be claimed until the manual compatibility matrix in [docs/herdr-compatibility.md](docs/herdr-compatibility.md) is complete.
+
 ## Commands
 
 ```text
-herdr-memory tui --view now|project|global|all [--project-root PATH]
-herdr-memory capture --scope project|global [--text TEXT | --stdin | --selected]
-herdr-memory decision [--title TEXT] [--project-root PATH]
-herdr-memory init --storage central|repo [--project-root PATH]
-herdr-memory doctor [--json] [--project-root PATH]
-herdr-memory keybinds
-herdr-memory paths [--json] [--project-root PATH]
-herdr-memory index rebuild [--project-root PATH]
-herdr-memory version
+herdr-logbook tui --view now|project|global|all [--project-root PATH]
+herdr-logbook capture --scope project|global [--text TEXT | --stdin | --selected]
+herdr-logbook decision [--title TEXT] [--project-root PATH]
+herdr-logbook init --storage central|repo [--project-root PATH]
+herdr-logbook doctor [--json] [--project-root PATH]
+herdr-logbook keybinds
+herdr-logbook paths [--json] [--project-root PATH]
+herdr-logbook index rebuild [--project-root PATH]
+herdr-logbook version
 ```
 
 Without a capture source, `capture` opens the textarea UI. Without `--title`, `decision` prompts for a title. Decision creation opens the configured external editor unless `--no-edit` is used for automation.
@@ -77,9 +90,9 @@ $HERDR_PLUGIN_STATE_DIR/
 └── cache/index-v1.json
 ```
 
-`init --storage repo` explicitly opts into `.herdr/memory/` and prints a suggested ignore rule; it never edits `.gitignore`. Initialization preserves every existing non-empty scaffold file. Cache files are disposable and rebuild from Markdown with `index rebuild`.
+`init --storage repo` explicitly opts into `.herdr/logbook/` and prints a suggested ignore rule; it never edits `.gitignore`. Initialization preserves every existing non-empty scaffold file. Cache files are disposable and rebuild from Markdown with `index rebuild`.
 
-Context priority is explicit `--project-root`, Herdr worktree path, focused pane cwd, workspace cwd, `--cwd`, then process cwd. Git worktrees share identity through a credential-free remote fingerprint or Git common directory. Non-Git projects use the canonical path. `.herdr-memory.toml` may select a monorepo subproject but cannot escape the repository through traversal or symlinks.
+Context priority is explicit `--project-root`, Herdr worktree path, focused pane cwd, workspace cwd, `--cwd`, then process cwd. Git worktrees share identity through a credential-free remote fingerprint or Git common directory. Non-Git projects use the canonical path. `.herdr-logbook.toml` may select a monorepo subproject but cannot escape the repository through traversal or symlinks.
 
 ## Configuration
 
@@ -95,7 +108,7 @@ The index reads only Markdown under known memory roots, skips hidden directories
 
 ## Limits and roadmap
 
-Herdr Memory is not a general knowledge-management system, collaboration service, sync engine, browser UI, or custom text editor. Archive/trash, saved searches, templates, backlinks, and optional external Glow integration are deferred until the core workflow has real usage evidence. AI, cloud sync, and graph visualization are explicit non-goals.
+Herdr Logbook is not a general knowledge-management system, collaboration service, sync engine, browser UI, or custom text editor. Archive/trash, saved searches, templates, backlinks, and optional external Glow integration are deferred until the core workflow has real usage evidence. AI, cloud sync, and graph visualization are explicit non-goals.
 
 Screenshots or a terminal recording will be added only after the real-host release matrix passes. See [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
 

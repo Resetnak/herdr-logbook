@@ -11,9 +11,9 @@ switch ($Architecture) {
     'arm64' { $Arch = 'arm64' }
     default { throw "Unsupported architecture: $Architecture" }
 }
-$Asset = "herdr-memory_${Version}_windows_${Arch}.zip"
+$Asset = "herdr-logbook_${Version}_windows_${Arch}.zip"
 $BaseUrl = "https://github.com/Resetnak/herdr-logbook/releases/download/v${Version}"
-$Temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("herdr-memory-" + [guid]::NewGuid())
+$Temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("herdr-logbook-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $Temporary | Out-Null
 try {
     $Archive = Join-Path $Temporary $Asset

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Phase 0 proves the Herdr 0.7 plugin boundary before product features are built. The repository remains `herdr-logbook`; the product name and plugin ID remain `Herdr Memory` and `herdr-memory` as specified in `HERDR_MEMORY_AGENT_BRIEF.md`.
+Phase 0 proves the Herdr 0.7 plugin boundary before product features are built. The repository remains `herdr-logbook`; the product name and plugin ID remain `Herdr Logbook` and `herdr-logbook` as specified in `HERDR_LOGBOOK_AGENT_BRIEF.md`.
 
 ## Design
 

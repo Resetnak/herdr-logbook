@@ -20,7 +20,7 @@ jobs:
       - run: staticcheck ./...
       - run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
       - run: govulncheck ./...
-      - run: go build -ldflags "-X main.version=ci" -o herdr-memory${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/herdr-memory
+      - run: go build -ldflags "-X main.version=ci" -o herdr-logbook${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/herdr-logbook
       - if: runner.os != 'Windows'
         run: bash -n scripts/open.sh scripts/install.sh
       - if: runner.os == 'Windows'

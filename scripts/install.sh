@@ -14,7 +14,7 @@ case "$(uname -m)" in
   *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
-asset="herdr-memory_${version}_${os}_${arch}.tar.gz"
+asset="herdr-logbook_${version}_${os}_${arch}.tar.gz"
 base_url="https://github.com/Resetnak/herdr-logbook/releases/download/v${version}"
 temporary="$(mktemp -d)"
 trap 'rm -rf "$temporary"' EXIT
@@ -35,5 +35,5 @@ if [ "$actual" != "$expected" ]; then
   exit 1
 fi
 mkdir -p "$plugin_root/bin"
-tar -xzf "$temporary/$asset" -C "$plugin_root/bin" herdr-memory
-chmod 0755 "$plugin_root/bin/herdr-memory"
+tar -xzf "$temporary/$asset" -C "$plugin_root/bin" herdr-logbook
+chmod 0755 "$plugin_root/bin/herdr-logbook"

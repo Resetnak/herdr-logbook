@@ -15,7 +15,7 @@ func TestLoadMissingFileReturnsDefaults(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatalf("Load() warnings = %v", warnings)
 	}
-	if got.Version != 1 || got.Storage.ProjectMode != "central" || got.Storage.RepoDirectory != ".herdr/memory" {
+	if got.Version != 1 || got.Storage.ProjectMode != "central" || got.Storage.RepoDirectory != ".herdr/logbook" {
 		t.Fatalf("Load() = %#v", got)
 	}
 	if got.Search.MaxIndexFileBytes != 262144 || got.Capture.MaxSelectionBytes != 524288 {
@@ -34,7 +34,7 @@ func TestLoadOverridesDefaultsAndWarnsUnknownKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if got.Storage.ProjectMode != "repo" || got.Storage.RepoDirectory != ".herdr/memory" {
+	if got.Storage.ProjectMode != "repo" || got.Storage.RepoDirectory != ".herdr/logbook" {
 		t.Fatalf("Load() storage = %#v", got.Storage)
 	}
 	if len(got.Editor.Command) != 2 || got.Editor.Command[0] != "nvim" {

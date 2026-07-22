@@ -102,7 +102,7 @@ func run(args []string, getenv func(string) string, stdin io.Reader, stdout, std
 			printUsage(stderr)
 			return 2
 		}
-		fmt.Fprintf(stdout, "herdr-memory %s\n", version)
+		fmt.Fprintf(stdout, "herdr-logbook %s\n", version)
 		return 0
 	case "resolve-cwd":
 		if len(args) != 1 {
@@ -165,7 +165,7 @@ Actions:
 
 func runIndex(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] != "rebuild" {
-		fmt.Fprintln(stderr, "usage: herdr-memory index rebuild [--project-root PATH]")
+		fmt.Fprintln(stderr, "usage: herdr-logbook index rebuild [--project-root PATH]")
 		return 2
 	}
 	flags := flag.NewFlagSet("index rebuild", flag.ContinueOnError)
@@ -608,7 +608,7 @@ func appendCapture(state coreState, content string, global, selection bool, bran
 
 func runCompatibility(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 || (len(args) == 1 && args[0] != "--wait") {
-		fmt.Fprintln(stderr, "usage: herdr-memory compatibility [--wait]")
+		fmt.Fprintln(stderr, "usage: herdr-logbook compatibility [--wait]")
 		return 2
 	}
 	ctx, err := herdr.ReadContext(getenv)
@@ -765,7 +765,7 @@ func runDoctor(args []string, getenv func(string) string, stdout, stderr io.Writ
 		}
 		return 0
 	}
-	fmt.Fprintf(stdout, "Herdr Memory %s · %s/%s\nproject: %s (%s)\nstore: %s [%s]\neditor: %s\ncache: %s\n", report.PluginVersion, report.OS, report.Architecture, report.Project.Name, report.Project.ID, report.StorePath, report.StorageMode, strings.Join(report.Editor.Command, " "), report.CacheState)
+	fmt.Fprintf(stdout, "Herdr Logbook %s · %s/%s\nproject: %s (%s)\nstore: %s [%s]\neditor: %s\ncache: %s\n", report.PluginVersion, report.OS, report.Architecture, report.Project.Name, report.Project.ID, report.StorePath, report.StorageMode, strings.Join(report.Editor.Command, " "), report.CacheState)
 	for _, warning := range report.Warnings {
 		fmt.Fprintf(stdout, "warning: %s\n", warning)
 	}
@@ -873,5 +873,5 @@ func waitForClose(reader io.Reader, timeout time.Duration) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, "usage: herdr-memory tui | compatibility [--wait] | capture | init | paths | doctor [--json] | resolve-cwd | version")
+	fmt.Fprintln(writer, "usage: herdr-logbook tui | compatibility [--wait] | capture | init | paths | doctor [--json] | resolve-cwd | version")
 }

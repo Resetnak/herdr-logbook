@@ -84,7 +84,7 @@ func TestResolveWorktreesShareIdentityWithoutRemote(t *testing.T) {
 
 func TestResolveRejectsOverrideEscapingRepository(t *testing.T) {
 	repo := newGitRepo(t, "repo")
-	if err := os.WriteFile(filepath.Join(repo, ".herdr-memory.toml"), []byte("root = \"../outside\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, ".herdr-logbook.toml"), []byte("root = \"../outside\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Resolve(ResolveOptions{CWD: repo}); err == nil || !strings.Contains(err.Error(), "escapes") {
@@ -98,7 +98,7 @@ func TestResolveRejectsOverrideSymlinkEscapingRepository(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(repo, "linked")); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(repo, ".herdr-memory.toml"), []byte("root = \"linked\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, ".herdr-logbook.toml"), []byte("root = \"linked\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Resolve(ResolveOptions{CWD: repo}); err == nil || !strings.Contains(err.Error(), "escapes") {

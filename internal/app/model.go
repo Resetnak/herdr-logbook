@@ -350,7 +350,7 @@ func (m HubModel) View() string {
 		return m.captureView()
 	}
 	if m.help {
-		return pane("Herdr Memory\n\nTab/Shift+Tab or h/l: move panels\nj/k or arrows: move\ng/G: first/last\nEnter/v: preview\n/: search notes · p: find project\nc/C: project/global capture\nn/d: note/decision · e: edit\nr: refresh\nq: quit\n?: close help", max(30, m.width), max(3, m.height-2))
+		return pane("Herdr Logbook\n\nTab/Shift+Tab or h/l: move panels\nj/k or arrows: move\ng/G: first/last\nEnter/v: preview\n/: search notes · p: find project\nc/C: project/global capture\nn/d: note/decision · e: edit\nr: refresh\nq: quit\n?: close help", max(30, m.width), max(3, m.height-2))
 	}
 
 	availableHeight := max(3, m.height-2)

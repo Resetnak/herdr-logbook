@@ -1,4 +1,4 @@
-# Herdr Memory Capture Workflows Implementation Plan
+# Herdr Logbook Capture Workflows Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -40,8 +40,8 @@
 **Files:**
 - Modify: `internal/herdr/context.go`
 - Modify: `internal/herdr/context_test.go`
-- Modify: `cmd/herdr-memory/main.go`
-- Modify: `cmd/herdr-memory/main_test.go`
+- Modify: `cmd/herdr-logbook/main.go`
+- Modify: `cmd/herdr-logbook/main_test.go`
 - Modify: `README.md`
 
 - [x] Write failing tests for `--text`, `--stdin`, `--selected`, project/global scope, byte limits, and argument conflicts.

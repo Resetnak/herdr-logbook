@@ -1,10 +1,10 @@
-# Herdr Memory — Complete Implementation Brief for AI Agent
+# Herdr Logbook — Complete Implementation Brief for AI Agent
 
 ## Mission
 
-Build a production-ready Herdr plugin called **Herdr Memory**.
+Build a production-ready Herdr plugin called **Herdr Logbook**.
 
-Herdr Memory is a local, Markdown-first **working memory for developers inside Herdr**. It should automatically understand the active project, make it extremely cheap to capture context, help users resume work, and provide one place to search notes across all projects.
+Herdr Logbook is a local, Markdown-first **working memory for developers inside Herdr**. It should automatically understand the active project, make it extremely cheap to capture context, help users resume work, and provide one place to search notes across all projects.
 
 The product is **not** a general-purpose knowledge-management system, an Obsidian clone, an AI second brain, or a custom text editor.
 
@@ -15,13 +15,13 @@ Core promise:
 Repository name:
 
 ```text
-herdr-memory
+herdr-logbook
 ```
 
 Initial plugin ID:
 
 ```text
-herdr-memory
+herdr-logbook
 ```
 
 Target:
@@ -190,7 +190,7 @@ Use:
 Editor resolution order:
 
 1. `editor.command` from plugin config;
-2. `HERDR_MEMORY_EDITOR`;
+2. `HERDR_LOGBOOK_EDITOR`;
 3. `VISUAL`;
 4. `EDITOR`;
 5. platform defaults.
@@ -228,14 +228,14 @@ Do not invoke configured editors through an unsafe shell string.
 Use a structure close to:
 
 ```text
-herdr-memory/
+herdr-logbook/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml
 │       ├── release.yml
 │       └── smoke.yml
 ├── cmd/
-│   └── herdr-memory/
+│   └── herdr-logbook/
 │       └── main.go
 ├── internal/
 │   ├── app/
@@ -355,13 +355,13 @@ $HERDR_PLUGIN_STATE_DIR/
 Allow explicit initialization:
 
 ```bash
-herdr-memory init --storage repo
+herdr-logbook init --storage repo
 ```
 
 Repository-local layout:
 
 ```text
-<project-root>/.herdr/memory/
+<project-root>/.herdr/logbook/
 ├── now.md
 ├── inbox/
 │   └── 2026-07.md
@@ -379,7 +379,7 @@ Rules:
 Recommended ignore entry:
 
 ```text
-.herdr/memory/
+.herdr/logbook/
 ```
 
 ## 5.3 Monthly inbox files
@@ -548,7 +548,7 @@ Default to Git root.
 Support an optional override file:
 
 ```text
-.herdr-memory.toml
+.herdr-logbook.toml
 ```
 
 Example:
@@ -686,7 +686,7 @@ Do not assume universal default keys.
 Provide:
 
 ```bash
-herdr-memory keybinds
+herdr-logbook keybinds
 ```
 
 It should print platform-correct TOML examples.
@@ -697,7 +697,7 @@ Example:
 [[keys.command]]
 key = "prefix+m"
 type = "plugin_action"
-command = "herdr-memory.open"
+command = "herdr-logbook.open"
 description = "open project memory"
 ```
 
@@ -708,21 +708,21 @@ description = "open project memory"
 Implement:
 
 ```text
-herdr-memory tui
-herdr-memory capture
-herdr-memory decision
-herdr-memory init
-herdr-memory doctor
-herdr-memory keybinds
-herdr-memory paths
-herdr-memory index rebuild
-herdr-memory version
+herdr-logbook tui
+herdr-logbook capture
+herdr-logbook decision
+herdr-logbook init
+herdr-logbook doctor
+herdr-logbook keybinds
+herdr-logbook paths
+herdr-logbook index rebuild
+herdr-logbook version
 ```
 
 ## 8.1 `tui`
 
 ```text
-herdr-memory tui
+herdr-logbook tui
   --view now|project|global|all
   --project-root PATH
   --context-json JSON
@@ -731,7 +731,7 @@ herdr-memory tui
 ## 8.2 `capture`
 
 ```text
-herdr-memory capture
+herdr-logbook capture
   --scope project|global
   --text TEXT
   --stdin
@@ -746,7 +746,7 @@ When neither `--text` nor `--stdin` is provided, open the capture TUI.
 ## 8.3 `decision`
 
 ```text
-herdr-memory decision
+herdr-logbook decision
   --title TEXT
   --project-root PATH
 ```
@@ -756,7 +756,7 @@ Without a title, open the decision form.
 ## 8.4 `init`
 
 ```text
-herdr-memory init
+herdr-logbook init
   --storage central|repo
   --project-root PATH
 ```
@@ -789,7 +789,7 @@ Display:
 Support:
 
 ```bash
-herdr-memory doctor --json
+herdr-logbook doctor --json
 ```
 
 Never include selected terminal content or credentials.
@@ -874,7 +874,7 @@ Use bounded lock timeouts.
 
 ---
 
-# 10. Memory Hub TUI
+# 10. Logbook Hub TUI
 
 ## 10.1 Wide layout
 
@@ -1135,7 +1135,7 @@ version = 1
 
 [storage]
 project_mode = "central"
-repo_directory = ".herdr/memory"
+repo_directory = ".herdr/logbook"
 
 [project]
 root_strategy = "git"
@@ -1192,12 +1192,12 @@ windows_arm64
 Release assets:
 
 ```text
-herdr-memory_<version>_linux_amd64.tar.gz
-herdr-memory_<version>_linux_arm64.tar.gz
-herdr-memory_<version>_darwin_amd64.tar.gz
-herdr-memory_<version>_darwin_arm64.tar.gz
-herdr-memory_<version>_windows_amd64.zip
-herdr-memory_<version>_windows_arm64.zip
+herdr-logbook_<version>_linux_amd64.tar.gz
+herdr-logbook_<version>_linux_arm64.tar.gz
+herdr-logbook_<version>_darwin_amd64.tar.gz
+herdr-logbook_<version>_darwin_arm64.tar.gz
+herdr-logbook_<version>_windows_amd64.zip
+herdr-logbook_<version>_windows_arm64.zip
 checksums.txt
 ```
 
@@ -1246,14 +1246,14 @@ Do not download an unpinned `latest` binary.
 Unix:
 
 ```bash
-go build -o bin/herdr-memory ./cmd/herdr-memory
+go build -o bin/herdr-logbook ./cmd/herdr-logbook
 herdr plugin link "$(pwd)"
 ```
 
 Windows:
 
 ```powershell
-go build -o bin\herdr-memory.exe .\cmd\herdr-memory
+go build -o bin\herdr-logbook.exe .\cmd\herdr-logbook
 herdr plugin link (Get-Location)
 ```
 

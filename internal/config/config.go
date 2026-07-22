@@ -58,7 +58,7 @@ type CaptureConfig struct {
 func Default() Config {
 	return Config{
 		Version: 1,
-		Storage: StorageConfig{ProjectMode: "central", RepoDirectory: ".herdr/memory"},
+		Storage: StorageConfig{ProjectMode: "central", RepoDirectory: ".herdr/logbook"},
 		Project: ProjectConfig{RootStrategy: "git", ShareAcrossWorktrees: true},
 		Editor:  EditorConfig{Command: []string{}},
 		UI: UIConfig{

@@ -1,12 +1,12 @@
 version: 2
-project_name: herdr-memory
+project_name: herdr-logbook
 before:
   hooks:
     - go mod tidy
 builds:
-  - id: herdr-memory
-    main: ./cmd/herdr-memory
-    binary: herdr-memory
+  - id: herdr-logbook
+    main: ./cmd/herdr-logbook
+    binary: herdr-logbook
     ldflags: -s -w -X main.version={{.Version}}
     env:
       - CGO_ENABLED=0

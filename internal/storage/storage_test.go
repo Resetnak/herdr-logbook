@@ -39,7 +39,7 @@ func TestResolveRepoStorageRequiresExplicitModeAndStaysInsideRoot(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if layout.Root != filepath.Join(repo, ".herdr", "memory") || layout.Mode != "repo" {
+	if layout.Root != filepath.Join(repo, ".herdr", "logbook") || layout.Mode != "repo" {
 		t.Fatalf("Resolve() = %#v", layout)
 	}
 	cfg.Storage.RepoDirectory = "../outside"

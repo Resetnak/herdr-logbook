@@ -18,7 +18,7 @@ func TestResolveUsesConfiguredArgvBeforeEnvironment(t *testing.T) {
 
 func TestResolveEnvironmentPrecedenceAndArguments(t *testing.T) {
 	env := map[string]string{
-		"HERDR_MEMORY_EDITOR": `code --wait "folder with spaces"`,
+		"HERDR_LOGBOOK_EDITOR": `code --wait "folder with spaces"`,
 		"VISUAL":              "vim",
 		"EDITOR":              "nano",
 	}
@@ -27,7 +27,7 @@ func TestResolveEnvironmentPrecedenceAndArguments(t *testing.T) {
 		t.Fatalf("Resolve() error = %v", err)
 	}
 	want := []string{"/bin/code", "--wait", "folder with spaces"}
-	if !reflect.DeepEqual(got.Command, want) || got.Source != "HERDR_MEMORY_EDITOR" {
+	if !reflect.DeepEqual(got.Command, want) || got.Source != "HERDR_LOGBOOK_EDITOR" {
 		t.Fatalf("Resolve() = %#v, want %#v", got, want)
 	}
 }

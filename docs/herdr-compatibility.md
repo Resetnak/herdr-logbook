@@ -8,13 +8,13 @@ This document records observed Herdr behavior for the Phase 0 compatibility spik
 - Herdr: 0.7.5
 - Host: macOS Apple Silicon (`darwin/arm64`)
 - Plugin API: manifest accepted with `min_herdr_version = "0.7.0"`
-- Plugin root with spaces and Unicode: verified using `/private/tmp/herdr-memory žluťoučký.<suffix>`
+- Plugin root with spaces and Unicode: verified using `/private/tmp/herdr-logbook žluťoučký.<suffix>`
 
 The accepted popup command is:
 
 ```text
 herdr plugin pane open \
-  --plugin herdr-memory \
+  --plugin herdr-logbook \
   --entrypoint compatibility \
   --placement overlay \
   --focus \
@@ -53,9 +53,9 @@ The Windows manifest entry uses PowerShell as the pane executable and invokes th
 ## Reproduction
 
 ```bash
-go build -o bin/herdr-memory ./cmd/herdr-memory
+go build -o bin/herdr-logbook ./cmd/herdr-logbook
 herdr plugin link "$(pwd)" --enabled
-herdr plugin action invoke open --plugin herdr-memory
+herdr plugin action invoke open --plugin herdr-logbook
 herdr plugin log list
 herdr pane list
 ```

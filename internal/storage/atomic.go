@@ -16,7 +16,7 @@ func AtomicWrite(path string, data []byte, perm fs.FileMode) error {
 		perm = info.Mode().Perm()
 	}
 
-	temp, err := os.CreateTemp(dir, ".herdr-memory-*")
+	temp, err := os.CreateTemp(dir, ".herdr-logbook-*")
 	if err != nil {
 		return fmt.Errorf("create temporary file for %q: %w", path, err)
 	}

@@ -1,6 +1,6 @@
 # Contributing
 
-Use Go from `go.mod`, keep behavior offline, and preserve Markdown as the source of truth. Changes should stay within the focused developer-memory scope described in `HERDR_MEMORY_AGENT_BRIEF.md`.
+Use Go from `go.mod`, keep behavior offline, and preserve Markdown as the source of truth. Changes should stay within the focused developer-memory scope described in `HERDR_LOGBOOK_AGENT_BRIEF.md`.
 
 Before opening a pull request, run:
 

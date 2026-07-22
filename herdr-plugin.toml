@@ -1,5 +1,5 @@
-id = "herdr-memory"
-name = "Herdr Memory"
+id = "herdr-logbook"
+name = "Herdr Logbook"
 version = "0.0.1"
 min_herdr_version = "0.7.0"
 description = "Project-aware, local Markdown working memory for Herdr."
@@ -16,7 +16,7 @@ command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "s
 [[actions]]
 id = "open"
 platforms = ["linux", "macos"]
-title = "Open Memory Hub"
+title = "Open Logbook Hub"
 description = "Open project memory, preview notes, and search all registered projects."
 contexts = ["workspace"]
 command = ["bash", "scripts/open.sh", "hub"]
@@ -32,7 +32,7 @@ command = ["bash", "scripts/open.sh", "capture"]
 [[actions]]
 id = "open-windows"
 platforms = ["windows"]
-title = "Open Memory Hub"
+title = "Open Logbook Hub"
 description = "Open project memory, preview notes, and search all registered projects."
 contexts = ["workspace"]
 command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/open.ps1", "hub-windows"]
@@ -48,41 +48,41 @@ command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "s
 [[panes]]
 id = "hub"
 platforms = ["linux", "macos"]
-title = "Herdr Memory"
+title = "Herdr Logbook"
 placement = "overlay"
-command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-memory\" tui"]
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-logbook\" tui"]
 
 [[panes]]
 id = "capture"
 platforms = ["linux", "macos"]
-title = "Capture Memory"
+title = "Capture Logbook"
 placement = "overlay"
-command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-memory\" capture"]
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-logbook\" capture"]
 
 [[panes]]
 id = "compatibility"
 platforms = ["linux", "macos"]
-title = "Herdr Memory Diagnostics"
+title = "Herdr Logbook Diagnostics"
 placement = "overlay"
-command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-memory\" compatibility --wait"]
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-logbook\" compatibility --wait"]
 
 [[panes]]
 id = "hub-windows"
 platforms = ["windows"]
-title = "Herdr Memory"
+title = "Herdr Logbook"
 placement = "overlay"
-command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-memory.exe') tui"]
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-logbook.exe') tui"]
 
 [[panes]]
 id = "capture-windows"
 platforms = ["windows"]
-title = "Capture Memory"
+title = "Capture Logbook"
 placement = "overlay"
-command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-memory.exe') capture"]
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-logbook.exe') capture"]
 
 [[panes]]
 id = "compatibility-windows"
 platforms = ["windows"]
-title = "Herdr Memory Diagnostics"
+title = "Herdr Logbook Diagnostics"
 placement = "overlay"
-command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-memory.exe') compatibility --wait"]
+command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& (Join-Path $env:HERDR_PLUGIN_ROOT 'bin\\herdr-logbook.exe') compatibility --wait"]
