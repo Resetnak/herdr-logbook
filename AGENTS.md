@@ -4,7 +4,7 @@
 
 This repository contains Herdr Logbook (`herdr-logbook`), a local, offline, Markdown-first working-memory plugin for Herdr. Keep changes inside this product boundary. Do not add telemetry, cloud sync, AI APIs, automatic Git operations, SQLite, or execution of commands found in notes.
 
-`HERDR_LOGBOOK_AGENT_BRIEF.md` is the product source of truth. Treat `.tokensave/` and the brief itself as user-owned inputs unless a task explicitly asks to edit them.
+`README.md`, `config.example.toml`, and the behavior covered by tests are the current product contract. Treat `.tokensave/` as user-owned input unless a task explicitly asks to edit it.
 
 ## Structure
 
@@ -12,7 +12,7 @@ This repository contains Herdr Logbook (`herdr-logbook`), a local, offline, Mark
 - `internal/app/`: Bubble Tea Hub, capture modal, search, authoring, and editor flow.
 - `internal/project/`, `internal/storage/`, `internal/capture/`: project identity, safe paths, locks, and atomic Markdown writes.
 - `internal/index/`: disposable JSON search cache; Markdown remains canonical.
-- `internal/author/`, `internal/editor/`, `internal/markdown/`: note creation, safe argv editor resolution, and metadata parsing.
+- `internal/config/`, `internal/author/`, `internal/editor/`, `internal/markdown/`: validated configuration, note creation, safe argv editor resolution, and metadata parsing.
 - `scripts/` and `herdr-plugin.toml`: platform launchers and checksum-verifying installers.
 - `.github/workflows/`: CI and release packaging.
 

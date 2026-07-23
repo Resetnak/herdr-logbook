@@ -19,7 +19,7 @@ Keep the active task, quick captures, technical decisions, and project notes rig
 
 **English** · [Čeština](README.cs.md)
 
-[Installation](#installation) · [Commands](#commands) · [Storage](#storage-and-project-resolution) · [Configuration](#configuration) · [Privacy](#privacy-and-data-safety) · [Contributing](CONTRIBUTING.md)
+[Why](#why-im-building-this-plugin) · [Installation](#installation) · [Commands](#commands) · [Storage](#storage-and-project-resolution) · [Configuration](#configuration) · [Privacy](#privacy-and-data-safety) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -28,6 +28,10 @@ Keep the active task, quick captures, technical decisions, and project notes rig
 Herdr Logbook is a local, Markdown-first working logbook for developers using Herdr. It keeps the active task, quick captures, technical decisions, and project notes close to the terminal without introducing a proprietary document format.
 
 The core loop is intentionally small: open the Hub for the active repository, capture context before it disappears, preview Markdown, search registered projects, and continue full editing in your normal editor.
+
+## Why I’m building this plugin
+
+The useful context around a coding task often outlives the terminal session that produced it, but it does not need another cloud service or proprietary database. I’m building Herdr Logbook to keep that context one shortcut away inside Herdr: local, searchable, and stored as Markdown that remains useful without the plugin.
 
 ```text
 ┌ Scopes ─────────┬ Notes ─────────────────────┬ Preview ───────────────────────┐
@@ -131,7 +135,47 @@ Context priority is explicit `--project-root`, Herdr worktree path, focused pane
 
 ## Configuration
 
-Configuration is optional and read from `$HERDR_PLUGIN_CONFIG_DIR/config.toml`; see [config.example.toml](config.example.toml). Editor precedence is `tui --editor CMD`, `editor.command`, `$HERDR_LOGBOOK_EDITOR`, `$VISUAL`, `$EDITOR`, then platform defaults; `--editor` splits on spaces, so use `$HERDR_LOGBOOK_EDITOR` for paths containing spaces. Commands are executed as argv, never interpolated through a shell.
+Herdr and Herdr Logbook use separate configuration files.
+
+### Choose the editor
+
+Find the plugin configuration directory with `herdr plugin config-dir herdr-logbook`, then create or edit its `config.toml`:
+
+```toml
+[editor]
+command = ["nvim"]
+```
+
+Arguments are separate array items, for example `command = ["code", "--wait"]`. Editor precedence is `tui --editor CMD`, `editor.command`, `$HERDR_LOGBOOK_EDITOR`, `$VISUAL`, `$EDITOR`, then platform defaults. Commands are executed as argv, never interpolated through a shell.
+
+### Add a Herdr shortcut
+
+Add the plugin action to Herdr’s `~/.config/herdr/config.toml`:
+
+```toml
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "herdr-logbook.open"
+description = "Herdr Logbook"
+```
+
+Use `herdr-logbook.open-windows` on Windows. Validate and reload the file with:
+
+```bash
+herdr config check
+herdr server reload-config
+```
+
+`--editor` belongs to the Logbook binary, so it works for direct launches such as `herdr-logbook tui --editor nvim`. Do not append it to `herdr plugin action invoke`; Herdr does not forward action arguments. To override the editor for one Herdr shortcut, pass it to the pane as an environment value:
+
+```toml
+[[keys.command]]
+key = "prefix+m"
+type = "shell"
+command = "herdr plugin pane open --plugin herdr-logbook --entrypoint hub --placement split --direction right --focus --env HERDR_LOGBOOK_EDITOR=nvim"
+description = "Herdr Logbook"
+```
 
 Unknown configuration keys produce warnings. Invalid types and values fail explicitly. User configuration is not rewritten during compatible migrations.
 

@@ -19,7 +19,7 @@ Drží aktivní úkol, rychlé poznámky, technická rozhodnutí a projektové z
 
 [English](README.md) · **Čeština**
 
-[Instalace](#instalace) · [Příkazy](#příkazy) · [Úložiště](#úložiště-a-rozpoznání-projektu) · [Konfigurace](#konfigurace) · [Soukromí](#soukromí-a-bezpečnost-dat) · [Přispívání](CONTRIBUTING.md)
+[Proč](#proč-tenhle-plugin-dělám) · [Instalace](#instalace) · [Příkazy](#příkazy) · [Úložiště](#úložiště-a-rozpoznání-projektu) · [Konfigurace](#konfigurace) · [Soukromí](#soukromí-a-bezpečnost-dat) · [Přispívání](CONTRIBUTING.md)
 
 </div>
 
@@ -28,6 +28,10 @@ Drží aktivní úkol, rychlé poznámky, technická rozhodnutí a projektové z
 Herdr Logbook je lokální pracovní deník postavený na Markdownu pro vývojáře používající Herdr. Drží aktivní úkol, rychlé poznámky, technická rozhodnutí a projektové zápisky u terminálu, aniž by zaváděl proprietární formát dokumentů.
 
 Základní smyčka je záměrně malá: otevři Hub pro aktuální repozitář, zachyť kontext dřív, než zmizí, prohlédni si Markdown, prohledej registrované projekty a pokračuj v úpravách ve svém běžném editoru.
+
+## Proč tenhle plugin dělám
+
+Užitečný kontext kolem vývojového úkolu často přežije terminálovou relaci, ve které vznikl, ale nepotřebuje kvůli tomu další cloudovou službu ani proprietární databázi. Herdr Logbook dělám proto, aby byl tento kontext v Herdru dostupný na jednu zkratku: lokálně, prohledávatelně a v Markdownu, který zůstane použitelný i bez pluginu.
 
 ```text
 ┌ Scopes ─────────┬ Notes ─────────────────────┬ Preview ───────────────────────┐
@@ -98,7 +102,7 @@ Balení releasu je nakonfigurováno pro Linux, macOS a Windows na amd64 a arm64.
 ## Příkazy
 
 ```text
-herdr-logbook tui --view now|project|global|all [--project-root PATH]
+herdr-logbook tui --view now|project|global|all [--project-root PATH] [--editor CMD]
 herdr-logbook capture --scope project|global [--text TEXT | --stdin | --selected]
 herdr-logbook decision [--title TEXT] [--project-root PATH]
 herdr-logbook init --storage central|repo [--project-root PATH]
@@ -131,7 +135,47 @@ Priorita kontextu je explicitní `--project-root`, cesta Herdr worktree, cwd zam
 
 ## Konfigurace
 
-Konfigurace je volitelná a čte se z `$HERDR_PLUGIN_CONFIG_DIR/config.toml`; viz [config.example.toml](config.example.toml). Pořadí editoru je `editor.command`, `$VISUAL`, `$EDITOR`, pak výchozí hodnoty platformy. Příkazy se spouštějí jako argv, nikdy se neinterpolují přes shell.
+Herdr a Herdr Logbook používají dva oddělené konfigurační soubory.
+
+### Výběr editoru
+
+Adresář konfigurace pluginu zjistíš příkazem `herdr plugin config-dir herdr-logbook`. V něm vytvoř nebo uprav `config.toml`:
+
+```toml
+[editor]
+command = ["nvim"]
+```
+
+Argumenty zapisuj jako samostatné položky pole, například `command = ["code", "--wait"]`. Pořadí editoru je `tui --editor CMD`, `editor.command`, `$HERDR_LOGBOOK_EDITOR`, `$VISUAL`, `$EDITOR`, pak výchozí hodnoty platformy. Příkazy se spouštějí jako argv, nikdy se neinterpolují přes shell.
+
+### Zkratka v Herdru
+
+Do `~/.config/herdr/config.toml` přidej akci pluginu:
+
+```toml
+[[keys.command]]
+key = "prefix+m"
+type = "plugin_action"
+command = "herdr-logbook.open"
+description = "Herdr Logbook"
+```
+
+Na Windows použij `herdr-logbook.open-windows`. Soubor ověř a znovu načti:
+
+```bash
+herdr config check
+herdr server reload-config
+```
+
+`--editor` patří binárce Logbooku, takže funguje při přímém spuštění, například `herdr-logbook tui --editor nvim`. Nepřidávej ho za `herdr plugin action invoke`; Herdr argumenty akce nepředává. Pokud chceš editor změnit jen pro jednu zkratku Herdru, předej ho panelu přes proměnnou prostředí:
+
+```toml
+[[keys.command]]
+key = "prefix+m"
+type = "shell"
+command = "herdr plugin pane open --plugin herdr-logbook --entrypoint hub --placement split --direction right --focus --env HERDR_LOGBOOK_EDITOR=nvim"
+description = "Herdr Logbook"
+```
 
 Neznámé konfigurační klíče vyvolají varování. Neplatné typy a hodnoty selžou explicitně. Uživatelská konfigurace se během kompatibilních migrací nepřepisuje.
 

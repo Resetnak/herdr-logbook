@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Read `AGENTS.md` first — it holds the authoritative structure, working rules, and verification steps. `HERDR_LOGBOOK_AGENT_BRIEF.md` is the product source of truth (user-owned; edit only when a task asks for it). This file adds the big-picture architecture and the non-obvious bits.
+Read `AGENTS.md` first — it holds the authoritative structure, working rules, and verification steps. `README.md`, `config.example.toml`, and behavior covered by tests are the current product contract. This file adds the big-picture architecture and the non-obvious bits.
 
 ## What this is
 
