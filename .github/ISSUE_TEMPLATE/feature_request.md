@@ -1,28 +1,19 @@
 ---
 name: Feature request
-about: Suggest an improvement that fits the local, Markdown-first scope
-title: ""
+about: Suggest an idea or feature for Herdr Logbook
+title: '[FEAT] '
 labels: enhancement
-assignees: ""
+assignees: ''
 ---
 
-## Problem
+**Is your feature request related to a problem? Please describe.**
+A clear and concise description of what the problem is. Ex: I'm always frustrated when [...]
 
-<!-- The workflow friction you hit. What are you trying to do? -->
+**Describe the solution you'd like**
+A clear and concise description of what you want to happen.
 
-## Proposal
+**Describe alternatives you've considered**
+A clear and concise description of any alternative solutions or features you've considered.
 
-<!-- What you would like instead. -->
-
-## Scope check
-
-Herdr Logbook is deliberately small and local-only. These are explicit
-non-goals and requests for them will be closed:
-
-- Telemetry, network calls, or cloud sync
-- AI features
-- Automatic Git operations
-- Executing commands found in notes
-- A built-in Markdown editor (editing is delegated to `$EDITOR`)
-
-- [ ] My request does not depend on any of the above.
+**Additional context**
+Add any other context, mockup screenshots, or details about the feature request here.

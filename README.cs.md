@@ -4,7 +4,8 @@
 
 **Lokální, offline pracovní paměť pro vývojáře v Herdru — postavená na Markdownu.**
 
-Drží aktivní úkol, rychlé poznámky, technická rozhodnutí a projektové zápisky přímo u terminálu — žádný proprietární formát, žádný cloud, žádná telemetrie.
+Držte své aktivní úkoly, rychlé poznámky, architektonická rozhodnutí a zápisky přímo v terminálu.  
+Žádné proprietární formáty, žádný cloud, žádná telemetrie.
 
 <br>
 
@@ -19,25 +20,21 @@ Drží aktivní úkol, rychlé poznámky, technická rozhodnutí a projektové z
 
 [English](README.md) · **Čeština**
 
-[Proč](#proč-tenhle-plugin-dělám) · [Instalace](#instalace) · [Příkazy](#příkazy) · [Úložiště](#úložiště-a-rozpoznání-projektu) · [Konfigurace](#konfigurace) · [Soukromí](#soukromí-a-bezpečnost-dat) · [Přispívání](CONTRIBUTING.md)
+[Vlastnosti](#-hlavní-vlastnosti) · [Klávesové zkratky](#-klávesové-zkratky) · [Instalace](#-instalace) · [Konfigurace](#-konfigurace) · [Soukromí](#-soukromí-a-bezpečnost) · [Přispívání](CONTRIBUTING.md)
 
 </div>
 
 ---
 
-Herdr Logbook je lokální pracovní deník postavený na Markdownu pro vývojáře používající Herdr. Drží aktivní úkol, rychlé poznámky, technická rozhodnutí a projektové zápisky u terminálu, aniž by zaváděl proprietární formát dokumentů.
+## 💡 Proč Herdr Logbook?
 
-Základní smyčka je záměrně malá: otevři Hub pro aktuální repozitář, zachyť kontext dřív, než zmizí, prohlédni si Markdown, prohledej registrované projekty a pokračuj v úpravách ve svém běžném editoru.
-
-## Proč tenhle plugin dělám
-
-Užitečný kontext kolem vývojového úkolu často přežije terminálovou relaci, ve které vznikl, ale nepotřebuje kvůli tomu další cloudovou službu ani proprietární databázi. Herdr Logbook dělám proto, aby byl tento kontext v Herdru dostupný na jednu zkratku: lokálně, prohledávatelně a v Markdownu, který zůstane použitelný i bez pluginu.
+Užitečný kontext kolem vývojového úkolu často přežije terminálovou relaci, ve které vznikl. **Herdr Logbook** drží tento kontext na dosah jedné zkratky přímo v terminálu — uložený v čistém Markdownu, který vám zůstane navždy přístupný s pluginem i bez něj.
 
 ```text
 ┌ Scopes ─────────┬ Notes ─────────────────────┬ Preview ───────────────────────┐
 │ ● Now           │ now.md                     │ # Now                         │
 │ Project Inbox   │ auth-notes.md              │ ## Current task               │
-│ Project Notes   │ use-redis.md               │ Implement token rotation.     │
+│ Project Notes   │ architecture-adr.md        │ Implement token rotation.     │
 │ Decisions       │                            │                               │
 │ Global Inbox    │                            │ ## Next steps                  │
 │ All Notes       │                            │ - [ ] Add replay detection.   │
@@ -45,29 +42,59 @@ Užitečný kontext kolem vývojového úkolu často přežije terminálovou rel
  api-gateway · feature/token-rotation · central store · / search · ? help
 ```
 
-## Hlavní vlastnosti
+---
 
-- **Markdown je zdroj pravdy.** Každá poznámka je prostý soubor `.md`, který vlastníš. Vyhledávací cache je jednorázová a sama se obnovuje.
-- **Vědomí projektu.** Poznámky jsou vázané na repozitář, ve kterém právě jsi — rozpoznaný přes kontext Herdru, Git worktrees nebo aktuální adresář.
-- **Offline a soukromé.** Žádná telemetrie, síťová volání, cloud sync, AI, automatické Git operace ani spouštění příkazů nalezených v poznámkách.
-- **Responzivní TUI.** Bubble Tea Hub se přizpůsobí ze tří panelů na jeden pod 70 sloupci a nikdy neblokuje první vykreslení skenem indexu.
-- **Vlastní editor.** Plná editace je delegována na `$EDITOR`; TUI neimplementuje vlastní textový editor.
+## ✨ Hlavní vlastnosti
 
-## Postupy práce
+- **📓 Markdown na prvním místě**: Poznámky jsou čisté `.md` soubory. Vyhledávací index je jednorázový a sám se obnovuje.
+- **🌿 Vnímání projektů a Git**: Poznámky se automaticky organizují podle repozitáře, Git worktree nebo adresáře.
+- **⚡ Responzivní TUI rozhraní**: Postavené na [Bubble Tea](https://github.com/charmbracelet/bubbletea). Na úzkých terminálech (<70 sloupců) se automaticky přepne na jednosloupcový režim.
+- **⚖️ Architektonická rozhodnutí (ADR)**: Vestavěná šablona pro záznam technických rozhodnutí a důsledků (`d`).
+- **🔍 Okamžité vyhledávání**: Bleskové fuzzy vyhledávání napříč všemi projekty (`/`) nebo filtrování podle projektu (`p`).
+- **📝 Vlastní editor**: Úpravy souborů deleguje na váš oblíbený `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
+- **🔒 100% Offline & Soukromí**: Žádná telemetrie, žádný cloud, žádné automatické Git operace ani závislost na AI.
 
-- `c` a `C` zachytí poznámku do měsíční schránky projektu nebo globální.
-- `n` vytvoří projektovou poznámku; `d` vytvoří datovaný záznam rozhodnutí.
-- `/` prohledá jednorázový index napříč registrovanými úložišti projektů.
-- `e` uspí Hub a otevře vybraný Markdown soubor nakonfigurovaným editorem.
-- `now.md` se vytvoří jednou a v pohledu projektu je vždy první.
+---
 
-Hub používá Bubble Tea a přizpůsobí se ze tří panelů při 110 sloupcích na jeden aktivní panel pod 70 sloupci. Náhled Markdownu se vykresluje v procesu přes Glamour; externí binárka `glow` není potřeba.
+## 🎮 Klávesové zkratky
 
-## Instalace
+### 🧭 Navigace & Panely
+| Klávesa | Akce |
+| :--- | :--- |
+| `Tab` / `Shift+Tab` nebo `h` / `l` | Přepínání panelů (`Scopes` → `Notes` → `Preview`) |
+| `j` / `k` nebo `↑` / `↓` | Pohyb v seznamu |
+| `g` / `G` | Skok na začátek / konec seznamu |
+| `Enter` / `v` | Otevřít náhled Markdownu |
+| `/` | Fuzzy vyhledávání napříč všemi projekty |
+| `p` | Filtrovat vyhledávání podle názvu projektu |
 
-Herdr Logbook se aktuálně instaluje ze zdrojového kódu. Potřebuješ Herdr 0.7.0 nebo novější, Git a Go 1.25 nebo novější (viz [`go.mod`](go.mod)).
+### ⚡ Akce
+| Klávesa | Akce |
+| :--- | :--- |
+| `c` / `C` | Rychlé zachycení (projektový / globální inbox) |
+| `n` | Vytvořit novou projektovou poznámku |
+| `d` | Zaznamenat architektonické rozhodnutí (ADR) |
+| `e` | Otevřít vybranou poznámku v `$EDITOR` (`vi` / `nvim`) |
+| `r` | Obnovit index poznámek |
+| `?` | Zobrazit interaktivní nápovědu a Onboarding |
+| `q` | Zavřít Logbook |
 
-### macOS, Linux a WSL
+### 📝 Modální okno pro psaní
+| Klávesa | Akce |
+| :--- | :--- |
+| `Ctrl+S` | **Uložit poznámku** (uloží přímo bez opuštění TUI) |
+| `Ctrl+E` | **Uložit & upravit** (uloží poznámku a spustí `$EDITOR`) |
+| `Esc` | Zrušit |
+
+> 💡 **Markdown Tip**: Poznámky podporují běžnou syntaxi (`# Nadpis`, `**tučně**`, `- seznam`, `` `kód` ``, `#tag`).
+
+---
+
+## 📦 Instalace
+
+Herdr Logbook vyžaduje [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0 a Go ≥ 1.25.
+
+### 🍏 macOS / 🐧 Linux / 💻 WSL
 
 ```bash
 git clone https://github.com/Resetnak/herdr-logbook.git
@@ -78,7 +105,7 @@ herdr plugin link "$(pwd)" --enabled
 herdr plugin action invoke open --plugin herdr-logbook
 ```
 
-### Windows PowerShell
+### 🪟 Windows PowerShell
 
 ```powershell
 git clone https://github.com/Resetnak/herdr-logbook.git
@@ -89,68 +116,20 @@ herdr plugin link (Get-Location) --enabled
 herdr plugin action invoke open-windows --plugin herdr-logbook
 ```
 
-`herdr plugin link` nespouští build. Nejdřív sestav binárku.
+---
 
-Po zveřejnění tagované verze ji Herdr umí nainstalovat přímo:
+## ⚙️ Konfigurace
 
-```bash
-herdr plugin install Resetnak/herdr-logbook --ref vX.Y.Z -y
-```
-
-Balení releasu je nakonfigurováno pro Linux, macOS a Windows na amd64 a arm64. Instalátory stáhnou přesnou verzi z manifestu a ověří `checksums.txt`. Veřejný release `v0.1.0` nesmí být deklarován, dokud není kompletní ruční matice kompatibility v [docs/herdr-compatibility.md](docs/herdr-compatibility.md).
-
-## Příkazy
-
-```text
-herdr-logbook tui --view now|project|global|all [--project-root PATH] [--editor CMD]
-herdr-logbook capture --scope project|global [--text TEXT | --stdin | --selected]
-herdr-logbook decision [--title TEXT] [--project-root PATH]
-herdr-logbook init --storage central|repo [--project-root PATH]
-herdr-logbook doctor [--json] [--project-root PATH]
-herdr-logbook keybinds
-herdr-logbook paths [--json] [--project-root PATH]
-herdr-logbook index rebuild [--project-root PATH]
-herdr-logbook version
-```
-
-Bez zdroje pro zachycení otevře `capture` textové UI. Bez `--title` se `decision` zeptá na název. Vytvoření rozhodnutí otevře nakonfigurovaný externí editor, pokud se pro automatizaci nepoužije `--no-edit`.
-
-Návratové kódy mají význam: `2` použití, `3` rozpoznání kontextu/stavu, `4` zámek/zápis úložiště, `5` kontext Herdru, `6` editor.
-
-## Úložiště a rozpoznání projektu
-
-Výchozí je centrální úložiště a repozitáře nechává netknuté:
-
-```text
-$HERDR_PLUGIN_STATE_DIR/
-├── store/projects/p_<sha256>/{now.md,inbox,notes,decisions}
-├── store/global/{inbox,notes,decisions}
-├── registry/projects.toml
-└── cache/index-v1.json
-```
-
-`init --storage repo` výslovně zapíná `.herdr/logbook/` a vypíše doporučené pravidlo pro ignorování; `.gitignore` nikdy neupravuje. Inicializace zachová každý existující neprázdný soubor. Cache soubory jsou jednorázové a obnoví se z Markdownu příkazem `index rebuild`.
-
-Priorita kontextu je explicitní `--project-root`, cesta Herdr worktree, cwd zaměřeného panelu, cwd workspace, `--cwd`, pak cwd procesu. Git worktrees sdílejí identitu přes otisk remotu bez přihlašovacích údajů nebo přes společný Git adresář. Ne-Git projekty používají kanonickou cestu. `.herdr-logbook.toml` může vybrat podprojekt v monorepu, ale nemůže z repozitáře uniknout přes traverzování cest ani symlinky.
-
-## Konfigurace
-
-Herdr a Herdr Logbook používají dva oddělené konfigurační soubory.
-
-### Výběr editoru
-
-Adresář konfigurace pluginu zjistíš příkazem `herdr plugin config-dir herdr-logbook`. V něm vytvoř nebo uprav `config.toml`:
+Vytvořte nebo upravte konfiguraci v `$(herdr plugin config-dir herdr-logbook)/config.toml`:
 
 ```toml
 [editor]
 command = ["nvim"]
 ```
 
-Argumenty zapisuj jako samostatné položky pole, například `command = ["code", "--wait"]`. Pořadí editoru je `tui --editor CMD`, `editor.command`, `$HERDR_LOGBOOK_EDITOR`, `$VISUAL`, `$EDITOR`, pak výchozí hodnoty platformy. Příkazy se spouštějí jako argv, nikdy se neinterpolují přes shell.
+### Nastavení zkratky v Herdru
 
-### Zkratka v Herdru
-
-Do `~/.config/herdr/config.toml` přidej akci pluginu:
+Přidejte akci do `~/.config/herdr/config.toml`:
 
 ```toml
 [[keys.command]]
@@ -160,44 +139,44 @@ command = "herdr-logbook.open"
 description = "Herdr Logbook"
 ```
 
-Na Windows použij `herdr-logbook.open-windows`. Soubor ověř a znovu načti:
-
+Znovu načtěte konfiguraci Herdru:
 ```bash
 herdr config check
 herdr server reload-config
 ```
 
-`--editor` patří binárce Logbooku, takže funguje při přímém spuštění, například `herdr-logbook tui --editor nvim`. Nepřidávej ho za `herdr plugin action invoke`; Herdr argumenty akce nepředává. Pokud chceš editor změnit jen pro jednu zkratku Herdru, předej ho panelu přes proměnnou prostředí:
+---
 
-```toml
-[[keys.command]]
-key = "prefix+m"
-type = "shell"
-command = "herdr plugin pane open --plugin herdr-logbook --entrypoint hub --placement split --direction right --focus --env HERDR_LOGBOOK_EDITOR=nvim"
-description = "Herdr Logbook"
+## 📁 Struktura Úložiště
+
+Soubory jsou výchozím způsobem ukládány centrálně (`central` režim), takže vaše Git repozitáře zůstávají čisté:
+
+```text
+$HERDR_PLUGIN_STATE_DIR/
+├── store/projects/p_<sha256>/
+│   ├── now.md
+│   ├── inbox/
+│   ├── notes/
+│   └── decisions/
+├── store/global/
+├── registry/projects.toml
+└── cache/index-v1.json
 ```
 
-Neznámé konfigurační klíče vyvolají varování. Neplatné typy a hodnoty selžou explicitně. Uživatelská konfigurace se během kompatibilních migrací nepřepisuje.
+---
 
-## Soukromí a bezpečnost dat
+## 🔒 Soukromí a Bezpečnost
 
-Běžný běh nemá žádnou telemetrii, síťové požadavky, cloud sync, AI volání, automatické Git operace ani spouštění příkazů z poznámek. Vybraný text terminálu se nikdy neobjeví v diagnostice. Git přihlašovací údaje se odstraní před výstupem do registru a diagnostiky. Zachycení používá omezené zámky, dočasné soubory ve stejném adresáři, sync souborového systému a atomické nahrazení.
+- **Nulová Telemetrie**: Žádné sledování, síťové požadavky ani analytika.
+- **Ochrana Dat**: Git přihlašovací údaje se automaticky odstraňují z URL adres.
+- **Bezpečný Zápis**: Všechny operace používají atomický zápis se zámky souborů a `fsync`.
 
-Index čte pouze Markdown pod známými kořeny paměti, přeskakuje skryté adresáře a symlinky a sám se opraví po poškození cache. Odebrání pluginu neodstraní Markdown data.
+---
 
-## Omezení a plán
+## 🤝 Přispívání
 
-Herdr Logbook není obecný systém pro správu znalostí, kolaborační služba, synchronizační engine, prohlížečové UI ani vlastní textový editor. Archiv/koš, uložená hledání, šablony, backlinky a volitelná integrace externího Glow jsou odloženy, dokud nebude mít základní workflow reálné důkazy o používání. AI, cloud sync a vizualizace grafu jsou výslovné ne-cíle.
+Návrhy, hlášení chyb a PR jsou vítány! Podívejte se do [CONTRIBUTING.md](CONTRIBUTING.md) pro lokální nastavení a instrukce k testování.
 
-Snímky obrazovky nebo záznam terminálu budou přidány až po úspěšném průchodu maticí kompatibility na reálných hostech.
-
-## Dokumentace
-
-- [CHANGELOG.md](CHANGELOG.md) — poznámky k verzím.
-- [SECURITY.md](SECURITY.md) — hlášení zranitelností a bezpečnostní model za běhu.
-- [CONTRIBUTING.md](CONTRIBUTING.md) — vývojový postup a kroky ověření.
-- [docs/herdr-compatibility.md](docs/herdr-compatibility.md) — matice kompatibility na reálných hostech.
-
-## Licence
+## 📄 Licence
 
 [MIT](LICENSE) © 2026 Alexandr Rešetňak

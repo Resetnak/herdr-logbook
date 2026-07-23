@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -40,6 +41,8 @@ type NotesReloadedMsg struct {
 	Err   error
 }
 
+type flashExpiredMsg struct{ tick int }
+
 type HubModel struct {
 	notes            []Note
 	scopes           []scopeItem
@@ -73,6 +76,8 @@ type HubModel struct {
 	previewRenderer  *glamour.TermRenderer
 	previewWidth     int
 	glamourStyle     string
+	flashMsg         string
+	flashTick        int
 }
 
 func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
@@ -107,6 +112,12 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 	}
 	model.refreshPreview()
 	return model
+}
+
+func flashCmd(tick int) tea.Cmd {
+	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
+		return flashExpiredMsg{tick: tick}
+	})
 }
 
 func (m HubModel) WithView(view string) HubModel {
@@ -172,7 +183,10 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.notes = reloaded.Notes
 			m.captureErr = ""
+			m.flashMsg = "✓ Note updated"
+			m.flashTick++
 			m.refreshPreview()
+			return m, flashCmd(m.flashTick)
 		}
 		return m, nil
 	}
@@ -183,6 +197,12 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchEntries = loaded.entries
 			m.captureErr = ""
 			m.updateSearchResults()
+		}
+		return m, nil
+	}
+	if expired, ok := message.(flashExpiredMsg); ok {
+		if expired.tick == m.flashTick {
+			m.flashMsg = ""
 		}
 		return m, nil
 	}
@@ -304,7 +324,8 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			return m, nil
-		case "ctrl+s":
+		case "ctrl+s", "ctrl+e":
+			openEditor := msg.String() == "ctrl+e"
 			if strings.TrimSpace(m.captureBox.Value()) == "" {
 				m.captureErr = "Capture text cannot be empty."
 				return m, nil
@@ -337,10 +358,9 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.captureErr = ""
 			m.captureBox.Blur()
 			m.captureBox.Reset()
-			kind := m.authorKind
 			m.authorKind = ""
 			m.refreshPreview()
-			if kind != "" && m.editFn != nil {
+			if openEditor && m.editFn != nil {
 				for _, note := range notes {
 					if !oldPaths[note.Path] {
 						return m, m.editFn(note)
@@ -350,7 +370,9 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 			if m.quitAfterCapture {
 				return m, tea.Quit
 			}
-			return m, nil
+			m.flashMsg = "✓ Saved to inbox"
+			m.flashTick++
+			return m, flashCmd(m.flashTick)
 		}
 	}
 
@@ -364,7 +386,28 @@ func (m HubModel) View() string {
 		return m.captureView()
 	}
 	if m.help {
-		return pane("Herdr Logbook\n\nTab/Shift+Tab or h/l: move panels\nj/k or arrows: move\ng/G: first/last\nEnter/v: preview\n/: search notes · p: find project\nc/C: project/global capture\nn/d: note/decision · e: edit\nr: refresh\nq: quit\n?: close help", max(30, m.width), max(3, m.height-2), true)
+		helpText := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")).Render("📓 Herdr Logbook — Quick Start & Help") + "\n\n" +
+			lipgloss.NewStyle().Bold(true).Render("Navigation:") + "\n" +
+			"  Tab / Shift+Tab or h / l   Switch panel (Scopes → Notes → Preview)\n" +
+			"  j / k or ↑ / ↓             Move selection\n" +
+			"  g / G                      Jump to top / bottom\n" +
+			"  Enter / v                  Open Markdown preview\n" +
+			"  /                          Fuzzy search all projects\n" +
+			"  p                          Filter search by project name\n\n" +
+			lipgloss.NewStyle().Bold(true).Render("Actions:") + "\n" +
+			"  c / C                      Quick capture (project / global inbox)\n" +
+			"  n / d                      New project note / decision record\n" +
+			"  e                          Edit note in external editor ($EDITOR / vi)\n" +
+			"  r                          Reload / refresh notes\n" +
+			"  ? / q                      Toggle help / quit\n\n" +
+			lipgloss.NewStyle().Bold(true).Render("Capture Modal Shortcuts:") + "\n" +
+			"  Ctrl+S                     Save note\n" +
+			"  Ctrl+E                     Save note & open external editor\n" +
+			"  Esc                        Cancel capture\n\n" +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Markdown supported: # title · **bold** · - list · `code` · #tag") + "\n" +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Editor saves: :wq (vim/nvim) or editor's normal save+quit.")
+
+		return pane(helpText, max(30, m.width), max(3, m.height-2), true)
 	}
 
 	availableHeight := max(3, m.height-2)
@@ -403,29 +446,36 @@ func (m HubModel) View() string {
 	} else if m.searchQuery != "" {
 		status = fmt.Sprintf("search: %s · Esc clear · %s", m.searchQuery, status)
 	}
+	if m.flashMsg != "" {
+		status = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(m.flashMsg) + " · " + status
+	}
 	if m.captureErr != "" {
-		status = m.captureErr + " · " + status
+		status = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.captureErr) + " · " + status
 	}
 	return body + "\n" + lipgloss.NewStyle().Faint(true).Render(status)
 }
 
 func (m HubModel) captureView() string {
-	title := "Project capture"
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	title := titleStyle.Render("📝 Project capture")
 	if m.captureGlobal {
-		title = "Global capture"
+		title = titleStyle.Render("🌐 Global capture")
 	}
 	if m.authorKind == "note" {
-		title = "New project note — enter a title"
+		title = titleStyle.Render("📄 New project note — enter a title")
 	} else if m.authorKind == "decision" {
-		title = "New decision — enter a title"
+		title = titleStyle.Render("⚖️ New decision — enter a title")
 	}
 	body := title + "\n\n" + m.captureBox.View()
 	if m.captureErr != "" {
 		body += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.captureErr)
 	}
-	body += "\n" + lipgloss.NewStyle().Faint(true).Render("Ctrl+S save · Esc cancel")
+	mdHint := lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Markdown supported: # title · **bold** · - list · #tag")
+	keyHint := lipgloss.NewStyle().Foreground(lipgloss.Color("248")).Render("Ctrl+S save · Ctrl+E save & edit in editor · Esc cancel")
+	body += "\n\n" + mdHint + "\n" + keyHint
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("39")).
 		Padding(1, 2).
 		Width(max(24, m.captureBox.Width()+2)).
 		Render(body)

@@ -193,15 +193,34 @@ func TestHubAuthoringAndEditorActions(t *testing.T) {
 				return nil
 			}
 		})
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Runbook")})
-	_, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlS})
-	if authorKind != "note:Runbook" || command == nil {
-		t.Fatalf("author action = %q, command nil %t", authorKind, command == nil)
+
+	// 1. Test Ctrl+S (saves note, does NOT open editor)
+	m1, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m1, _ = updateHub(m1, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Runbook")})
+	m1, cmd1 := updateHub(m1, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if authorKind != "note:Runbook" {
+		t.Fatalf("author action = %q", authorKind)
 	}
-	command()
+	if cmd1 != nil {
+		cmd1()
+	}
+	if edited != "" {
+		t.Fatalf("Ctrl+S should not open editor, but opened: %q", edited)
+	}
+	if m1.capturing {
+		t.Fatal("Ctrl+S should close capture modal")
+	}
+
+	// 2. Test Ctrl+E (saves note AND opens editor)
+	m2, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m2, _ = updateHub(m2, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Runbook 2")})
+	_, cmd2 := updateHub(m2, tea.KeyMsg{Type: tea.KeyCtrlE})
+	if cmd2 == nil {
+		t.Fatal("Ctrl+E should return edit command")
+	}
+	cmd2()
 	if edited != "/notes/new.md" {
-		t.Fatalf("edited path after authoring = %q", edited)
+		t.Fatalf("Ctrl+E edited path = %q, want /notes/new.md", edited)
 	}
 }
 

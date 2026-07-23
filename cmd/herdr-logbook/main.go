@@ -162,7 +162,12 @@ Actions:
   e    edit in external editor
   r    refresh
   ?    help
-  q    close`)
+  q    close
+
+Capture / Authoring Modal:
+  Ctrl+S   save note
+  Ctrl+E   save note & open external editor
+  Esc      cancel capture`)
 }
 
 func runIndex(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
@@ -360,7 +365,7 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		command := exec.Command(resolved.Command[0], append(resolved.Command[1:], note.Path)...)
 		return tea.ExecProcess(command, func(runErr error) tea.Msg {
 			if runErr != nil {
-				return app.NotesReloadedMsg{Err: runErr}
+				return app.NotesReloadedMsg{Err: fmt.Errorf("editor exited with error: %w (the note file was saved to disk)", runErr)}
 			}
 			notes, loadErr := reloadNotes()
 			return app.NotesReloadedMsg{Notes: notes, Err: loadErr}

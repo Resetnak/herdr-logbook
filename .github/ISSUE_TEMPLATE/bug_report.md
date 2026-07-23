@@ -1,37 +1,27 @@
 ---
 name: Bug report
-about: Something in Herdr Logbook does not work as documented
-title: ""
+about: Create a report to help us improve Herdr Logbook
+title: '[BUG] '
 labels: bug
-assignees: ""
+assignees: ''
 ---
 
-## What happened
+**Describe the bug**
+A clear and concise description of what the bug is.
 
-<!-- What you did and what went wrong. Include the exact subcommand. -->
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Open TUI with `herdr-logbook tui`
+2. Press '...'
+3. See error
 
-## Expected
+**Expected behavior**
+A clear and concise description of what you expected to happen.
 
-<!-- What you expected instead. -->
+**Environment:**
+ - OS: [e.g. macOS 14.5, Ubuntu 24.04, Windows 11]
+ - Herdr version: [e.g. 0.7.0]
+ - Herdr Logbook version: [e.g. v0.1.0 or dev]
 
-## Environment
-
-- OS + arch (e.g. macOS arm64, Ubuntu 24.04 x86_64):
-- Herdr version (`herdr --version`):
-- Logbook version (`herdr-logbook version`):
-
-## Diagnostics
-
-<!--
-Paste the output of `herdr-logbook doctor --json`.
-It contains no note contents, no selected text, and no Git credentials.
-Redact anything you consider sensitive.
--->
-
-```json
-
-```
-
-## Exit code
-
-<!-- If a subcommand failed: 2 usage, 3 context/state, 4 storage lock/write, 5 Herdr context, 6 editor. -->
+**Additional context**
+Add any other context or terminal log snippets here.
