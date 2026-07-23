@@ -19,8 +19,8 @@ func TestResolveUsesConfiguredArgvBeforeEnvironment(t *testing.T) {
 func TestResolveEnvironmentPrecedenceAndArguments(t *testing.T) {
 	env := map[string]string{
 		"HERDR_LOGBOOK_EDITOR": `code --wait "folder with spaces"`,
-		"VISUAL":              "vim",
-		"EDITOR":              "nano",
+		"VISUAL":               "vim",
+		"EDITOR":               "nano",
 	}
 	got, err := Resolve(nil, func(key string) string { return env[key] }, "linux", fakeLookup("code", "vim", "nano"))
 	if err != nil {

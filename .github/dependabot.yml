@@ -6,6 +6,10 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -13,3 +17,8 @@ updates:
       interval: "weekly"
     labels:
       - "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+

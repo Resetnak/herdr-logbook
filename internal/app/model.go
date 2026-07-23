@@ -582,13 +582,17 @@ func (m *HubModel) resize(width, height int) {
 
 func (m HubModel) scopesView() string {
 	var output strings.Builder
-	output.WriteString("Scopes\n\n")
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	output.WriteString(titleStyle.Render("Scopes") + "\n\n")
+	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 	for index, scope := range m.scopes {
 		prefix := "  "
+		line := scope.name
 		if index == m.scopeIndex {
 			prefix = "● "
+			line = activeStyle.Render(scope.name)
 		}
-		output.WriteString(prefix + scope.name + "\n")
+		output.WriteString(prefix + line + "\n")
 	}
 	return output.String()
 }
@@ -596,10 +600,11 @@ func (m HubModel) scopesView() string {
 func (m HubModel) notesView() string {
 	notes := m.visibleNotes()
 	var output strings.Builder
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
 	if m.searchQuery != "" {
-		output.WriteString("Search results\n\n")
+		output.WriteString(titleStyle.Render("Search results") + "\n\n")
 	} else {
-		output.WriteString("Notes\n\n")
+		output.WriteString(titleStyle.Render("Notes") + "\n\n")
 	}
 	if len(notes) == 0 {
 		if m.scopeIndex == 0 {
@@ -609,21 +614,25 @@ func (m HubModel) notesView() string {
 		}
 		return output.String()
 	}
+	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 	for index, note := range notes {
 		prefix := "  "
+		line := note.Title
 		if index == m.noteIndex {
 			prefix = "› "
+			line = activeStyle.Render(note.Title)
 		}
-		output.WriteString(prefix + note.Title + "\n")
+		output.WriteString(prefix + line + "\n")
 	}
 	return output.String()
 }
 
 func (m HubModel) previewView() string {
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
 	if len(m.visibleNotes()) == 0 {
-		return "Preview\n\nSelect a scope with notes or press c to capture something.\n"
+		return titleStyle.Render("Preview") + "\n\nSelect a scope with notes or press c to capture something.\n"
 	}
-	return "Preview\n\n" + m.preview.View()
+	return titleStyle.Render("Preview") + "\n\n" + m.preview.View()
 }
 
 func (m HubModel) visibleNotes() []Note {
