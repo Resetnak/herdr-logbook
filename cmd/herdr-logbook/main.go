@@ -25,7 +25,9 @@ import (
 	"github.com/Resetnak/herdr-logbook/internal/project"
 	"github.com/Resetnak/herdr-logbook/internal/storage"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/muesli/termenv"
 	"github.com/pelletier/go-toml/v2"
+	"golang.org/x/term"
 )
 
 var version = "dev"
@@ -275,6 +277,7 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 	projectRoot := flags.String("project-root", "", "project root")
 	cwd := flags.String("cwd", "", "fallback working directory")
 	contextJSON := flags.String("context-json", "", "Herdr invocation context JSON")
+	editorCmd := flags.String("editor", "", "editor command for e, e.g. vim, nano (overrides config/$EDITOR)")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
@@ -342,11 +345,15 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		}
 		return reloadNotes()
 	}
+	editorArgv := state.Config.Editor.Command
+	if *editorCmd != "" {
+		editorArgv = strings.Fields(*editorCmd) // ponytail: simple split; HERDR_LOGBOOK_EDITOR handles quoted paths
+	}
 	editNote := func(note app.Note) tea.Cmd {
 		if err := validateEditableNote(state, note.Path); err != nil {
 			return func() tea.Msg { return app.NotesReloadedMsg{Err: err} }
 		}
-		resolved, err := editor.Resolve(state.Config.Editor.Command, getenv, runtime.GOOS, exec.LookPath)
+		resolved, err := editor.Resolve(editorArgv, getenv, runtime.GOOS, exec.LookPath)
 		if err != nil {
 			return func() tea.Msg { return app.NotesReloadedMsg{Err: err} }
 		}
@@ -361,6 +368,7 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 	}
 	model := app.NewHub(notes, state.Project.Name, state.Project.Branch, state.Layout.Mode).
 		WithView(*view).
+		WithStyle(detectGlamourStyle(stdout)).
 		WithActions(captureNote, reloadNotes).
 		WithSearch(cache.Entries, refreshSearch).
 		WithAuthoring(authorNote, editNote)
@@ -370,6 +378,21 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		return 1
 	}
 	return 0
+}
+
+// detectGlamourStyle resolves the Glamour preview style once, before Bubble Tea
+// takes over stdin. It mirrors glamour's WithAutoStyle decision (background probe
+// via termenv) but runs while the terminal can still answer the query, so the
+// TUI never blocks on it later. See HubModel.WithStyle.
+func detectGlamourStyle(stdout io.Writer) string {
+	f, ok := stdout.(*os.File)
+	if !ok || !term.IsTerminal(int(f.Fd())) {
+		return "notty"
+	}
+	if termenv.HasDarkBackground() {
+		return "dark"
+	}
+	return "light"
 }
 
 func runDecision(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {

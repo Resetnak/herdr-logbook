@@ -98,7 +98,7 @@ Release packaging is configured for Linux, macOS, and Windows on amd64 and arm64
 ## Commands
 
 ```text
-herdr-logbook tui --view now|project|global|all [--project-root PATH]
+herdr-logbook tui --view now|project|global|all [--project-root PATH] [--editor CMD]
 herdr-logbook capture --scope project|global [--text TEXT | --stdin | --selected]
 herdr-logbook decision [--title TEXT] [--project-root PATH]
 herdr-logbook init --storage central|repo [--project-root PATH]
@@ -131,7 +131,7 @@ Context priority is explicit `--project-root`, Herdr worktree path, focused pane
 
 ## Configuration
 
-Configuration is optional and read from `$HERDR_PLUGIN_CONFIG_DIR/config.toml`; see [config.example.toml](config.example.toml). Editor precedence is `editor.command`, `$VISUAL`, `$EDITOR`, then platform defaults. Commands are executed as argv, never interpolated through a shell.
+Configuration is optional and read from `$HERDR_PLUGIN_CONFIG_DIR/config.toml`; see [config.example.toml](config.example.toml). Editor precedence is `tui --editor CMD`, `editor.command`, `$HERDR_LOGBOOK_EDITOR`, `$VISUAL`, `$EDITOR`, then platform defaults; `--editor` splits on spaces, so use `$HERDR_LOGBOOK_EDITOR` for paths containing spaces. Commands are executed as argv, never interpolated through a shell.
 
 Unknown configuration keys produce warnings. Invalid types and values fail explicitly. User configuration is not rewritten during compatible migrations.
 

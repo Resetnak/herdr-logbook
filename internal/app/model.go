@@ -72,6 +72,7 @@ type HubModel struct {
 	editFn           EditFunc
 	previewRenderer  *glamour.TermRenderer
 	previewWidth     int
+	glamourStyle     string
 }
 
 func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
@@ -119,6 +120,17 @@ func (m HubModel) WithView(view string) HubModel {
 	default:
 		m.scopeIndex = 0
 	}
+	m.refreshPreview()
+	return m
+}
+
+// WithStyle pins the Glamour preview style ("dark"/"light"/"notty"). Detect it
+// once before the program starts: WithAutoStyle queries the terminal background
+// on every renderer build, and once Bubble Tea owns stdin that query blocks for
+// seconds waiting on a reply it never receives.
+func (m HubModel) WithStyle(style string) HubModel {
+	m.glamourStyle = style
+	m.previewRenderer = nil
 	m.refreshPreview()
 	return m
 }
@@ -352,7 +364,7 @@ func (m HubModel) View() string {
 		return m.captureView()
 	}
 	if m.help {
-		return pane("Herdr Logbook\n\nTab/Shift+Tab or h/l: move panels\nj/k or arrows: move\ng/G: first/last\nEnter/v: preview\n/: search notes · p: find project\nc/C: project/global capture\nn/d: note/decision · e: edit\nr: refresh\nq: quit\n?: close help", max(30, m.width), max(3, m.height-2))
+		return pane("Herdr Logbook\n\nTab/Shift+Tab or h/l: move panels\nj/k or arrows: move\ng/G: first/last\nEnter/v: preview\n/: search notes · p: find project\nc/C: project/global capture\nn/d: note/decision · e: edit\nr: refresh\nq: quit\n?: close help", max(30, m.width), max(3, m.height-2), true)
 	}
 
 	availableHeight := max(3, m.height-2)
@@ -362,9 +374,9 @@ func (m HubModel) View() string {
 		noteWidth := max(28, m.width/3)
 		previewWidth := max(30, m.width-scopeWidth-noteWidth-4)
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			pane(m.scopesView(), scopeWidth, availableHeight),
-			pane(m.notesView(), noteWidth, availableHeight),
-			pane(m.previewView(), previewWidth, availableHeight),
+			pane(m.scopesView(), scopeWidth, availableHeight, m.panel == panelScopes),
+			pane(m.notesView(), noteWidth, availableHeight, m.panel == panelNotes),
+			pane(m.previewView(), previewWidth, availableHeight, m.panel == panelPreview),
 		)
 	} else if m.width >= 70 {
 		content := m.notesView()
@@ -372,8 +384,8 @@ func (m HubModel) View() string {
 			content = m.previewView()
 		}
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			pane(m.scopesView(), 24, availableHeight),
-			pane(content, max(30, m.width-26), availableHeight),
+			pane(m.scopesView(), 24, availableHeight, m.panel == panelScopes),
+			pane(content, max(30, m.width-26), availableHeight, m.panel != panelScopes),
 		)
 	} else {
 		content := m.scopesView()
@@ -382,7 +394,7 @@ func (m HubModel) View() string {
 		} else if m.panel == panelPreview {
 			content = m.previewView()
 		}
-		body = pane(content, max(20, m.width), availableHeight)
+		body = pane(content, max(20, m.width), availableHeight, true)
 	}
 
 	status := fmt.Sprintf("%s · %s · %s store · / search · ? help", m.projectName, m.branch, m.storageMode)
@@ -624,7 +636,11 @@ func (m *HubModel) refreshPreview() {
 	// ponytail: cache the renderer; NewTermRenderer loads chroma styles and is the
 	// expensive part, so only rebuild it when the wrap width actually changes.
 	if m.previewRenderer == nil || m.previewWidth != width {
-		if renderer, err := glamour.NewTermRenderer(glamour.WithAutoStyle(), glamour.WithWordWrap(width)); err == nil {
+		style := glamour.WithAutoStyle()
+		if m.glamourStyle != "" {
+			style = glamour.WithStandardStyle(m.glamourStyle)
+		}
+		if renderer, err := glamour.NewTermRenderer(style, glamour.WithWordWrap(width)); err == nil {
 			m.previewRenderer = renderer
 			m.previewWidth = width
 		}
@@ -639,8 +655,20 @@ func (m *HubModel) refreshPreview() {
 	m.preview.SetContent(rendered)
 }
 
-func pane(content string, width, height int) string {
-	return lipgloss.NewStyle().Width(max(1, width)).Height(max(1, height)).Padding(0, 1).Render(content)
+func pane(content string, width, height int, focused bool) string {
+	// Border always drawn so focused/unfocused occupy the same width×height and
+	// the layout math above stays valid; only the colour changes on focus.
+	color := lipgloss.Color("240")
+	if focused {
+		color = lipgloss.Color("205")
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(color).
+		Width(max(1, width-2)).
+		Height(max(1, height-2)).
+		Padding(0, 1).
+		Render(content)
 }
 
 func clamp(value, low, high int) int {
