@@ -92,28 +92,70 @@ The context around a coding task often outlives the terminal session that create
 
 ## 📦 Installation
 
-Herdr Logbook requires [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0 and Go ≥ 1.25.
+Herdr Logbook requires [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0. **No Go installation required** — precompiled binaries for Linux, macOS, and Windows (`amd64` & `arm64`) are checksum-verified and installed automatically.
 
-### 🍏 macOS / 🐧 Linux / 💻 WSL
+### Option 1: Via Herdr Plugin Manager (Recommended)
 
+```bash
+herdr plugin install Resetnak/herdr-logbook
+```
+
+---
+
+### Option 2: Homebrew (macOS & Linux)
+
+```bash
+brew install Resetnak/tap/herdr-logbook
+```
+
+---
+
+### Option 3: Quick Shell / PowerShell Installer (No Go required)
+
+#### 🍏 macOS & 🐧 Linux / WSL
+```bash
+curl -fsSL https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/scripts/install.sh | bash
+```
+
+#### 🪟 Windows PowerShell
+```powershell
+irm https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/scripts/install.ps1 | iex
+```
+
+---
+
+### Option 4: Direct Binary Download (GitHub Releases)
+
+Download precompiled standalone binaries (with SHA-256 checksum verification) from [GitHub Releases](https://github.com/Resetnak/herdr-logbook/releases):
+
+| OS | Architecture | Archive |
+| :--- | :--- | :--- |
+| **macOS** | Apple Silicon (`arm64`) / Intel (`amd64`) | `.tar.gz` |
+| **Linux** | `amd64` / `arm64` | `.tar.gz` |
+| **Windows** | `amd64` / `arm64` | `.zip` |
+
+---
+
+### Option 5: Build from Source (For Go Developers)
+
+Requires Go ≥ 1.25:
+
+#### 🍏 macOS / 🐧 Linux
 ```bash
 git clone https://github.com/Resetnak/herdr-logbook.git
 cd herdr-logbook
 mkdir -p bin
 go build -o bin/herdr-logbook ./cmd/herdr-logbook
 herdr plugin link "$(pwd)" --enabled
-herdr plugin action invoke open --plugin herdr-logbook
 ```
 
-### 🪟 Windows PowerShell
-
+#### 🪟 Windows PowerShell
 ```powershell
 git clone https://github.com/Resetnak/herdr-logbook.git
 Set-Location herdr-logbook
 New-Item -ItemType Directory -Force bin | Out-Null
 go build -o bin\herdr-logbook.exe .\cmd\herdr-logbook
 herdr plugin link (Get-Location) --enabled
-herdr plugin action invoke open-windows --plugin herdr-logbook
 ```
 
 ---
