@@ -39,6 +39,8 @@ type UIConfig struct {
 	Theme        string `toml:"theme" json:"theme"`
 	PreviewStyle string `toml:"preview_style" json:"preview_style"`
 	ShowBranch   bool   `toml:"show_branch" json:"show_branch"`
+	ScopeWidth   int    `toml:"scope_width" json:"scope_width"`
+	DefaultView  string `toml:"default_view" json:"default_view"`
 	PopupWidth   string `toml:"popup_width" json:"popup_width"`
 	PopupHeight  string `toml:"popup_height" json:"popup_height"`
 }
@@ -63,6 +65,7 @@ func Default() Config {
 		Editor:  EditorConfig{Command: []string{}},
 		UI: UIConfig{
 			Theme: "auto", PreviewStyle: "auto", ShowBranch: true,
+			ScopeWidth: 24, DefaultView: "now",
 			PopupWidth: "92%", PopupHeight: "86%",
 		},
 		Search: SearchConfig{
@@ -115,6 +118,12 @@ func (c Config) Validate() error {
 	}
 	if c.Project.RootStrategy != "git" {
 		return fmt.Errorf("project.root_strategy must be git")
+	}
+	if c.UI.ScopeWidth <= 0 {
+		return fmt.Errorf("ui.scope_width must be positive")
+	}
+	if c.UI.DefaultView != "" && c.UI.DefaultView != "now" && c.UI.DefaultView != "project" && c.UI.DefaultView != "global" && c.UI.DefaultView != "all" {
+		return fmt.Errorf("ui.default_view must be now, project, global, or all")
 	}
 	if c.Search.MaxIndexFileBytes <= 0 || c.Search.MaxPreviewFileBytes <= 0 {
 		return fmt.Errorf("search byte limits must be positive")

@@ -120,11 +120,30 @@ herdr plugin action invoke open-windows --plugin herdr-logbook
 
 ## ⚙️ Configuration
 
-Create or edit your config at `$(herdr plugin config-dir herdr-logbook)/config.toml`:
+Create or edit your config at `$(herdr plugin config-dir herdr-logbook)/config.toml` (see [config.example.toml](config.example.toml)):
 
 ```toml
+version = 1
+
 [editor]
+# External editor command (e.g. ["nvim"], ["vim"], ["nano"], ["code", "--wait"])
 command = ["nvim"]
+
+[ui]
+# TUI Color Theme: "auto", "dracula", "tokyo-night", "nord", or "default"
+theme = "dracula"
+# Markdown Preview Style: "auto", "dark", "light", or "notty"
+preview_style = "dark"
+# Show Git branch name in status bar
+show_branch = true
+# Width of Scopes pane in columns (default: 24)
+scope_width = 24
+# Default view tab on launch: "now", "project", "global", or "all"
+default_view = "now"
+
+[storage]
+# Storage mode: "central" (state directory) or "repo" (.herdr/logbook in project)
+project_mode = "central"
 ```
 
 ### Bind a Shortcut in Herdr

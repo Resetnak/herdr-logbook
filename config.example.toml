@@ -1,6 +1,7 @@
 version = 1
 
 [storage]
+# Project storage mode: "central" (stored under state directory) or "repo" (stored in project)
 project_mode = "central"
 repo_directory = ".herdr/logbook"
 
@@ -9,12 +10,22 @@ root_strategy = "git"
 share_across_worktrees = true
 
 [editor]
+# External editor command (e.g. ["nvim"], ["vim"], ["nano"], ["code", "--wait"])
+# Leave empty to auto-detect from $HERDR_LOGBOOK_EDITOR, $VISUAL, or $EDITOR
 command = []
 
 [ui]
+# TUI Color Theme: "auto", "dracula", "tokyo-night", "nord", or "default"
 theme = "auto"
+# Markdown Preview Style: "auto", "dark", "light", or "notty"
 preview_style = "auto"
+# Show Git branch name in the TUI status bar
 show_branch = true
+# Width of the Scopes pane in columns (default: 24)
+scope_width = 24
+# Default TUI view tab on launch: "now", "project", "global", or "all"
+default_view = "now"
+# Modal dimensions for Herdr popup integration
 popup_width = "92%"
 popup_height = "86%"
 

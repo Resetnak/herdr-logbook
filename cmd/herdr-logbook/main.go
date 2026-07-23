@@ -278,7 +278,7 @@ func validateEditableNote(state coreState, path string) error {
 func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("tui", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	view := flags.String("view", "now", "now, project, global, or all")
+	view := flags.String("view", "", "now, project, global, or all (defaults to config ui.default_view)")
 	projectRoot := flags.String("project-root", "", "project root")
 	cwd := flags.String("cwd", "", "fallback working directory")
 	contextJSON := flags.String("context-json", "", "Herdr invocation context JSON")
@@ -286,9 +286,9 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return 2
 	}
-	if *view != "now" && *view != "project" && *view != "global" && *view != "all" {
-		fmt.Fprintln(stderr, "tui view must be now, project, global, or all")
-		return 2
+	effectiveView := *view
+	if effectiveView == "" {
+		effectiveView = "now"
 	}
 	effectiveGetenv := getenv
 	if *contextJSON != "" {
@@ -303,6 +303,13 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 	if failure != nil {
 		fmt.Fprintln(stderr, failure.err)
 		return failure.code
+	}
+	if *view == "" && state.Config.UI.DefaultView != "" {
+		effectiveView = state.Config.UI.DefaultView
+	}
+	if effectiveView != "now" && effectiveView != "project" && effectiveView != "global" && effectiveView != "all" {
+		fmt.Fprintln(stderr, "tui view must be now, project, global, or all")
+		return 2
 	}
 	if err := storage.WithLock(state.Layout.Lock, 2*time.Second, func() error { return storage.Initialize(state.Layout) }); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -371,9 +378,14 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 			return app.NotesReloadedMsg{Notes: notes, Err: loadErr}
 		})
 	}
+	previewStyle := state.Config.UI.PreviewStyle
+	if previewStyle == "" || previewStyle == "auto" {
+		previewStyle = detectGlamourStyle(stdout)
+	}
 	model := app.NewHub(notes, state.Project.Name, state.Project.Branch, state.Layout.Mode).
-		WithView(*view).
-		WithStyle(detectGlamourStyle(stdout)).
+		WithView(effectiveView).
+		WithUIConfig(state.Config.UI.ScopeWidth, state.Config.UI.ShowBranch, state.Config.UI.Theme).
+		WithStyle(previewStyle).
 		WithActions(captureNote, reloadNotes).
 		WithSearch(cache.Entries, refreshSearch).
 		WithAuthoring(authorNote, editNote)

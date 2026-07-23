@@ -96,3 +96,16 @@ func TestValidateRejectsUnsafeRepoDirectory(t *testing.T) {
 		t.Fatalf("Validate() root collision error = %v", err)
 	}
 }
+
+func TestValidateRejectsInvalidUIConfig(t *testing.T) {
+	cfg := Default()
+	cfg.UI.ScopeWidth = -5
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "scope_width") {
+		t.Fatalf("Validate() invalid scope_width error = %v", err)
+	}
+	cfg = Default()
+	cfg.UI.DefaultView = "invalid"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "default_view") {
+		t.Fatalf("Validate() invalid default_view error = %v", err)
+	}
+}

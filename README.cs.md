@@ -120,11 +120,30 @@ herdr plugin action invoke open-windows --plugin herdr-logbook
 
 ## ⚙️ Konfigurace
 
-Vytvořte nebo upravte konfiguraci v `$(herdr plugin config-dir herdr-logbook)/config.toml`:
+Vytvořte nebo upravte konfiguraci v `$(herdr plugin config-dir herdr-logbook)/config.toml` (příklad v [config.example.toml](config.example.toml)):
 
 ```toml
+version = 1
+
 [editor]
+# Příkaz externího editoru (např. ["nvim"], ["vim"], ["nano"], ["code", "--wait"])
 command = ["nvim"]
+
+[ui]
+# Téma barev TUI: "auto", "dracula", "tokyo-night", "nord", nebo "default"
+theme = "dracula"
+# Styl Markdown náhledu: "auto", "dark", "light", nebo "notty"
+preview_style = "dark"
+# Zobrazovat název Git větve ve stavovém řádku
+show_branch = true
+# Šířka panelu Scopes ve sloupcích (výchozí: 24)
+scope_width = 24
+# Výchozí pohled po spuštění: "now", "project", "global", nebo "all"
+default_view = "now"
+
+[storage]
+# Režim úložiště: "central" (ve stavovém adresáři) nebo "repo" (.herdr/logbook v projektu)
+project_mode = "central"
 ```
 
 ### Nastavení zkratky v Herdru

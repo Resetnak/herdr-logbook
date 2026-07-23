@@ -78,6 +78,9 @@ type HubModel struct {
 	glamourStyle     string
 	flashMsg         string
 	flashTick        int
+	scopeWidth       int
+	showBranch       bool
+	uiTheme          string
 }
 
 func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
@@ -95,6 +98,9 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 		projectName: projectName,
 		branch:      branch,
 		storageMode: storageMode,
+		scopeWidth:  24,
+		showBranch:  true,
+		uiTheme:     "auto",
 		width:       80,
 		height:      24,
 		panel:       panelScopes,
@@ -407,19 +413,19 @@ func (m HubModel) View() string {
 			lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Markdown supported: # title · **bold** · - list · `code` · #tag") + "\n" +
 			lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Editor saves: :wq (vim/nvim) or editor's normal save+quit.")
 
-		return pane(helpText, max(30, m.width), max(3, m.height-2), true)
+		return m.pane(helpText, max(30, m.width), max(3, m.height-2), true)
 	}
 
 	availableHeight := max(3, m.height-2)
 	var body string
+	scopeW := max(16, m.scopeWidth)
 	if m.width >= 110 {
-		scopeWidth := 22
 		noteWidth := max(28, m.width/3)
-		previewWidth := max(30, m.width-scopeWidth-noteWidth-4)
+		previewWidth := max(30, m.width-scopeW-noteWidth-4)
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			pane(m.scopesView(), scopeWidth, availableHeight, m.panel == panelScopes),
-			pane(m.notesView(), noteWidth, availableHeight, m.panel == panelNotes),
-			pane(m.previewView(), previewWidth, availableHeight, m.panel == panelPreview),
+			m.pane(m.scopesView(), scopeW, availableHeight, m.panel == panelScopes),
+			m.pane(m.notesView(), noteWidth, availableHeight, m.panel == panelNotes),
+			m.pane(m.previewView(), previewWidth, availableHeight, m.panel == panelPreview),
 		)
 	} else if m.width >= 70 {
 		content := m.notesView()
@@ -427,8 +433,8 @@ func (m HubModel) View() string {
 			content = m.previewView()
 		}
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			pane(m.scopesView(), 24, availableHeight, m.panel == panelScopes),
-			pane(content, max(30, m.width-26), availableHeight, m.panel != panelScopes),
+			m.pane(m.scopesView(), scopeW, availableHeight, m.panel == panelScopes),
+			m.pane(content, max(30, m.width-scopeW-2), availableHeight, m.panel != panelScopes),
 		)
 	} else {
 		content := m.scopesView()
@@ -437,10 +443,17 @@ func (m HubModel) View() string {
 		} else if m.panel == panelPreview {
 			content = m.previewView()
 		}
-		body = pane(content, max(20, m.width), availableHeight, true)
+		body = m.pane(content, max(20, m.width), availableHeight, true)
 	}
 
-	status := fmt.Sprintf("%s · %s · %s store · / search · ? help", m.projectName, m.branch, m.storageMode)
+	var statusParts []string
+	statusParts = append(statusParts, m.projectName)
+	if m.showBranch && m.branch != "" {
+		statusParts = append(statusParts, m.branch)
+	}
+	statusParts = append(statusParts, m.storageMode+" store", "/ search", "? help")
+	status := strings.Join(statusParts, " · ")
+
 	if m.searching {
 		status = m.searchBox.View() + " · Esc clear · Enter results"
 	} else if m.searchQuery != "" {
@@ -580,11 +593,58 @@ func (m *HubModel) resize(width, height int) {
 	m.captureBox.SetHeight(min(12, max(3, height-8)))
 }
 
+type themePalette struct {
+	headerFg lipgloss.Color
+	activeFg lipgloss.Color
+	focusBd  lipgloss.Color
+	dimBd    lipgloss.Color
+}
+
+func getThemePalette(theme string) themePalette {
+	switch strings.ToLower(theme) {
+	case "dracula":
+		return themePalette{headerFg: lipgloss.Color("141"), activeFg: lipgloss.Color("212"), focusBd: lipgloss.Color("141"), dimBd: lipgloss.Color("236")}
+	case "tokyo-night":
+		return themePalette{headerFg: lipgloss.Color("73"), activeFg: lipgloss.Color("111"), focusBd: lipgloss.Color("73"), dimBd: lipgloss.Color("237")}
+	case "nord":
+		return themePalette{headerFg: lipgloss.Color("81"), activeFg: lipgloss.Color("255"), focusBd: lipgloss.Color("81"), dimBd: lipgloss.Color("239")}
+	default:
+		return themePalette{headerFg: lipgloss.Color("39"), activeFg: lipgloss.Color("212"), focusBd: lipgloss.Color("39"), dimBd: lipgloss.Color("238")}
+	}
+}
+
+func (m HubModel) WithUIConfig(scopeWidth int, showBranch bool, theme string) HubModel {
+	if scopeWidth > 0 {
+		m.scopeWidth = scopeWidth
+	}
+	m.showBranch = showBranch
+	if theme != "" {
+		m.uiTheme = theme
+	}
+	return m
+}
+
+func (m HubModel) pane(content string, width, height int, focused bool) string {
+	palette := getThemePalette(m.uiTheme)
+	color := palette.dimBd
+	if focused {
+		color = palette.focusBd
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(color).
+		Width(max(1, width-2)).
+		Height(max(1, height-2)).
+		Padding(0, 1).
+		Render(content)
+}
+
 func (m HubModel) scopesView() string {
+	palette := getThemePalette(m.uiTheme)
 	var output strings.Builder
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.headerFg)
 	output.WriteString(titleStyle.Render("Scopes") + "\n\n")
-	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.activeFg)
 	for index, scope := range m.scopes {
 		prefix := "  "
 		line := scope.name
@@ -599,8 +659,9 @@ func (m HubModel) scopesView() string {
 
 func (m HubModel) notesView() string {
 	notes := m.visibleNotes()
+	palette := getThemePalette(m.uiTheme)
 	var output strings.Builder
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.headerFg)
 	if m.searchQuery != "" {
 		output.WriteString(titleStyle.Render("Search results") + "\n\n")
 	} else {
@@ -614,7 +675,7 @@ func (m HubModel) notesView() string {
 		}
 		return output.String()
 	}
-	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.activeFg)
 	for index, note := range notes {
 		prefix := "  "
 		line := note.Title
@@ -628,7 +689,8 @@ func (m HubModel) notesView() string {
 }
 
 func (m HubModel) previewView() string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
+	palette := getThemePalette(m.uiTheme)
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.headerFg)
 	if len(m.visibleNotes()) == 0 {
 		return titleStyle.Render("Preview") + "\n\nSelect a scope with notes or press c to capture something.\n"
 	}
@@ -712,22 +774,6 @@ func (m *HubModel) refreshPreview() {
 	m.preview.Width = width
 	m.preview.Height = max(3, m.height-6)
 	m.preview.SetContent(rendered)
-}
-
-func pane(content string, width, height int, focused bool) string {
-	// Border always drawn so focused/unfocused occupy the same width×height and
-	// the layout math above stays valid; only the colour changes on focus.
-	color := lipgloss.Color("240")
-	if focused {
-		color = lipgloss.Color("205")
-	}
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(color).
-		Width(max(1, width-2)).
-		Height(max(1, height-2)).
-		Padding(0, 1).
-		Render(content)
 }
 
 func clamp(value, low, high int) int {
