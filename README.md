@@ -92,25 +92,23 @@ The context around a coding task often outlives the terminal session that create
 
 ## 📦 Installation
 
-Herdr Logbook requires [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0. **No Go installation required** — precompiled binaries for Linux, macOS, and Windows (`amd64` & `arm64`) are checksum-verified and installed automatically.
+Herdr Logbook requires [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0.
+
+> ⚡ **No Go Compiler Required for End Users**: The plugin installation automatically downloads SHA-256 checksum-verified precompiled binaries for Linux, macOS, and Windows (`amd64` & `arm64`) directly from GitHub Releases via `scripts/install.sh` / `scripts/install.ps1`.
 
 ### Option 1: Via Herdr Plugin Manager (Recommended)
+
+Run inside Herdr or your terminal:
 
 ```bash
 herdr plugin install Resetnak/herdr-logbook
 ```
 
----
-
-### Option 2: Homebrew (macOS & Linux)
-
-```bash
-brew install Resetnak/tap/herdr-logbook
-```
+Herdr will fetch the repository, run the installer script, verify the release binary checksum, and register the plugin automatically.
 
 ---
 
-### Option 3: Quick Shell / PowerShell Installer (No Go required)
+### Option 2: Quick Script Installer (Standalone / Manual)
 
 #### 🍏 macOS & 🐧 Linux / WSL
 ```bash
@@ -124,7 +122,7 @@ irm https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/scripts/instal
 
 ---
 
-### Option 4: Direct Binary Download (GitHub Releases)
+### Option 3: Direct Binary Download (GitHub Releases)
 
 Download precompiled standalone binaries (with SHA-256 checksum verification) from [GitHub Releases](https://github.com/Resetnak/herdr-logbook/releases):
 
@@ -136,12 +134,18 @@ Download precompiled standalone binaries (with SHA-256 checksum verification) fr
 
 ---
 
-### Option 5: Build from Source (For Go Developers)
+### Option 4: Build from Source (For Developers)
 
-Requires Go ≥ 1.25:
+Building from source requires **Go ≥ 1.25**.
 
-#### 🍏 macOS / 🐧 Linux
+#### 1. Install Go (if not already installed)
+- **macOS (via Homebrew)**: `brew install go`
+- **Linux (Ubuntu/Debian)**: `sudo apt update && sudo apt install golang`
+- **Windows (via Winget)**: `winget install GoLang.Go`
+
+#### 2. Clone & Build
 ```bash
+# macOS / Linux
 git clone https://github.com/Resetnak/herdr-logbook.git
 cd herdr-logbook
 mkdir -p bin
@@ -149,8 +153,8 @@ go build -o bin/herdr-logbook ./cmd/herdr-logbook
 herdr plugin link "$(pwd)" --enabled
 ```
 
-#### 🪟 Windows PowerShell
 ```powershell
+# Windows PowerShell
 git clone https://github.com/Resetnak/herdr-logbook.git
 Set-Location herdr-logbook
 New-Item -ItemType Directory -Force bin | Out-Null

@@ -92,25 +92,23 @@ Užitečný kontext kolem vývojového úkolu často přežije terminálovou rel
 
 ## 📦 Instalace
 
-Herdr Logbook vyžaduje [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0. **Nevyžaduje instalaci Go** — předkompilované binární soubory pro Linux, macOS a Windows (`amd64` a `arm64`) se automaticky ověřují a instalují.
+Herdr Logbook vyžaduje [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0.
+
+> ⚡ **Pro běžné uživatele není potřeba kompilátor Go**: Instalace pluginu automaticky stáhne předkompilované balíčky pro Linux, macOS a Windows (`amd64` a `arm64`) přímo z GitHub Releases a ověří jejich SHA-256 kontrolní součet pomocí skriptů `scripts/install.sh` / `scripts/install.ps1`.
 
 ### Možnost 1: Přes Herdr Plugin Manager (Doporučeno)
+
+Spusťte v Herdru nebo v terminálu:
 
 ```bash
 herdr plugin install Resetnak/herdr-logbook
 ```
 
----
-
-### Možnost 2: Homebrew (macOS & Linux)
-
-```bash
-brew install Resetnak/tap/herdr-logbook
-```
+Herdr si stáhne repozitář, spustí instalační skript, ověří SHA-256 kontrolní součet sestavené binárky a automaticky plugin zaregistruje.
 
 ---
 
-### Možnost 3: Rychlý skriptový instalátor (Bez potřeby Go)
+### Možnost 2: Rychlý skriptový instalátor (Samostatná / Ruční instalace)
 
 #### 🍏 macOS & 🐧 Linux / WSL
 ```bash
@@ -124,9 +122,9 @@ irm https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/scripts/instal
 
 ---
 
-### Možnost 4: Přímé stažení binárního balíčku (GitHub Releases)
+### Možnost 3: Přímé stažení binárního balíčku (GitHub Releases)
 
-Stáhněte předkompilované samostatné balíčky (s ověřením kontrolního součtu SHA-256) ze stránek [GitHub Releases](https://github.com/Resetnak/herdr-logbook/releases):
+Stáhněte si samostatné předkompilované balíčky (s ověřeným SHA-256 kontrolním součtem) přímo ze stránek [GitHub Releases](https://github.com/Resetnak/herdr-logbook/releases):
 
 | OS | Architektura | Archív |
 | :--- | :--- | :--- |
@@ -136,12 +134,18 @@ Stáhněte předkompilované samostatné balíčky (s ověřením kontrolního s
 
 ---
 
-### Možnost 5: Kompilace ze zdrojového kódu (Pro vývojáře v Go)
+### Možnost 4: Kompilace ze zdrojového kódu (Pro vývojáře)
 
-Vyžaduje Go ≥ 1.25:
+Kompilace ze zdrojového kódu vyžaduje **Go ≥ 1.25**.
 
-#### 🍏 macOS / 🐧 Linux
+#### 1. Instalace Go (pokud ještě nemáte)
+- **macOS (přes Homebrew)**: `brew install go`
+- **Linux (Ubuntu/Debian)**: `sudo apt update && sudo apt install golang`
+- **Windows (přes Winget)**: `winget install GoLang.Go`
+
+#### 2. Klonování a kompilace
 ```bash
+# macOS / Linux
 git clone https://github.com/Resetnak/herdr-logbook.git
 cd herdr-logbook
 mkdir -p bin
@@ -149,8 +153,8 @@ go build -o bin/herdr-logbook ./cmd/herdr-logbook
 herdr plugin link "$(pwd)" --enabled
 ```
 
-#### 🪟 Windows PowerShell
 ```powershell
+# Windows PowerShell
 git clone https://github.com/Resetnak/herdr-logbook.git
 Set-Location herdr-logbook
 New-Item -ItemType Directory -Force bin | Out-Null
