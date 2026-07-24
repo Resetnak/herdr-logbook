@@ -23,7 +23,7 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 
 **English** · [Čeština](README.cs.md)
 
-[Features](#-key-features) · [Quick Start](#-quick-start) · [Keyboard Shortcuts](#-keyboard-shortcuts) · [Installation](#-installation) · [Configuration](#-configuration) · [Privacy](#-privacy--security) · [Contributing](CONTRIBUTING.md)
+[Quick Start](#-quick-start) · [Features](#-key-features) · [Keyboard Shortcuts](#-keyboard-shortcuts) · [Installation](#-installation) · [Configuration](#-configuration) · [Privacy](#-privacy--security) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -48,6 +48,15 @@ The notes around a coding task should outlive the tool that captured them. **Her
 └─────────────────┴────────────────────────────┴────────────────────────────────┘
  api-gateway · feature/token-rotation · central store · / search · ? help
 ```
+
+---
+
+## 🚀 Quick Start
+
+1. **Install Herdr** (the host terminal app): `brew install herdr` — see [herdr.dev](https://herdr.dev).
+2. **Install this plugin**: `herdr plugin install Resetnak/herdr-logbook`
+3. **Open the Hub**: run the *Open Logbook Hub* action in Herdr — or [bind a shortcut](#bind-a-shortcut-in-herdr) like `prefix+m`.
+4. **Capture**: press `c` for a note, `d` for a decision, `/` to search. Everything is stored as plain `.md` files you own — no lock-in.
 
 ---
 
@@ -99,7 +108,7 @@ The notes around a coding task should outlive the tool that captured them. **Her
 
 ## 📦 Installation
 
-Herdr Logbook requires [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0.
+Herdr Logbook requires [Herdr](https://herdr.dev) ≥ 0.7.0 — install it with `brew install herdr` (see [herdr.dev](https://herdr.dev)).
 
 > ⚡ **No Go Compiler Required for End Users**: The plugin installation automatically downloads SHA-256 checksum-verified precompiled binaries for Linux, macOS, and Windows (`amd64` & `arm64`) directly from GitHub Releases via `scripts/install.sh` / `scripts/install.ps1`.
 

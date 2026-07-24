@@ -23,7 +23,7 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 
 [English](README.md) · **Čeština**
 
-[Vlastnosti](#-hlavní-vlastnosti) · [Klávesové zkratky](#-klávesové-zkratky) · [Instalace](#-instalace) · [Konfigurace](#-konfigurace) · [Soukromí](#-soukromí-a-bezpečnost) · [Přispívání](CONTRIBUTING.md)
+[Rychlý start](#-rychlý-start) · [Vlastnosti](#-hlavní-vlastnosti) · [Klávesové zkratky](#-klávesové-zkratky) · [Instalace](#-instalace) · [Konfigurace](#-konfigurace) · [Soukromí](#-soukromí-a-bezpečnost) · [Přispívání](CONTRIBUTING.md)
 
 </div>
 
@@ -48,6 +48,15 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 └─────────────────┴────────────────────────────┴────────────────────────────────┘
  api-gateway · feature/token-rotation · central store · / search · ? help
 ```
+
+---
+
+## 🚀 Rychlý start
+
+1. **Nainstalujte Herdr** (hostitelská terminálová aplikace): `brew install herdr` — viz [herdr.dev](https://herdr.dev).
+2. **Nainstalujte tento plugin**: `herdr plugin install Resetnak/herdr-logbook`
+3. **Otevřete Hub**: spusťte v Herdru akci *Open Logbook Hub* — nebo si [nastavte zkratku](#nastavení-zkratky-v-herdru) třeba `prefix+m`.
+4. **Zachyťte**: `c` pro poznámku, `d` pro rozhodnutí, `/` pro hledání. Vše se ukládá jako čisté `.md` soubory, které vlastníte — žádný vendor lock-in.
 
 ---
 
@@ -99,7 +108,7 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 
 ## 📦 Instalace
 
-Herdr Logbook vyžaduje [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0.
+Herdr Logbook vyžaduje [Herdr](https://herdr.dev) ≥ 0.7.0 — nainstalujete jej přes `brew install herdr` (viz [herdr.dev](https://herdr.dev)).
 
 > ⚡ **Pro běžné uživatele není potřeba kompilátor Go**: Instalace pluginu automaticky stáhne předkompilované balíčky pro Linux, macOS a Windows (`amd64` a `arm64`) přímo z GitHub Releases a ověří jejich SHA-256 kontrolní součet pomocí skriptů `scripts/install.sh` / `scripts/install.ps1`.
 
