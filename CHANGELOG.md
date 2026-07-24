@@ -15,6 +15,9 @@ Documentation and dependency-hygiene pre-release. No runtime behavior change. St
 - Bumped transitive `golang.org/x` dependencies so `govulncheck` reports zero findings.
 - Guarded the CodeQL workflow so CI stays green while the repo is private (runs automatically once public).
 - Added a maintainer release checklist (`docs/RELEASE.md`).
+- Added a `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) and a `.github/FUNDING.yml` sponsor button.
+- Added a test-coverage badge to both READMEs backed by a CI coverage floor that fails below 70%.
+- Reworded the installer callout so it no longer implies verified support on Linux/Windows; only macOS (arm64) is verified against a real Herdr host.
 
 ## v0.0.1 — 2026-07-22
 

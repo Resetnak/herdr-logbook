@@ -12,6 +12,7 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 <br>
 
 [![CI](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml/badge.svg)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
+[![Pokrytí](https://img.shields.io/badge/pokrytí-73%25-yellowgreen)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Licence: MIT](https://img.shields.io/badge/Licence-MIT-green.svg)](LICENSE)
 [![Testováno jen na macOS](https://img.shields.io/badge/testováno-jen%20macOS-orange)](docs/herdr-compatibility.md)
@@ -111,7 +112,7 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 
 Herdr Logbook vyžaduje [Herdr](https://herdr.dev) ≥ 0.7.0 — nainstalujete jej přes `brew install herdr` (viz [herdr.dev](https://herdr.dev)).
 
-> ⚡ **Pro běžné uživatele není potřeba kompilátor Go**: Instalace pluginu automaticky stáhne předkompilované balíčky pro Linux, macOS a Windows (`amd64` a `arm64`) přímo z GitHub Releases a ověří jejich SHA-256 kontrolní součet pomocí skriptů `scripts/install.sh` / `scripts/install.ps1`.
+> ⚡ **Není potřeba kompilátor Go**: Instalátor stáhne z GitHub Releases předkompilovanou binárku pro vaši platformu a ověří její SHA-256 kontrolní součet (skripty `scripts/install.sh` / `scripts/install.ps1`). Binárky se sestavují pro Linux, macOS i Windows (`amd64` a `arm64`), ale jen macOS (arm64) je ověřen proti skutečnému hostiteli Herdr — viz stav platforem níže.
 
 > ⚠️ **Stav platforem — pouze macOS**: Tento plugin byl testován **pouze na macOS (arm64)**. Jednotkové testy sice běží v CI na Linuxu, macOS i Windows, ale samotná integrace pluginu s Herdrem (panely a akce) **nebyla** na Linuxu ani Windows testována. Tyto balíčky jsou poskytovány „tak jak jsou". Viz [matice kompatibility](docs/herdr-compatibility.md).
 
@@ -259,7 +260,7 @@ $HERDR_PLUGIN_STATE_DIR/
 
 ## 🤝 Přispívání
 
-Návrhy, hlášení chyb a PR jsou vítány! Podívejte se do [CONTRIBUTING.md](CONTRIBUTING.md) pro lokální nastavení a instrukce k testování.
+Návrhy, hlášení chyb a PR jsou vítány! Podívejte se do [CONTRIBUTING.md](CONTRIBUTING.md) pro lokální nastavení a instrukce k testování a do [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) pro pravidla komunity.
 
 ## 📄 Licence
 

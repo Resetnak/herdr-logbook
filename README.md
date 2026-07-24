@@ -12,6 +12,7 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 <br>
 
 [![CI](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml/badge.svg)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-73%25-yellowgreen)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tested on macOS only](https://img.shields.io/badge/tested-macOS%20only-orange)](docs/herdr-compatibility.md)
@@ -111,7 +112,7 @@ The notes around a coding task should outlive the tool that captured them. **Her
 
 Herdr Logbook requires [Herdr](https://herdr.dev) ≥ 0.7.0 — install it with `brew install herdr` (see [herdr.dev](https://herdr.dev)).
 
-> ⚡ **No Go Compiler Required for End Users**: The plugin installation automatically downloads SHA-256 checksum-verified precompiled binaries for Linux, macOS, and Windows (`amd64` & `arm64`) directly from GitHub Releases via `scripts/install.sh` / `scripts/install.ps1`.
+> ⚡ **No Go compiler required**: The installer downloads a SHA-256 checksum-verified precompiled binary for your platform from GitHub Releases via `scripts/install.sh` / `scripts/install.ps1`. Binaries are built for Linux, macOS, and Windows (`amd64` & `arm64`), but only macOS (arm64) is verified against a real Herdr host — see the platform status below.
 
 > ⚠️ **Platform status — macOS only**: This plugin has been tested **only on macOS (arm64)**. Unit tests run in CI on Linux, macOS, and Windows, but the actual Herdr plugin integration (panes and actions) has **not** been tested on Linux or Windows. Those builds are provided as-is. See the [compatibility matrix](docs/herdr-compatibility.md).
 
@@ -259,7 +260,7 @@ $HERDR_PLUGIN_STATE_DIR/
 
 ## 🤝 Contributing
 
-Contributions, bug reports, and feature requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and testing guidelines.
+Contributions, bug reports, and feature requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and testing guidelines, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.
 
 ## 📄 License
 

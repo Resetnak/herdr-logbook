@@ -31,6 +31,14 @@ jobs:
             exit 1
           fi
       - run: go test ./...
+      - name: Coverage floor
+        if: runner.os == 'Linux'
+        run: |
+          go test -coverprofile=coverage.out ./... >/dev/null
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ { print substr($3, 1, length($3)-1) }')
+          echo "Total coverage: ${total}%"
+          awk -v t="$total" 'BEGIN { exit (t + 0 < 70) ? 1 : 0 }' \
+            || { echo "::error::coverage ${total}% is below the 70% floor advertised by the README badge"; exit 1; }
       - run: go test -race ./...
       - run: go vet ./...
       - run: go install honnef.co/go/tools/cmd/staticcheck@latest

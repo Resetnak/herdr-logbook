@@ -15,7 +15,7 @@ Set TypingSpeed 45ms
 
 # --- Hidden setup: isolated store, seeded from a neutral demo project ---
 Hide
-Type "export HERDR_PLUGIN_STATE_DIR=$(mktemp -d)"
+Type "export HERDR_PLUGIN_STATE_DIR=/tmp/hl-demo-state && rm -rf /tmp/hl-demo-state"
 Enter
 Type "rm -rf /tmp/herdr-demo && mkdir -p /tmp/herdr-demo/api-gateway && cd /tmp/herdr-demo/api-gateway"
 Enter
