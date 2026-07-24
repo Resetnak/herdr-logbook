@@ -2,17 +2,20 @@
 
 # 📓 Herdr Logbook
 
-**Lokální, offline pracovní paměť pro vývojáře v Herdru — postavená na Markdownu.**
+**Pracovní paměť vašeho terminálu — offline, Markdown, vaše.**
 
-Držte své aktivní úkoly, rychlé poznámky, architektonická rozhodnutí a zápisky přímo v terminálu.  
-Žádné proprietární formáty, žádný cloud, žádná telemetrie.
+Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jako čisté
+`.md` soubory, které si můžete grepnout, gitnout a přečíst i za 20 let.
+
+*Žádný cloud. Žádná AI. Žádná telemetrie. Žádný SQLite. Záměrně.*
 
 <br>
 
 [![CI](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml/badge.svg)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Licence: MIT](https://img.shields.io/badge/Licence-MIT-green.svg)](LICENSE)
-[![Platformy](https://img.shields.io/badge/platformy-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](docs/herdr-compatibility.md)
+[![Plugin ověřen](https://img.shields.io/badge/plugin_ověřen-macOS-brightgreen)](docs/herdr-compatibility.md)
+[![Binárky](https://img.shields.io/badge/binárky-Linux%20%7C%20macOS%20%7C%20Windows%20(CI)-lightgrey)](docs/herdr-compatibility.md)
 [![Herdr](https://img.shields.io/badge/Herdr-%E2%89%A50.7.0-2088FF)](herdr-plugin.toml)
 [![Stav](https://img.shields.io/badge/stav-pre--release-orange)](CHANGELOG.md)
 
@@ -24,11 +27,15 @@ Držte své aktivní úkoly, rychlé poznámky, architektonická rozhodnutí a z
 
 </div>
 
+<div align="center">
+  <img src="assets/demo.gif" alt="Herdr Logbook — poznámky, rozhodnutí a aktivní úkol now.md přímo v terminálu" width="820">
+</div>
+
 ---
 
 ## 💡 Proč Herdr Logbook?
 
-Užitečný kontext kolem vývojového úkolu často přežije terminálovou relaci, ve které vznikl. **Herdr Logbook** drží tento kontext na dosah jedné zkratky přímo v terminálu — uložený v čistém Markdownu, který vám zůstane navždy přístupný s pluginem i bez něj.
+Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachytil. **Herdr Logbook** drží tento kontext v terminálu jako čistý, standardní Markdown — soubory, které vám zůstanou s pluginem i bez něj, s Herdrem i bez něj, ať už tento repozitář udržuji, nebo ne.
 
 ```text
 ┌ Scopes ─────────┬ Notes ─────────────────────┬ Preview ───────────────────────┐
@@ -95,6 +102,8 @@ Užitečný kontext kolem vývojového úkolu často přežije terminálovou rel
 Herdr Logbook vyžaduje [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0.
 
 > ⚡ **Pro běžné uživatele není potřeba kompilátor Go**: Instalace pluginu automaticky stáhne předkompilované balíčky pro Linux, macOS a Windows (`amd64` a `arm64`) přímo z GitHub Releases a ověří jejich SHA-256 kontrolní součet pomocí skriptů `scripts/install.sh` / `scripts/install.ps1`.
+
+> 🧭 **Stav platforem**: Jednotkové testy běží v CI na Linuxu, macOS i Windows. Integrace pluginu s Herdrem (panely a akce) je zatím ověřená pouze na **macOS (arm64)** — balíčky pro Linux a Windows se kompilují křížově a procházejí CI, ale nejsou dosud ověřené proti skutečnému hostiteli Herdr. Viz [matice kompatibility](docs/herdr-compatibility.md).
 
 ### Možnost 1: Přes Herdr Plugin Manager (Doporučeno)
 

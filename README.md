@@ -2,17 +2,20 @@
 
 # 📓 Herdr Logbook
 
-**Local, offline, Markdown-first working memory for developers using Herdr.**
+**Your terminal's working memory — offline, Markdown, yours.**
 
-Keep active tasks, quick captures, architectural decisions, and project notes right in your terminal.  
-No proprietary formats, no cloud locks, zero telemetry.
+Active tasks, quick captures, and architectural decisions, stored as plain
+`.md` files you can grep, git, and still read in 20 years.
+
+*No cloud. No AI. No telemetry. No SQLite. On purpose.*
 
 <br>
 
 [![CI](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml/badge.svg)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](docs/herdr-compatibility.md)
+[![Plugin verified](https://img.shields.io/badge/plugin_verified-macOS-brightgreen)](docs/herdr-compatibility.md)
+[![Binaries](https://img.shields.io/badge/binaries-Linux%20%7C%20macOS%20%7C%20Windows%20(CI)-lightgrey)](docs/herdr-compatibility.md)
 [![Herdr](https://img.shields.io/badge/Herdr-%E2%89%A50.7.0-2088FF)](herdr-plugin.toml)
 [![Status](https://img.shields.io/badge/status-pre--release-orange)](CHANGELOG.md)
 
@@ -24,11 +27,15 @@ No proprietary formats, no cloud locks, zero telemetry.
 
 </div>
 
+<div align="center">
+  <img src="assets/demo.gif" alt="Herdr Logbook — capture notes, record decisions, and keep an active-task now.md, all in the terminal" width="820">
+</div>
+
 ---
 
 ## 💡 Why Herdr Logbook?
 
-The context around a coding task often outlives the terminal session that created it. **Herdr Logbook** captures that context right inside your terminal — stored as clean, standard Markdown files that remain yours forever, with or without the plugin.
+The notes around a coding task should outlive the tool that captured them. **Herdr Logbook** keeps that context in your terminal as clean, standard Markdown — files that stay yours with or without the plugin, with or without Herdr, with or without me maintaining this repo.
 
 ```text
 ┌ Scopes ─────────┬ Notes ─────────────────────┬ Preview ───────────────────────┐
@@ -95,6 +102,8 @@ The context around a coding task often outlives the terminal session that create
 Herdr Logbook requires [Herdr](https://github.com/Resetnak/herdr) ≥ 0.7.0.
 
 > ⚡ **No Go Compiler Required for End Users**: The plugin installation automatically downloads SHA-256 checksum-verified precompiled binaries for Linux, macOS, and Windows (`amd64` & `arm64`) directly from GitHub Releases via `scripts/install.sh` / `scripts/install.ps1`.
+
+> 🧭 **Platform status**: Unit tests run in CI on Linux, macOS, and Windows. Herdr plugin integration (panes and actions) is currently verified only on **macOS (arm64)** — Linux and Windows binaries are cross-compiled and CI-tested but not yet validated against a real Herdr host. See the [compatibility matrix](docs/herdr-compatibility.md).
 
 ### Option 1: Via Herdr Plugin Manager (Recommended)
 

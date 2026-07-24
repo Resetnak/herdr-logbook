@@ -17,6 +17,9 @@ jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
+    # Code scanning uploads require a public repo (or GitHub Advanced Security).
+    # Skip on private repos so CI stays green; runs automatically once public.
+    if: github.event.repository.visibility == 'public'
 
     strategy:
       fail-fast: false
