@@ -5,18 +5,17 @@ All notable changes will be documented here. The project has not published a sta
 ## Unreleased
 
 - Fixed the standalone script installers (`curl … | bash`, `irm … | iex`): without a plugin checkout they now read the released version from the manifest on `main` and install the binary to `~/.local/bin` instead of failing on a missing `herdr-plugin.toml`.
-- Fixed the capture modal rendering: the box was two columns narrower than the textarea rows, so lipgloss re-wrapped them — text containing `-` visually jumped to the next line and the cursor-line highlight left artifacts. Data on disk was never affected.
+
+## v0.0.2 — 2026-07-24
+
+Documentation, dependency-hygiene, and a capture-modal rendering fix. Pre-release. Still verified only on macOS arm64 (see [docs/herdr-compatibility.md](docs/herdr-compatibility.md)); not a stable release or a v0.1.0 platform-support claim.
 
 - Added a "How It Compares" section (Obsidian/Logseq, zk/nb, in-repo `TODO.md`) to both READMEs.
 - Added `go install` as a standalone-CLI install path and an invitation for Linux/Windows platform-verification reports to both READMEs.
 - Release pages now include install instructions and a checksum/platform-status note (GoReleaser header/footer).
 - Bug report template now asks for `herdr-logbook doctor --json` output (paths and status only, never note content).
 - Re-recorded the demo GIF to show the real Herdr flow: Claude Code in a pane, `prefix+m` splits in the Logbook Hub. `cassette.tape` now drives a throwaway, fully isolated Herdr session and cleans up after itself.
-
-## v0.0.2 — 2026-07-24
-
-Documentation and dependency-hygiene pre-release. No runtime behavior change. Still verified only on macOS arm64 (see [docs/herdr-compatibility.md](docs/herdr-compatibility.md)); not a stable release or a v0.1.0 platform-support claim.
-
+- Fixed the capture modal rendering: the box was two columns narrower than the textarea rows, so lipgloss re-wrapped them — text containing `-` visually jumped to the next line and the cursor-line highlight left artifacts. Data on disk was never affected.
 - Reworked README with a header navbar, badges, and a section index; added a Czech translation (`README.cs.md`) with a language switcher.
 - Added a Quick Start section and a demo GIF (`assets/demo.gif`, rendered from `cassette.tape`) to both READMEs.
 - Corrected the Herdr prerequisite link to point at the real project ([herdr.dev](https://herdr.dev)) and added a Platform status callout scoping verified support to macOS arm64.
