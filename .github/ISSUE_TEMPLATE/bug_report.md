@@ -23,5 +23,12 @@ A clear and concise description of what you expected to happen.
  - Herdr version: [e.g. 0.7.0]
  - Herdr Logbook version: [e.g. v0.1.0 or dev]
 
+**Doctor output**
+Paste the output of `herdr-logbook doctor --json`. It reports paths and
+status only — never note content. Redact any path you consider private.
+
+```json
+```
+
 **Additional context**
 Add any other context or terminal log snippets here.

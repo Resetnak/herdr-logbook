@@ -70,6 +70,43 @@ git push origin v0.0.2
 
 If anything 404s or fails checksum, fix and re-tag before announcing.
 
-## 5. Announce (optional)
+## 5. Announce & distribution
 
-- [ ] Add to the community plugin list: <https://github.com/yigitkonur/awesome-herdr>.
+Shipping the release gets you a page; distribution gets you users. Do these
+once, right after the smoke test passes.
+
+Repo storefront (one-time, right after going public):
+
+- [ ] Description + topics:
+      ```bash
+      gh repo edit Resetnak/herdr-logbook \
+        --description "Your terminal's working memory — offline, Markdown-first notes, decisions, and an active-task now.md for Herdr" \
+        --add-topic go --add-topic tui --add-topic bubbletea --add-topic cli \
+        --add-topic markdown --add-topic note-taking --add-topic adr \
+        --add-topic offline-first --add-topic herdr
+      ```
+- [ ] Upload a social preview image (Settings → General → Social preview) —
+      link previews on HN/Reddit/X use it; a frame from the demo GIF works.
+- [ ] Enable GitHub Discussions for Q&A so issues stay actionable bug reports.
+- [ ] Prime Go Report Card (badge material): open
+      <https://goreportcard.com/report/github.com/Resetnak/herdr-logbook> once.
+
+Community lists (PRs / submissions):
+
+- [ ] Community plugin list: <https://github.com/yigitkonur/awesome-herdr>.
+- [ ] Bubble Tea "in the wild" list in <https://github.com/charmbracelet/bubbletea>.
+- [ ] <https://github.com/rothgar/awesome-tuis> and <https://terminaltrove.com/new/>.
+
+Launch posts (lead with the demo GIF and the "offline, Markdown, yours" hook;
+be upfront about macOS-only verification — it invites Linux testers):
+
+- [ ] r/golang, r/commandline.
+- [ ] Show HN — weekday morning US time; stay around to answer comments.
+
+## 6. Later (after the first release settles)
+
+- [ ] Homebrew tap: create `Resetnak/homebrew-tap`, add a `brews:` section to
+      `.goreleaser.yaml` with a PAT secret (the default `GITHUB_TOKEN` cannot
+      push to another repo), so `brew install resetnak/tap/herdr-logbook` works.
+- [ ] Recruit platform verification from issue reports and update
+      `docs/herdr-compatibility.md` as real-host reports come in.

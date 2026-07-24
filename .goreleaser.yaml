@@ -25,3 +25,17 @@ changelog:
 release:
   draft: false
   prerelease: auto
+  header: |
+    Install with the checksum-verifying script:
+
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/scripts/install.sh | bash
+    ```
+
+    or via the plugin manager: `herdr plugin install Resetnak/herdr-logbook`.
+  footer: |
+    ---
+
+    Verify downloads against `checksums.txt`. Only macOS (arm64) is verified
+    against a real Herdr host — other platforms are cross-compiled and untested;
+    see [docs/herdr-compatibility.md](https://github.com/Resetnak/herdr-logbook/blob/main/docs/herdr-compatibility.md).

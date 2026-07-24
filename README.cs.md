@@ -23,7 +23,7 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 
 [English](README.md) · **Čeština**
 
-[Rychlý start](#-rychlý-start) · [Vlastnosti](#-hlavní-vlastnosti) · [Klávesové zkratky](#-klávesové-zkratky) · [Instalace](#-instalace) · [Konfigurace](#-konfigurace) · [Soukromí](#-soukromí-a-bezpečnost) · [Přispívání](CONTRIBUTING.md)
+[Rychlý start](#-rychlý-start) · [Vlastnosti](#-hlavní-vlastnosti) · [Srovnání](#-srovnání-s-jinými-nástroji) · [Klávesové zkratky](#-klávesové-zkratky) · [Instalace](#-instalace) · [Konfigurace](#-konfigurace) · [Soukromí](#-soukromí-a-bezpečnost) · [Přispívání](CONTRIBUTING.md)
 
 </div>
 
@@ -32,6 +32,8 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 </div>
 
 > ⚠️ **Testováno pouze na macOS (arm64).** Binárky pro Linux a Windows se kompilují křížově a procházejí jednotkovými testy v CI, ale plugin **nebyl** na těchto platformách ověřen proti skutečnému hostiteli Herdr. Používáte je na vlastní riziko. Viz [matice kompatibility](docs/herdr-compatibility.md).
+>
+> Používáte Herdr na Linuxu nebo Windows? Krátká zpráva, že plugin funguje (nebo nefunguje), je nejrychlejší cesta k ověření vaší platformy — [otevřete issue](https://github.com/Resetnak/herdr-logbook/issues).
 
 ---
 
@@ -71,6 +73,20 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 - **🔍 Okamžité vyhledávání**: Bleskové fuzzy vyhledávání napříč všemi projekty (`/`) nebo filtrování podle projektu (`p`).
 - **📝 Vlastní editor**: Úpravy souborů deleguje na váš oblíbený `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
 - **🔒 100% Offline & Soukromí**: Žádná telemetrie, žádný cloud, žádné automatické Git operace ani závislost na AI.
+
+---
+
+## 🧭 Srovnání s jinými nástroji
+
+Herdr Logbook nenahrazuje vaši znalostní bázi — zachycuje pracovní kontext *kolem vývojového úkolu*, automaticky navázaný na projekt, ve kterém právě jste.
+
+| Nástroj | V čem je skvělý | V čem se Logbook liší |
+| :--- | :--- | :--- |
+| **Obsidian / Logseq** | Dlouhodobá znalostní báze | Logbook žije v terminálu hned vedle shellu a poznámky automaticky organizuje podle repozitáře/worktree — žádná aplikace, žádný vault |
+| **zk / nb** | Obecné CLI poznámky | Logbook je zaměřený na úkoly: aktivní `now.md`, ADR šablony a panely/akce v Herdru — ne obecný zápisník |
+| **`TODO.md` v repozitáři** | Nulové nástroje | Logbook drží pracovní stromy čisté (centrální úložiště), hledá napříč všemi projekty a přežije přepínání větví |
+
+Vše je čistý Markdown, takže na kterýkoli z těchto nástrojů můžete kdykoli přejít — nebo je kombinovat.
 
 ---
 
@@ -157,6 +173,14 @@ Stáhněte si samostatné předkompilované balíčky (s ověřeným SHA-256 kon
 ### Možnost 4: Kompilace ze zdrojového kódu (Pro vývojáře)
 
 Kompilace ze zdrojového kódu vyžaduje **Go ≥ 1.25**.
+
+Chcete jen samostatné CLI (bez registrace pluginu v Herdru)?
+
+```bash
+go install github.com/Resetnak/herdr-logbook/cmd/herdr-logbook@latest
+```
+
+Pro registraci jako Herdr plugin místo toho naklonujte a nalinkujte:
 
 #### 1. Instalace Go (pokud ještě nemáte)
 - **macOS (přes Homebrew)**: `brew install go`

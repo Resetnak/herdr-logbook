@@ -23,7 +23,7 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 
 **English** · [Čeština](README.cs.md)
 
-[Quick Start](#-quick-start) · [Features](#-key-features) · [Keyboard Shortcuts](#-keyboard-shortcuts) · [Installation](#-installation) · [Configuration](#-configuration) · [Privacy](#-privacy--security) · [Contributing](CONTRIBUTING.md)
+[Quick Start](#-quick-start) · [Features](#-key-features) · [Comparison](#-how-it-compares) · [Keyboard Shortcuts](#-keyboard-shortcuts) · [Installation](#-installation) · [Configuration](#-configuration) · [Privacy](#-privacy--security) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -32,6 +32,8 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 </div>
 
 > ⚠️ **Tested on macOS (arm64) only.** Linux and Windows binaries are cross-compiled and pass CI unit tests, but the plugin has **not** been tested against a real Herdr host on those platforms. Use them at your own risk. See the [compatibility matrix](docs/herdr-compatibility.md).
+>
+> Running Herdr on Linux or Windows? A quick report that the plugin works (or doesn't) is the fastest way to get your platform verified — [open an issue](https://github.com/Resetnak/herdr-logbook/issues).
 
 ---
 
@@ -71,6 +73,20 @@ The notes around a coding task should outlive the tool that captured them. **Her
 - **🔍 Instant Fuzzy Search**: Real-time cross-project search (`/`) or project-filtered search (`p`).
 - **📝 Bring Your Own Editor**: Delegates full editing to your preferred `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
 - **🔒 100% Offline & Private**: Zero telemetry, no cloud sync, no background Git operations, no AI lock-in.
+
+---
+
+## 🧭 How It Compares
+
+Herdr Logbook doesn't replace your knowledge base — it captures the working context *around a coding task*, scoped to the project you're in.
+
+| Tool | Great at | Where Logbook differs |
+| :--- | :--- | :--- |
+| **Obsidian / Logseq** | Long-term knowledge base | Logbook lives in the terminal next to your shell and scopes notes per repo/worktree automatically — no app, no vault setup |
+| **zk / nb** | General CLI note-taking | Logbook is task-centric: an active `now.md`, ADR templates, and Herdr panes/actions — not a generic notebook |
+| **`TODO.md` in the repo** | Zero tooling | Logbook keeps working trees clean (central store), searches across all projects, and survives branch switches |
+
+Everything is plain Markdown, so you can migrate to — or combine with — any of these at any time.
 
 ---
 
@@ -157,6 +173,14 @@ Download precompiled standalone binaries (with SHA-256 checksum verification) fr
 ### Option 4: Build from Source (For Developers)
 
 Building from source requires **Go ≥ 1.25**.
+
+Just want the standalone CLI (no Herdr plugin registration)?
+
+```bash
+go install github.com/Resetnak/herdr-logbook/cmd/herdr-logbook@latest
+```
+
+To register it as a Herdr plugin, clone and link instead:
 
 #### 1. Install Go (if not already installed)
 - **macOS (via Homebrew)**: `brew install go`

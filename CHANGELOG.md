@@ -4,6 +4,12 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- Added a "How It Compares" section (Obsidian/Logseq, zk/nb, in-repo `TODO.md`) to both READMEs.
+- Added `go install` as a standalone-CLI install path and an invitation for Linux/Windows platform-verification reports to both READMEs.
+- Release pages now include install instructions and a checksum/platform-status note (GoReleaser header/footer).
+- Bug report template now asks for `herdr-logbook doctor --json` output (paths and status only, never note content).
+- Expanded the release checklist with a concrete distribution/announce plan and a post-release Homebrew-tap step.
+
 ## v0.0.2 — 2026-07-24
 
 Documentation and dependency-hygiene pre-release. No runtime behavior change. Still verified only on macOS arm64 (see [docs/herdr-compatibility.md](docs/herdr-compatibility.md)); not a stable release or a v0.1.0 platform-support claim.
