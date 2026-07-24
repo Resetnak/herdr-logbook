@@ -28,7 +28,9 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 </div>
 
 <div align="center">
-  <img src="assets/demo.gif" alt="Herdr Logbook — capture notes, record decisions, and keep an active-task now.md, all in the terminal" width="820">
+  <img src="assets/demo.gif" alt="Claude Code running in a Herdr pane; pressing Ctrl+B then M splits the Logbook Hub in beside it" width="820">
+
+  <sub>Claude Code working in a repo — press <code>Ctrl+B</code> then <code>m</code> and the Logbook Hub splits in beside your agent: inbox, decisions, cross-project search. Rendered from <a href="cassette.tape">cassette.tape</a>.</sub>
 </div>
 
 > ⚠️ **Tested on macOS (arm64) only.** Linux and Windows binaries are cross-compiled and pass CI unit tests, but the plugin has **not** been tested against a real Herdr host on those platforms. Use them at your own risk. See the [compatibility matrix](docs/herdr-compatibility.md).

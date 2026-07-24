@@ -8,6 +8,7 @@ All notable changes will be documented here. The project has not published a sta
 - Added `go install` as a standalone-CLI install path and an invitation for Linux/Windows platform-verification reports to both READMEs.
 - Release pages now include install instructions and a checksum/platform-status note (GoReleaser header/footer).
 - Bug report template now asks for `herdr-logbook doctor --json` output (paths and status only, never note content).
+- Re-recorded the demo GIF to show the real Herdr flow: Claude Code in a pane, `prefix+m` splits in the Logbook Hub. `cassette.tape` now drives a throwaway, fully isolated Herdr session and cleans up after itself.
 
 ## v0.0.2 — 2026-07-24
 

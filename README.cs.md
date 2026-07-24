@@ -28,7 +28,9 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 </div>
 
 <div align="center">
-  <img src="assets/demo.gif" alt="Herdr Logbook — poznámky, rozhodnutí a aktivní úkol now.md přímo v terminálu" width="820">
+  <img src="assets/demo.gif" alt="Claude Code běžící v panelu Herdru; po stisku Ctrl+B a M se vedle otevře Logbook Hub" width="820">
+
+  <sub>Claude Code pracuje v repozitáři — stiskněte <code>Ctrl+B</code> a poté <code>m</code> a vedle agenta se otevře Logbook Hub: inbox, rozhodnutí, vyhledávání napříč projekty. Vyrenderováno z <a href="cassette.tape">cassette.tape</a>.</sub>
 </div>
 
 > ⚠️ **Testováno pouze na macOS (arm64).** Binárky pro Linux a Windows se kompilují křížově a procházejí jednotkovými testy v CI, ale plugin **nebyl** na těchto platformách ověřen proti skutečnému hostiteli Herdr. Používáte je na vlastní riziko. Viz [matice kompatibility](docs/herdr-compatibility.md).
