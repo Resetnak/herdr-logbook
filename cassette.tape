@@ -34,7 +34,9 @@ Type "rm -rf /tmp/hl-demo-home /tmp/herdr-demo && mkdir -p /tmp/hl-demo-home/.co
 Enter
 Type `printf 'onboarding = false\n\n[terminal]\ndefault_shell = "/bin/bash"\nshell_mode = "non_login"\nnew_cwd = "/tmp/herdr-demo/api-gateway"\n\n[ui]\nsidebar_start_collapsed = true\nsidebar_collapsed_mode = "hidden"\n\n[[keys.command]]\nkey = "prefix+m"\ntype = "plugin_action"\ncommand = "herdr-logbook.open"\ndescription = "Herdr Logbook"\n\n[theme]\nname = "catppuccin"\n\n[experimental]\nallow_nested = true\n' > $HOME/.config/herdr/config.toml`
 Enter
-Type `printf 'PS1="> "\nalias claude="HOME=%s claude --strict-mcp-config"\nexport PATH=%s/bin:$PATH\n' "$REAL_HOME" "$REPO" > /tmp/hl-demo-home/.bashrc`
+Type `printf '{"statusLine":{"type":"command","command":"echo api-gateway"}}' > /tmp/hl-demo-home/claude-settings.json`
+Enter
+Type `printf 'PS1="> "\nalias claude="HOME=%s claude --setting-sources project --strict-mcp-config --model haiku --settings /tmp/hl-demo-home/claude-settings.json --disallowedTools Bash,Read,Glob,Grep,WebSearch,WebFetch,Task,Edit,Write,TodoWrite,Skill,NotebookEdit --append-system-prompt %s"\nexport PATH=%s/bin:$PATH\n' "$REAL_HOME" "'Assume a typical Go API gateway. Never ask clarifying questions; write the full answer immediately in English.'" "$REPO" > /tmp/hl-demo-home/.bashrc`
 Enter
 Type `herdr plugin link $REPO --enabled >/dev/null 2>&1`
 Enter
@@ -53,17 +55,15 @@ Enter
 Sleep 4500ms
 Show
 
-# --- Inside Herdr: launch Claude Code in the fake project ---
+# --- Inside Herdr: ask Claude for help in the fake project ---
 Sleep 800ms
-Type "claude"
-Sleep 400ms
+Type `claude -p "Write a step-by-step guide for rotating our JWT signing keys with zero downtime."`
+Sleep 500ms
 Enter
 Hide
-Sleep 3500ms
-Enter
-Sleep 6000ms
+Sleep 26000ms
 Show
-Sleep 1200ms
+Sleep 2200ms
 
 # --- prefix+m: the Logbook Hub splits in beside the agent ---
 Ctrl+B
