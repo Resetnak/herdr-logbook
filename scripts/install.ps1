@@ -2,7 +2,15 @@ param()
 $ErrorActionPreference = 'Stop'
 
 $PluginRoot = if ($env:HERDR_PLUGIN_ROOT) { $env:HERDR_PLUGIN_ROOT } else { Split-Path -Parent $PSScriptRoot }
-$Manifest = Get-Content -LiteralPath (Join-Path $PluginRoot 'herdr-plugin.toml') -Raw
+$ManifestPath = if ($PluginRoot) { Join-Path $PluginRoot 'herdr-plugin.toml' } else { $null }
+if ($ManifestPath -and (Test-Path -LiteralPath $ManifestPath)) {
+    $Manifest = Get-Content -LiteralPath $ManifestPath -Raw
+    $Bin = Join-Path $PluginRoot 'bin'
+} else {
+    # Standalone install (irm | iex): no plugin checkout around the script.
+    $Manifest = (Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/herdr-plugin.toml').Content
+    $Bin = Join-Path $env:USERPROFILE '.local\bin'
+}
 if ($Manifest -notmatch '(?m)^version\s*=\s*"([^"]+)"') { throw 'Plugin version is missing from herdr-plugin.toml' }
 $Version = $Matches[1]
 $Architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
@@ -25,9 +33,9 @@ try {
     $Expected = ($Line -split '\s+')[0].ToLowerInvariant()
     $Actual = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($Actual -ne $Expected) { throw "Checksum verification failed for $Asset" }
-    $Bin = Join-Path $PluginRoot 'bin'
     New-Item -ItemType Directory -Force -Path $Bin | Out-Null
     Expand-Archive -LiteralPath $Archive -DestinationPath $Bin -Force
+    Write-Output "installed herdr-logbook $Version to $Bin"
 } finally {
     Remove-Item -LiteralPath $Temporary -Recurse -Force -ErrorAction SilentlyContinue
 }

@@ -2,7 +2,22 @@
 set -euo pipefail
 
 plugin_root="${HERDR_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-version="$(awk -F '"' '/^version = / { print $2; exit }' "$plugin_root/herdr-plugin.toml")"
+manifest="$plugin_root/herdr-plugin.toml"
+if [ -f "$manifest" ]; then
+  version="$(awk -F '"' '/^version = / { print $2; exit }' "$manifest")"
+  install_dir="$plugin_root/bin"
+else
+  # Standalone install (curl | bash): there is no plugin checkout around the
+  # script, so read the released version from the manifest on main and drop
+  # the binary into a PATH-friendly directory instead of a plugin root.
+  version="$(curl --fail --location --silent --show-error     https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/herdr-plugin.toml |
+    awk -F '"' '/^version = / { print $2; exit }')"
+  install_dir="${HERDR_LOGBOOK_BIN_DIR:-$HOME/.local/bin}"
+fi
+if [ -z "$version" ]; then
+  echo "could not determine the herdr-logbook version" >&2
+  exit 1
+fi
 case "$(uname -s)" in
   Linux) os=linux ;;
   Darwin) os=darwin ;;
@@ -34,6 +49,11 @@ if [ "$actual" != "$expected" ]; then
   echo "checksum verification failed for $asset" >&2
   exit 1
 fi
-mkdir -p "$plugin_root/bin"
-tar -xzf "$temporary/$asset" -C "$plugin_root/bin" herdr-logbook
-chmod 0755 "$plugin_root/bin/herdr-logbook"
+mkdir -p "$install_dir"
+tar -xzf "$temporary/$asset" -C "$install_dir" herdr-logbook
+chmod 0755 "$install_dir/herdr-logbook"
+echo "installed herdr-logbook ${version} to $install_dir/herdr-logbook"
+case ":$PATH:" in
+  *":$install_dir:"*) ;;
+  *) echo "note: $install_dir is not on your PATH" ;;
+esac
