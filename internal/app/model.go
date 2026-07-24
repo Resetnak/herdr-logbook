@@ -486,11 +486,15 @@ func (m HubModel) captureView() string {
 	mdHint := lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Markdown supported: # title · **bold** · - list · #tag")
 	keyHint := lipgloss.NewStyle().Foreground(lipgloss.Color("248")).Render("Ctrl+S save · Ctrl+E save & edit in editor · Esc cancel")
 	body += "\n\n" + mdHint + "\n" + keyHint
+	// The box must be at least as wide as the textarea's rendered rows plus
+	// horizontal padding; anything narrower makes lipgloss re-wrap those rows
+	// (reflow breaks at hyphens), visually splitting lines that contain "-".
+	boxWidth := max(24, lipgloss.Width(m.captureBox.View())+4)
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("39")).
 		Padding(1, 2).
-		Width(max(24, m.captureBox.Width()+2)).
+		Width(boxWidth).
 		Render(body)
 }
 
