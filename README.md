@@ -14,8 +14,7 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 [![CI](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml/badge.svg)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Plugin verified](https://img.shields.io/badge/plugin_verified-macOS-brightgreen)](docs/herdr-compatibility.md)
-[![Binaries](https://img.shields.io/badge/binaries-Linux%20%7C%20macOS%20%7C%20Windows%20(CI)-lightgrey)](docs/herdr-compatibility.md)
+[![Tested on macOS only](https://img.shields.io/badge/tested-macOS%20only-orange)](docs/herdr-compatibility.md)
 [![Herdr](https://img.shields.io/badge/Herdr-%E2%89%A50.7.0-2088FF)](herdr-plugin.toml)
 [![Status](https://img.shields.io/badge/status-pre--release-orange)](CHANGELOG.md)
 
@@ -30,6 +29,8 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 <div align="center">
   <img src="assets/demo.gif" alt="Herdr Logbook — capture notes, record decisions, and keep an active-task now.md, all in the terminal" width="820">
 </div>
+
+> ⚠️ **Tested on macOS (arm64) only.** Linux and Windows binaries are cross-compiled and pass CI unit tests, but the plugin has **not** been tested against a real Herdr host on those platforms. Use them at your own risk. See the [compatibility matrix](docs/herdr-compatibility.md).
 
 ---
 
@@ -112,7 +113,7 @@ Herdr Logbook requires [Herdr](https://herdr.dev) ≥ 0.7.0 — install it with 
 
 > ⚡ **No Go Compiler Required for End Users**: The plugin installation automatically downloads SHA-256 checksum-verified precompiled binaries for Linux, macOS, and Windows (`amd64` & `arm64`) directly from GitHub Releases via `scripts/install.sh` / `scripts/install.ps1`.
 
-> 🧭 **Platform status**: Unit tests run in CI on Linux, macOS, and Windows. Herdr plugin integration (panes and actions) is currently verified only on **macOS (arm64)** — Linux and Windows binaries are cross-compiled and CI-tested but not yet validated against a real Herdr host. See the [compatibility matrix](docs/herdr-compatibility.md).
+> ⚠️ **Platform status — macOS only**: This plugin has been tested **only on macOS (arm64)**. Unit tests run in CI on Linux, macOS, and Windows, but the actual Herdr plugin integration (panes and actions) has **not** been tested on Linux or Windows. Those builds are provided as-is. See the [compatibility matrix](docs/herdr-compatibility.md).
 
 ### Option 1: Via Herdr Plugin Manager (Recommended)
 
