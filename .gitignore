@@ -7,6 +7,7 @@
 coverage.out
 
 # Local workspace and tool state
+/docs/RELEASE.md
 /docs/superpowers/
 /.claude/
 /.code-review-graph/

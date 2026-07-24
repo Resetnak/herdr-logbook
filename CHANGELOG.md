@@ -8,7 +8,6 @@ All notable changes will be documented here. The project has not published a sta
 - Added `go install` as a standalone-CLI install path and an invitation for Linux/Windows platform-verification reports to both READMEs.
 - Release pages now include install instructions and a checksum/platform-status note (GoReleaser header/footer).
 - Bug report template now asks for `herdr-logbook doctor --json` output (paths and status only, never note content).
-- Expanded the release checklist with a concrete distribution/announce plan and a post-release Homebrew-tap step.
 
 ## v0.0.2 — 2026-07-24
 
@@ -20,7 +19,6 @@ Documentation and dependency-hygiene pre-release. No runtime behavior change. St
 - Corrected the documented minimum Go version to match `go.mod`.
 - Bumped transitive `golang.org/x` dependencies so `govulncheck` reports zero findings.
 - Guarded the CodeQL workflow so CI stays green while the repo is private (runs automatically once public).
-- Added a maintainer release checklist (`docs/RELEASE.md`).
 - Added a `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) and a `.github/FUNDING.yml` sponsor button.
 - Added a test-coverage badge to both READMEs backed by a CI coverage floor that fails below 70%.
 - Reworded the installer callout so it no longer implies verified support on Linux/Windows; only macOS (arm64) is verified against a real Herdr host.
