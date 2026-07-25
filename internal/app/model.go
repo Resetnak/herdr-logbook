@@ -32,8 +32,9 @@ type AuthorFunc func(kind, title string) ([]Note, error)
 type EditFunc func(note Note) tea.Cmd
 
 type searchLoadedMsg struct {
-	entries []searchindex.Entry
-	err     error
+	entries    []searchindex.Entry
+	err        error
+	generation uint64
 }
 
 type NotesReloadedMsg struct {
@@ -70,6 +71,9 @@ type HubModel struct {
 	searchEntries    []searchindex.Entry
 	searchResults    []Note
 	searchLoadFn     SearchLoadFunc
+	searchGeneration uint64
+	searchRefreshing bool
+	searchErr        string
 	authorKind       string
 	authorFn         AuthorFunc
 	editFn           EditFunc
@@ -161,6 +165,10 @@ func (m HubModel) WithActions(captureFn CaptureFunc, reloadFn ReloadFunc) HubMod
 func (m HubModel) WithSearch(entries []searchindex.Entry, loadFn SearchLoadFunc) HubModel {
 	m.searchEntries = entries
 	m.searchLoadFn = loadFn
+	if loadFn != nil {
+		m.searchGeneration = 1
+		m.searchRefreshing = true
+	}
 	return m
 }
 
@@ -179,29 +187,32 @@ func (m HubModel) Init() tea.Cmd {
 	if m.searchLoadFn == nil {
 		return nil
 	}
-	return m.loadSearchCmd()
+	return m.loadSearchCmd(m.searchGeneration)
 }
 
 func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	if reloaded, ok := message.(NotesReloadedMsg); ok {
 		if reloaded.Err != nil {
 			m.captureErr = reloaded.Err.Error()
-		} else {
-			m.notes = reloaded.Notes
-			m.captureErr = ""
-			m.flashMsg = "✓ Note updated"
-			m.flashTick++
-			m.refreshPreview()
-			return m, flashCmd(m.flashTick)
+			return m, m.refreshSearchCmd()
 		}
-		return m, nil
+		m.notes = reloaded.Notes
+		m.captureErr = ""
+		m.flashMsg = "✓ Note updated"
+		m.flashTick++
+		m.refreshPreview()
+		return m, tea.Batch(m.refreshSearchCmd(), flashCmd(m.flashTick))
 	}
 	if loaded, ok := message.(searchLoadedMsg); ok {
+		if loaded.generation != m.searchGeneration {
+			return m, nil
+		}
+		m.searchRefreshing = false
 		if loaded.err != nil {
-			m.captureErr = loaded.err.Error()
+			m.searchErr = loaded.err.Error()
 		} else {
 			m.searchEntries = loaded.entries
-			m.captureErr = ""
+			m.searchErr = ""
 			m.updateSearchResults()
 		}
 		return m, nil
@@ -269,6 +280,7 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 					m.notes = notes
 					m.captureErr = ""
 					m.refreshPreview()
+					return m, m.refreshSearchCmd()
 				}
 			}
 		case "tab":
@@ -378,7 +390,7 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.flashMsg = "✓ Saved to inbox"
 			m.flashTick++
-			return m, flashCmd(m.flashTick)
+			return m, tea.Batch(m.refreshSearchCmd(), flashCmd(m.flashTick))
 		}
 	}
 
@@ -464,6 +476,9 @@ func (m HubModel) View() string {
 	}
 	if m.captureErr != "" {
 		status = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.captureErr) + " · " + status
+	}
+	if m.searchErr != "" {
+		status = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.searchErr) + " · " + status
 	}
 	return body + "\n" + lipgloss.NewStyle().Faint(true).Render(status)
 }
@@ -584,11 +599,20 @@ func (m *HubModel) clearSearch() {
 	m.refreshPreview()
 }
 
-func (m HubModel) loadSearchCmd() tea.Cmd {
+func (m HubModel) loadSearchCmd(generation uint64) tea.Cmd {
 	return func() tea.Msg {
 		entries, err := m.searchLoadFn()
-		return searchLoadedMsg{entries: entries, err: err}
+		return searchLoadedMsg{entries: entries, err: err, generation: generation}
 	}
+}
+
+func (m *HubModel) refreshSearchCmd() tea.Cmd {
+	if m.searchLoadFn == nil {
+		return nil
+	}
+	m.searchGeneration++
+	m.searchRefreshing = true
+	return m.loadSearchCmd(m.searchGeneration)
 }
 
 func (m *HubModel) resize(width, height int) {
@@ -672,11 +696,7 @@ func (m HubModel) notesView() string {
 		output.WriteString(titleStyle.Render("Notes") + "\n\n")
 	}
 	if len(notes) == 0 {
-		if m.scopeIndex == 0 {
-			output.WriteString("No current context yet. Press c to capture something.\n")
-		} else {
-			output.WriteString("No notes in this scope yet. Press c to capture something.\n")
-		}
+		output.WriteString(m.emptyStateMessage() + "\n")
 		return output.String()
 	}
 	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.activeFg)
@@ -696,9 +716,32 @@ func (m HubModel) previewView() string {
 	palette := getThemePalette(m.uiTheme)
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.headerFg)
 	if len(m.visibleNotes()) == 0 {
-		return titleStyle.Render("Preview") + "\n\nSelect a scope with notes or press c to capture something.\n"
+		return titleStyle.Render("Preview") + "\n\n" + m.emptyStateMessage() + "\n"
 	}
 	return titleStyle.Render("Preview") + "\n\n" + m.preview.View()
+}
+
+func (m HubModel) emptyStateMessage() string {
+	if m.searchQuery != "" {
+		if m.searchRefreshing {
+			return "Refreshing search index..."
+		}
+		return "No matching notes. Press Esc to clear the search."
+	}
+	switch m.scopeIndex {
+	case 1:
+		return "No project inbox captures yet. Press c to capture something."
+	case 2:
+		return "No project notes yet. Press n to create one."
+	case 3:
+		return "No decisions yet. Press d to create one."
+	case 4:
+		return "No global inbox captures yet. Press C to capture something."
+	case 5:
+		return "No notes yet. Press c to capture or n to create a project note."
+	default:
+		return "No current context yet. Press c to capture something."
+	}
 }
 
 func (m HubModel) visibleNotes() []Note {

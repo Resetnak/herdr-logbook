@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -73,6 +74,55 @@ func TestHubScopeNavigationFiltersNotes(t *testing.T) {
 	}
 }
 
+func TestHubEmptyStatesDescribeScopeActions(t *testing.T) {
+	tests := []struct {
+		scope int
+		want  string
+	}{
+		{scope: 1, want: "Press c to capture"},
+		{scope: 2, want: "Press n to create"},
+		{scope: 3, want: "Press d to create"},
+		{scope: 4, want: "Press C to capture"},
+	}
+	for _, test := range tests {
+		model := NewHub(nil, "api", "main", "central")
+		model.scopeIndex = test.scope
+		if view := model.View(); !strings.Contains(view, test.want) {
+			t.Fatalf("scope %d empty state missing %q:\n%s", test.scope, test.want, view)
+		}
+	}
+}
+
+func TestHubEmptySearchDoesNotSuggestCapturing(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("missing")})
+	view := model.View()
+	if !strings.Contains(view, "No matching notes") || strings.Contains(view, "Press c to capture") {
+		t.Fatalf("empty search showed the wrong guidance:\n%s", view)
+	}
+}
+
+func TestHubSearchShowsRefreshingUntilInitialIndexLoads(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
+		return nil, nil
+	})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("missing")})
+	if view := model.View(); !strings.Contains(view, "Refreshing search index...") {
+		t.Fatalf("pending search did not show refresh state:\n%s", view)
+	}
+
+	loaded, ok := model.Init()().(searchLoadedMsg)
+	if !ok {
+		t.Fatal("Init did not load search entries")
+	}
+	model, _ = updateHub(model, loaded)
+	if view := model.View(); !strings.Contains(view, "No matching notes") {
+		t.Fatalf("completed empty search did not show no-match state:\n%s", view)
+	}
+}
+
 func TestHubCaptureModalSavesProjectNote(t *testing.T) {
 	var capturedText string
 	var capturedGlobal bool
@@ -100,6 +150,30 @@ func TestHubCaptureModalSavesProjectNote(t *testing.T) {
 	}
 	if len(model.notes) != 1 || model.notes[0].Title != "Captured" {
 		t.Fatalf("notes after capture = %#v", model.notes)
+	}
+}
+
+func TestHubCaptureRefreshesSearchIndex(t *testing.T) {
+	searchLoads := 0
+	model := NewHub(nil, "api", "main", "central").
+		WithActions(func(text string, global bool) ([]Note, error) {
+			return []Note{{Title: "Inbox", Type: NoteProjectInbox, Content: text}}, nil
+		}, nil).
+		WithSearch(nil, func() ([]searchindex.Entry, error) {
+			searchLoads++
+			return []searchindex.Entry{{Title: "Inbox", ProjectName: "api", Content: "first ever note"}}, nil
+		})
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("first ever note")})
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlS})
+	loaded := runSearchLoadCommand(t, command)
+	model, _ = updateHub(model, loaded)
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("first ever")})
+
+	if searchLoads != 1 || len(model.searchResults) != 1 {
+		t.Fatalf("search refresh = loads %d, results %#v", searchLoads, model.searchResults)
 	}
 }
 
@@ -139,14 +213,21 @@ func TestHubCaptureErrorKeepsModalOpen(t *testing.T) {
 
 func TestHubRefreshReloadsNotes(t *testing.T) {
 	reloads := 0
-	model := NewHub(nil, "api", "main", "central").WithActions(nil, func() ([]Note, error) {
-		reloads++
-		return []Note{{Title: "Fresh", Type: NoteNow, Content: "new"}}, nil
-	})
+	searchLoads := 0
+	model := NewHub(nil, "api", "main", "central").
+		WithActions(nil, func() ([]Note, error) {
+			reloads++
+			return []Note{{Title: "Fresh", Type: NoteNow, Content: "new"}}, nil
+		}).
+		WithSearch(nil, func() ([]searchindex.Entry, error) {
+			searchLoads++
+			return nil, nil
+		})
 
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	if reloads != 1 || len(model.notes) != 1 || model.notes[0].Title != "Fresh" {
-		t.Fatalf("refresh = reloads %d, notes %#v", reloads, model.notes)
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	runSearchLoadCommand(t, command)
+	if reloads != 1 || searchLoads != 1 || len(model.notes) != 1 || model.notes[0].Title != "Fresh" {
+		t.Fatalf("refresh = reloads %d, search loads %d, notes %#v", reloads, searchLoads, model.notes)
 	}
 }
 
@@ -224,7 +305,76 @@ func TestHubAuthoringAndEditorActions(t *testing.T) {
 	}
 }
 
+func TestHubEditorReturnRefreshesSearchIndex(t *testing.T) {
+	searchLoads := 0
+	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
+		searchLoads++
+		return nil, nil
+	})
+
+	model, command := updateHub(model, NotesReloadedMsg{Notes: []Note{{Title: "Edited", Type: NoteProjectNote}}})
+	runSearchLoadCommand(t, command)
+	if searchLoads != 1 || len(model.notes) != 1 || model.notes[0].Title != "Edited" {
+		t.Fatalf("editor return = search loads %d, notes %#v", searchLoads, model.notes)
+	}
+}
+
+func TestHubEditorErrorStillRefreshesSearchIndex(t *testing.T) {
+	searchLoads := 0
+	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
+		searchLoads++
+		return nil, nil
+	})
+
+	model, command := updateHub(model, NotesReloadedMsg{Err: errors.New("editor failed")})
+	loaded := runSearchLoadCommand(t, command)
+	model, _ = updateHub(model, loaded)
+	if searchLoads != 1 || !strings.Contains(model.captureErr, "editor failed") {
+		t.Fatalf("editor error = search loads %d, capture error %q", searchLoads, model.captureErr)
+	}
+}
+
+func TestHubIgnoresSupersededSearchRefresh(t *testing.T) {
+	searchLoads := 0
+	model := NewHub(nil, "api", "main", "central").
+		WithActions(nil, func() ([]Note, error) { return nil, nil }).
+		WithSearch(nil, func() ([]searchindex.Entry, error) {
+			searchLoads++
+			return []searchindex.Entry{{Title: fmt.Sprintf("refresh-%d", searchLoads)}}, nil
+		})
+
+	model, oldCommand := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	oldResult := runSearchLoadCommand(t, oldCommand)
+	model, newCommand := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	newResult := runSearchLoadCommand(t, newCommand)
+	model, _ = updateHub(model, newResult)
+	model, _ = updateHub(model, oldResult)
+
+	if len(model.searchEntries) != 1 || model.searchEntries[0].Title != "refresh-2" {
+		t.Fatalf("search entries were replaced by stale refresh: %#v", model.searchEntries)
+	}
+}
+
 func updateHub(model HubModel, message tea.Msg) (HubModel, tea.Cmd) {
 	updated, command := model.Update(message)
 	return updated.(HubModel), command
+}
+
+func runSearchLoadCommand(t *testing.T, command tea.Cmd) searchLoadedMsg {
+	t.Helper()
+	if command == nil {
+		t.Fatal("search-index refresh was not scheduled")
+	}
+	switch message := command().(type) {
+	case searchLoadedMsg:
+		return message
+	case tea.BatchMsg:
+		for _, batched := range message {
+			if loaded, ok := batched().(searchLoadedMsg); ok {
+				return loaded
+			}
+		}
+	}
+	t.Fatal("command did not load search entries")
+	return searchLoadedMsg{}
 }
