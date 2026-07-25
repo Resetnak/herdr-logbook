@@ -166,7 +166,7 @@ func (m HubModel) WithSearch(entries []searchindex.Entry, loadFn SearchLoadFunc)
 	m.searchEntries = entries
 	m.searchLoadFn = loadFn
 	if loadFn != nil {
-		m.searchGeneration = 1
+		m.searchGeneration++
 		m.searchRefreshing = true
 	}
 	return m
@@ -474,11 +474,11 @@ func (m HubModel) View() string {
 	if m.flashMsg != "" {
 		status = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(m.flashMsg) + " · " + status
 	}
-	if m.captureErr != "" {
-		status = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.captureErr) + " · " + status
-	}
-	if m.searchErr != "" {
-		status = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.searchErr) + " · " + status
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	for _, message := range []string{m.captureErr, m.searchErr} {
+		if message != "" {
+			status = errorStyle.Render(message) + " · " + status
+		}
 	}
 	return body + "\n" + lipgloss.NewStyle().Faint(true).Render(status)
 }
