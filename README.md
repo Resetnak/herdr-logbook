@@ -62,7 +62,7 @@ The notes around a coding task should outlive the tool that captured them. **Her
 1. **Install Herdr** (the host terminal app): `brew install herdr` — see [herdr.dev](https://herdr.dev).
 2. **Install this plugin**: `herdr plugin install Resetnak/herdr-logbook`
 3. **Open the Hub**: run the *Open Logbook Hub* action in Herdr — or [bind a shortcut](#bind-a-shortcut-in-herdr) like `prefix+m`.
-4. **Capture**: press `c` for a note, `d` for a decision, `/` to search. Everything is stored as plain `.md` files you own — no lock-in.
+4. **Capture**: press `t` to set what you are working on, `c` for a note, `d` for a decision, `/` to search. Everything is stored as plain `.md` files you own — no lock-in.
 
 ---
 
@@ -71,6 +71,7 @@ The notes around a coding task should outlive the tool that captured them. **Her
 - **📓 Markdown-First & Canonical**: Plain `.md` files in your storage. Disposable, self-healing search index.
 - **🌿 Git & Repository Aware**: Automatically scopes notes by workspace, Git worktree, or current folder.
 - **⚡ Responsive Terminal UI**: Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). Adapts from 3 panes to a single pane on narrow terminals (<70 cols).
+- **🎯 Active Task & Free Work Journal**: `t` (or `herdr-logbook now "…"`) sets the current task in `now.md`. Every switch files the task you just left into the monthly inbox, so your journal writes itself.
 - **⚖️ Architectural Decisions (ADR)**: Built-in templates for logging technical choices and consequences (`d`).
 - **🔍 Instant Fuzzy Search**: Real-time cross-project search (`/`) or project-filtered search (`p`).
 - **📝 Bring Your Own Editor**: Delegates full editing to your preferred `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
@@ -108,6 +109,7 @@ Everything is plain Markdown, so you can migrate to — or combine with — any 
 | Shortcut | Action |
 | :--- | :--- |
 | `c` / `C` | Quick capture (project or global inbox) |
+| `t` | Set the current task in `now.md` (the previous one is archived to the inbox) |
 | `n` | Create new project note |
 | `d` | Record architectural decision (ADR) |
 | `e` | Edit selected note in `$EDITOR` (`vi` / `nvim`) |
@@ -255,6 +257,22 @@ Reload Herdr configuration:
 herdr config check
 herdr server reload-config
 ```
+
+---
+
+## 🎯 Active Task (`now`)
+
+`now.md` holds what you are working on right now. Set it from the Hub with `t`, or from the shell:
+
+```bash
+herdr-logbook now                             # print the current task
+herdr-logbook now "Rotate the signing tokens" # set it
+herdr-logbook now --project-root ~/src/api "Fix the flaky login test"
+```
+
+Switching tasks appends the one you just left to this month's inbox file as `Task done: …`, timestamped and tagged with the branch. Nothing else in `now.md` is touched — your `## Next steps`, `## Blockers`, and `## Context` sections stay exactly as you wrote them.
+
+> Flags must come before the task text (`now --project-root PATH "task"`), and the task itself cannot contain Markdown headings — they would cut the section short.
 
 ---
 

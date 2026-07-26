@@ -305,6 +305,59 @@ func TestHubProjectSearchFiltersByProjectName(t *testing.T) {
 	}
 }
 
+func TestHubSetsCurrentTask(t *testing.T) {
+	got := ""
+	model := NewHub([]Note{{Path: "/notes/now.md", Title: "Now", Type: NoteNow}}, "api", "main", "central").
+		WithAuthoring(func(kind, title string) ([]Note, error) {
+			got = kind + ":" + title
+			return nil, nil
+		}, nil)
+
+	m, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	if !strings.Contains(m.View(), "Current task") {
+		t.Fatalf("t did not open the current-task modal:\n%s", m.View())
+	}
+	m, _ = updateHub(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Rotate the signing tokens")})
+	m, _ = updateHub(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if got != "now:Rotate the signing tokens" {
+		t.Fatalf("author action = %q", got)
+	}
+	if m.capturing {
+		t.Fatal("Ctrl+S should close the modal")
+	}
+	if m.flashMsg != "✓ Current task updated" {
+		t.Fatalf("flash = %q", m.flashMsg)
+	}
+}
+
+func TestHubSaveAndEditCurrentTaskOpensNowFile(t *testing.T) {
+	edited := ""
+	now := Note{Path: "/notes/now.md", Title: "Now", Type: NoteNow}
+	model := NewHub([]Note{now}, "api", "main", "central").
+		WithAuthoring(func(string, string) ([]Note, error) {
+			return []Note{
+				now,
+				{Path: "/notes/inbox/2026-07.md", Title: "Inbox", Type: NoteProjectInbox},
+			}, nil
+		}, func(note Note) tea.Cmd {
+			return func() tea.Msg {
+				edited = note.Path
+				return nil
+			}
+		})
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Rotate the signing tokens")})
+	_, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlE})
+	if command == nil {
+		t.Fatal("Ctrl+E did not open an editor")
+	}
+	command()
+	if edited != now.Path {
+		t.Fatalf("Ctrl+E edited %q, want %q", edited, now.Path)
+	}
+}
+
 func TestHubAuthoringAndEditorActions(t *testing.T) {
 	authorKind := ""
 	edited := ""

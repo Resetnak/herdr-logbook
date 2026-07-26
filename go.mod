@@ -10,7 +10,7 @@ require (
 	github.com/gofrs/flock v0.13.0
 	github.com/muesli/termenv v0.16.0
 	github.com/pelletier/go-toml/v2 v2.4.3
-	github.com/sahilm/fuzzy v0.1.1
+	github.com/sahilm/fuzzy v0.1.3
 	golang.org/x/term v0.45.0
 )
 
