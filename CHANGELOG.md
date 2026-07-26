@@ -4,6 +4,8 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- Fixed Hub search staying stale after captures, new notes, editor changes, and manual reloads. Search now updates without restarting Logbook, while overlapping index rebuilds are coalesced to avoid redundant full-store scans.
+- Improved empty-state guidance across Hub scopes and failed searches so the UI shows the relevant action or index failure instead of suggesting an unrelated capture or reporting no matches from stale results.
 - Fixed the standalone script installers (`curl … | bash`, `irm … | iex`): without a plugin checkout they now read the released version from the manifest on `main` and install the binary to `~/.local/bin` instead of failing on a missing `herdr-plugin.toml`.
 - Fixed the capture modal rendering: the box was two columns narrower than the textarea rows, so lipgloss re-wrapped them — text containing `-` visually jumped to the next line and the cursor-line highlight left artifacts. Data on disk was never affected.
 
