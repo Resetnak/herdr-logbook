@@ -112,10 +112,10 @@ func TestSetCurrentTaskIsIdempotentlyRepeatable(t *testing.T) {
 
 func TestValidateTaskRejectsBadInput(t *testing.T) {
 	cases := map[string]string{
-		"empty":       "   ",
-		"heading":     "Fix it\n## Blockers",
-		"nul byte":    "Fix\x00it",
-		"lone hash":   "#",
+		"empty":        "   ",
+		"heading":      "Fix it\n## Blockers",
+		"nul byte":     "Fix\x00it",
+		"lone hash":    "#",
 		"leading hash": "  # Now",
 	}
 	for name, task := range cases {
