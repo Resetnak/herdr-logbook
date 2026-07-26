@@ -4,7 +4,13 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+## v0.0.3 — 2026-07-26
+
+The active task becomes a first-class command, and switching tasks writes your work journal for you. Pre-release. Still verified only on macOS arm64 (see [docs/herdr-compatibility.md](docs/herdr-compatibility.md)); not a stable release or a v0.1.0 platform-support claim.
+
 - Added the active-task workflow: `herdr-logbook now` prints the current task, `herdr-logbook now "TASK"` sets it, and `t` in the Hub opens the same modal. Switching tasks archives the one being replaced into the monthly inbox as `Task done: …`, which turns `now.md` into a work journal without any extra bookkeeping. Only the `## Current task` section of `now.md` is rewritten; every other section is preserved.
+- Documented the active task in both READMEs (feature list, keybind tables, and a dedicated section) and added it to the `?` help screen and `herdr-logbook keybinds`.
+- Demo GIF now ends on the active-task flow: `t`, type a task, `Ctrl+S`, with the displaced task visible in the Project Inbox as `Task done: …`.
 - Fixed the standalone script installers (`curl … | bash`, `irm … | iex`): without a plugin checkout they now read the released version from the manifest on `main` and install the binary to `~/.local/bin` instead of failing on a missing `herdr-plugin.toml`.
 
 ## v0.0.2 — 2026-07-24
