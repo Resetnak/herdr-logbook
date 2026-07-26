@@ -75,21 +75,26 @@ func TestHubScopeNavigationFiltersNotes(t *testing.T) {
 }
 
 func TestHubEmptyStatesDescribeScopeActions(t *testing.T) {
-	tests := []struct {
-		scope int
-		want  string
-	}{
-		{scope: 1, want: "Press c to capture"},
-		{scope: 2, want: "Press n to create"},
-		{scope: 3, want: "Press d to create"},
-		{scope: 4, want: "Press C to capture"},
+	wants := map[string]string{
+		"Now":           "Press c to capture",
+		"Project Inbox": "Press c to capture",
+		"Project Notes": "Press n to create",
+		"Decisions":     "Press d to create",
+		"Global Inbox":  "Press C to capture",
+		"All Notes":     "Press c to capture or n to create",
 	}
-	for _, test := range tests {
-		model := NewHub(nil, "api", "main", "central")
-		model.scopeIndex = test.scope
-		if view := model.View(); !strings.Contains(view, test.want) {
-			t.Fatalf("scope %d empty state missing %q:\n%s", test.scope, test.want, view)
-		}
+	model := NewHub(nil, "api", "main", "central")
+	for index, scope := range model.scopes {
+		t.Run(scope.name, func(t *testing.T) {
+			want, ok := wants[scope.name]
+			if !ok {
+				t.Fatalf("scope %q has no expected empty-state guidance", scope.name)
+			}
+			model.scopeIndex = index
+			if view := model.View(); !strings.Contains(view, want) {
+				t.Fatalf("empty state missing %q:\n%s", want, view)
+			}
+		})
 	}
 }
 

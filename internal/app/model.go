@@ -21,8 +21,9 @@ const (
 )
 
 type scopeItem struct {
-	name  string
-	types map[NoteType]bool
+	name         string
+	types        map[NoteType]bool
+	emptyMessage string
 }
 
 type CaptureFunc func(text string, global bool) ([]Note, error)
@@ -114,12 +115,12 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 		captureBox:  captureBox,
 		searchBox:   searchBox,
 		scopes: []scopeItem{
-			{"Now", map[NoteType]bool{NoteNow: true}},
-			{"Project Inbox", map[NoteType]bool{NoteProjectInbox: true}},
-			{"Project Notes", map[NoteType]bool{NoteProjectNote: true}},
-			{"Decisions", map[NoteType]bool{NoteDecision: true}},
-			{"Global Inbox", map[NoteType]bool{NoteGlobalInbox: true}},
-			{"All Notes", nil},
+			{name: "Now", types: map[NoteType]bool{NoteNow: true}, emptyMessage: "No current context yet. Press c to capture something."},
+			{name: "Project Inbox", types: map[NoteType]bool{NoteProjectInbox: true}, emptyMessage: "No project inbox captures yet. Press c to capture something."},
+			{name: "Project Notes", types: map[NoteType]bool{NoteProjectNote: true}, emptyMessage: "No project notes yet. Press n to create one."},
+			{name: "Decisions", types: map[NoteType]bool{NoteDecision: true}, emptyMessage: "No decisions yet. Press d to create one."},
+			{name: "Global Inbox", types: map[NoteType]bool{NoteGlobalInbox: true}, emptyMessage: "No global inbox captures yet. Press C to capture something."},
+			{name: "All Notes", emptyMessage: "No notes yet. Press c to capture or n to create a project note."},
 		},
 	}
 	model.refreshPreview()
@@ -752,20 +753,10 @@ func (m HubModel) emptyStateMessage() string {
 		}
 		return "No matching notes. Press Esc to clear the search."
 	}
-	switch m.scopeIndex {
-	case 1:
-		return "No project inbox captures yet. Press c to capture something."
-	case 2:
-		return "No project notes yet. Press n to create one."
-	case 3:
-		return "No decisions yet. Press d to create one."
-	case 4:
-		return "No global inbox captures yet. Press C to capture something."
-	case 5:
-		return "No notes yet. Press c to capture or n to create a project note."
-	default:
-		return "No current context yet. Press c to capture something."
+	if m.scopeIndex >= 0 && m.scopeIndex < len(m.scopes) {
+		return m.scopes[m.scopeIndex].emptyMessage
 	}
+	return "No notes in this scope yet."
 }
 
 func (m HubModel) visibleNotes() []Note {
