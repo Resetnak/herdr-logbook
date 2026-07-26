@@ -22,6 +22,7 @@ import (
 	"github.com/Resetnak/herdr-logbook/internal/editor"
 	"github.com/Resetnak/herdr-logbook/internal/herdr"
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
+	"github.com/Resetnak/herdr-logbook/internal/nowfile"
 	"github.com/Resetnak/herdr-logbook/internal/project"
 	"github.com/Resetnak/herdr-logbook/internal/storage"
 	tea "github.com/charmbracelet/bubbletea"
@@ -131,6 +132,8 @@ func run(args []string, getenv func(string) string, stdin io.Reader, stdout, std
 		return runCapture(args[1:], getenv, stdin, stdout, stderr)
 	case "decision":
 		return runDecision(args[1:], getenv, stdin, stdout, stderr)
+	case "now":
+		return runNow(args[1:], getenv, stdout, stderr)
 	case "tui":
 		return runTUI(args[1:], getenv, stdin, stdout, stderr)
 	case "index":
@@ -159,6 +162,7 @@ Actions:
   c/C  project/global capture
   n    create project note
   d    create decision
+  t    set the current task in now.md
   e    edit in external editor
   r    refresh
   ?    help
@@ -344,6 +348,17 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		return reloadNotes()
 	}
 	authorNote := func(kind, title string) ([]app.Note, error) {
+		// setNowTask takes state.Layout.Lock itself, so it must stay outside the
+		// lock the note/decision authors run under.
+		if kind == "now" {
+			if err := nowfile.ValidateTask(title); err != nil {
+				return nil, err
+			}
+			if _, err := setNowTask(state, title); err != nil {
+				return nil, err
+			}
+			return reloadNotes()
+		}
 		err := storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
 			if kind == "decision" {
 				_, err := author.CreateDecision(state.Layout.Root, title, state.Project.Name, state.Project.Branch, time.Now())
@@ -646,6 +661,108 @@ func appendCapture(state coreState, content string, global, selection bool, bran
 	})
 }
 
+func runNow(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("now", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	projectRoot := flags.String("project-root", "", "project root")
+	cwd := flags.String("cwd", "", "fallback working directory")
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	task := strings.TrimSpace(strings.Join(flags.Args(), " "))
+	state, failure := loadCore(*projectRoot, *cwd, "", getenv)
+	if failure != nil {
+		fmt.Fprintln(stderr, failure.err)
+		return failure.code
+	}
+
+	if task == "" {
+		content, err := os.ReadFile(state.Layout.Now)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintln(stderr, err)
+			return 4
+		}
+		current := nowfile.CurrentTask(string(content))
+		if current == "" {
+			fmt.Fprintln(stderr, "no current task set")
+			return 0
+		}
+		fmt.Fprintln(stdout, current)
+		return 0
+	}
+
+	if err := nowfile.ValidateTask(task); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if int64(len(task)) > state.Config.Capture.MaxSelectionBytes {
+		fmt.Fprintf(stderr, "task size exceeds limit of %d bytes\n", state.Config.Capture.MaxSelectionBytes)
+		return 2
+	}
+	previous, err := setNowTask(state, task)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 4
+	}
+	registryPath, registryLock := registryPaths(state.StateDir)
+	if err := project.UpdateRegistry(registryPath, registryLock, 2*time.Second, state.Project, state.Layout.Mode, state.Layout.Root, time.Now().UTC()); err != nil {
+		fmt.Fprintln(stderr, err)
+		return 4
+	}
+	if previous != "" {
+		fmt.Fprintf(stdout, "archived: %s\n", firstLine(previous))
+	}
+	fmt.Fprintln(stdout, state.Layout.Now)
+	return 0
+}
+
+// setNowTask replaces the "## Current task" section of now.md and files the task
+// it displaced into the monthly inbox, so switching tasks builds a work journal
+// for free. It returns the task that was replaced.
+func setNowTask(state coreState, task string) (string, error) {
+	var previous, updated string
+	err := storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
+		if err := storage.Initialize(state.Layout); err != nil {
+			return err
+		}
+		content, readErr := os.ReadFile(state.Layout.Now)
+		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			return readErr
+		}
+		previous = nowfile.CurrentTask(string(content))
+		var setErr error
+		updated, setErr = nowfile.SetCurrentTask(string(content), task)
+		return setErr
+	})
+	if err != nil {
+		return "", err
+	}
+	// ponytail: the archive runs before the overwrite and takes its own lock —
+	// capture.Append locks state.Layout.Lock itself and flock is per file
+	// descriptor, so nesting the two would deadlock. Archiving first means a
+	// failed overwrite duplicates a journal entry instead of losing one. Upgrade
+	// path if that ever matters: a lock-free capture.append the caller wraps.
+	if previous != "" {
+		if _, err := appendCapture(state, "Task done: "+previous, false, false, "", ""); err != nil {
+			return "", err
+		}
+	}
+	err = storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
+		return storage.AtomicWrite(state.Layout.Now, []byte(updated), 0o600)
+	})
+	if err != nil {
+		return "", err
+	}
+	return previous, nil
+}
+
+func firstLine(text string) string {
+	if index := strings.IndexByte(text, '\n'); index >= 0 {
+		return strings.TrimSpace(text[:index]) + " …"
+	}
+	return text
+}
+
 func runCompatibility(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 || (len(args) == 1 && args[0] != "--wait") {
 		fmt.Fprintln(stderr, "usage: herdr-logbook compatibility [--wait]")
@@ -913,5 +1030,5 @@ func waitForClose(reader io.Reader, timeout time.Duration) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, "usage: herdr-logbook tui | compatibility [--wait] | capture | init | paths | doctor [--json] | resolve-cwd | version")
+	fmt.Fprintln(writer, "usage: herdr-logbook tui | compatibility [--wait] | capture | now [TASK] | init | paths | doctor [--json] | resolve-cwd | version")
 }

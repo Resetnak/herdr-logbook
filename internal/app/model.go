@@ -255,6 +255,8 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m.openAuthor("note")
 		case "d":
 			return m.openAuthor("decision")
+		case "t":
+			return m.openAuthor("now")
 		case "e":
 			notes := m.visibleNotes()
 			if m.editFn != nil && len(notes) > 0 {
@@ -342,6 +344,7 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			var notes []Note
 			var err error
+			kind := m.authorKind
 			if m.authorKind != "" {
 				if m.authorFn == nil {
 					m.captureErr = "Authoring is unavailable."
@@ -377,6 +380,9 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			m.flashMsg = "✓ Saved to inbox"
+			if kind == "now" {
+				m.flashMsg = "✓ Current task updated"
+			}
 			m.flashTick++
 			return m, flashCmd(m.flashTick)
 		}
@@ -403,6 +409,7 @@ func (m HubModel) View() string {
 			lipgloss.NewStyle().Bold(true).Render("Actions:") + "\n" +
 			"  c / C                      Quick capture (project / global inbox)\n" +
 			"  n / d                      New project note / decision record\n" +
+			"  t                          Set current task (previous one is archived)\n" +
 			"  e                          Edit note in external editor ($EDITOR / vi)\n" +
 			"  r                          Reload / refresh notes\n" +
 			"  ? / q                      Toggle help / quit\n\n" +
@@ -474,10 +481,13 @@ func (m HubModel) captureView() string {
 	if m.captureGlobal {
 		title = titleStyle.Render("🌐 Global capture")
 	}
-	if m.authorKind == "note" {
+	switch m.authorKind {
+	case "note":
 		title = titleStyle.Render("📄 New project note — enter a title")
-	} else if m.authorKind == "decision" {
+	case "decision":
 		title = titleStyle.Render("⚖️ New decision — enter a title")
+	case "now":
+		title = titleStyle.Render("🎯 Current task — what are you working on?")
 	}
 	body := title + "\n\n" + m.captureBox.View()
 	if m.captureErr != "" {
