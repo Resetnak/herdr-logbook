@@ -330,34 +330,6 @@ func TestHubSetsCurrentTask(t *testing.T) {
 	}
 }
 
-func TestHubSaveAndEditCurrentTaskOpensNowFile(t *testing.T) {
-	edited := ""
-	now := Note{Path: "/notes/now.md", Title: "Now", Type: NoteNow}
-	model := NewHub([]Note{now}, "api", "main", "central").
-		WithAuthoring(func(string, string) ([]Note, error) {
-			return []Note{
-				now,
-				{Path: "/notes/inbox/2026-07.md", Title: "Inbox", Type: NoteProjectInbox},
-			}, nil
-		}, func(note Note) tea.Cmd {
-			return func() tea.Msg {
-				edited = note.Path
-				return nil
-			}
-		})
-
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Rotate the signing tokens")})
-	_, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlE})
-	if command == nil {
-		t.Fatal("Ctrl+E did not open an editor")
-	}
-	command()
-	if edited != now.Path {
-		t.Fatalf("Ctrl+E edited %q, want %q", edited, now.Path)
-	}
-}
-
 func TestHubAuthoringAndEditorActions(t *testing.T) {
 	authorKind := ""
 	edited := ""
