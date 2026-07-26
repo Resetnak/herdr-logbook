@@ -86,7 +86,14 @@ Type "jwt"
 Sleep 2200ms
 Escape
 Sleep 1000ms
-Sleep 2000ms
+
+# --- t: switch the active task; the one it replaces is filed into the inbox ---
+Type "t"
+Sleep 1200ms
+Type "Ship the token rotation PR"
+Sleep 1200ms
+Ctrl+S
+Sleep 2800ms
 
 # --- Hidden teardown: detach and remove the throwaway session ---
 Hide

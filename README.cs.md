@@ -62,7 +62,7 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 1. **Nainstalujte Herdr** (hostitelská terminálová aplikace): `brew install herdr` — viz [herdr.dev](https://herdr.dev).
 2. **Nainstalujte tento plugin**: `herdr plugin install Resetnak/herdr-logbook`
 3. **Otevřete Hub**: spusťte v Herdru akci *Open Logbook Hub* — nebo si [nastavte zkratku](#nastavení-zkratky-v-herdru) třeba `prefix+m`.
-4. **Zachyťte**: `c` pro poznámku, `d` pro rozhodnutí, `/` pro hledání. Vše se ukládá jako čisté `.md` soubory, které vlastníte — žádný vendor lock-in.
+4. **Zachyťte**: `t` pro nastavení aktuálního úkolu, `c` pro poznámku, `d` pro rozhodnutí, `/` pro hledání. Vše se ukládá jako čisté `.md` soubory, které vlastníte — žádný vendor lock-in.
 
 ---
 
@@ -71,6 +71,7 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 - **📓 Markdown na prvním místě**: Poznámky jsou čisté `.md` soubory. Vyhledávací index je jednorázový a sám se obnovuje.
 - **🌿 Vnímání projektů a Git**: Poznámky se automaticky organizují podle repozitáře, Git worktree nebo adresáře.
 - **⚡ Responzivní TUI rozhraní**: Postavené na [Bubble Tea](https://github.com/charmbracelet/bubbletea). Na úzkých terminálech (<70 sloupců) se automaticky přepne na jednosloupcový režim.
+- **🎯 Aktuální úkol a deník práce zdarma**: `t` (nebo `herdr-logbook now "…"`) nastaví aktuální úkol v `now.md`. Při každém přepnutí se předchozí úkol založí do měsíčního inboxu — deník se píše sám.
 - **⚖️ Architektonická rozhodnutí (ADR)**: Vestavěná šablona pro záznam technických rozhodnutí a důsledků (`d`).
 - **🔍 Okamžité vyhledávání**: Bleskové fuzzy vyhledávání napříč všemi projekty (`/`) nebo filtrování podle projektu (`p`).
 - **📝 Vlastní editor**: Úpravy souborů deleguje na váš oblíbený `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
@@ -108,6 +109,7 @@ Vše je čistý Markdown, takže na kterýkoli z těchto nástrojů můžete kdy
 | Klávesa | Akce |
 | :--- | :--- |
 | `c` / `C` | Rychlé zachycení (projektový / globální inbox) |
+| `t` | Nastavit aktuální úkol v `now.md` (předchozí se archivuje do inboxu) |
 | `n` | Vytvořit novou projektovou poznámku |
 | `d` | Zaznamenat architektonické rozhodnutí (ADR) |
 | `e` | Otevřít vybranou poznámku v `$EDITOR` (`vi` / `nvim`) |
@@ -255,6 +257,22 @@ Znovu načtěte konfiguraci Herdru:
 herdr config check
 herdr server reload-config
 ```
+
+---
+
+## 🎯 Aktuální úkol (`now`)
+
+`now.md` drží to, na čem právě pracujete. Nastavíte ho v Hubu klávesou `t`, nebo z terminálu:
+
+```bash
+herdr-logbook now                             # vypíše aktuální úkol
+herdr-logbook now "Rotace podpisových tokenů" # nastaví ho
+herdr-logbook now --project-root ~/src/api "Oprava padajícího login testu"
+```
+
+Přepnutí úkolu připojí ten předchozí do měsíčního souboru v inboxu jako `Task done: …` s časovým razítkem a větví. Zbytek `now.md` zůstane nedotčený — sekce `## Next steps`, `## Blockers` a `## Context` se nepřepisují.
+
+> Přepínače musí být před textem úkolu (`now --project-root CESTA "úkol"`) a samotný text nesmí obsahovat Markdown nadpisy — ty by sekci předčasně ukončily.
 
 ---
 

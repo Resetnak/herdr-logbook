@@ -180,6 +180,31 @@ func TestHubProjectSearchFiltersByProjectName(t *testing.T) {
 	}
 }
 
+func TestHubSetsCurrentTask(t *testing.T) {
+	got := ""
+	model := NewHub([]Note{{Path: "/notes/now.md", Title: "Now", Type: NoteNow}}, "api", "main", "central").
+		WithAuthoring(func(kind, title string) ([]Note, error) {
+			got = kind + ":" + title
+			return nil, nil
+		}, nil)
+
+	m, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	if !strings.Contains(m.View(), "Current task") {
+		t.Fatalf("t did not open the current-task modal:\n%s", m.View())
+	}
+	m, _ = updateHub(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Rotate the signing tokens")})
+	m, _ = updateHub(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if got != "now:Rotate the signing tokens" {
+		t.Fatalf("author action = %q", got)
+	}
+	if m.capturing {
+		t.Fatal("Ctrl+S should close the modal")
+	}
+	if m.flashMsg != "✓ Current task updated" {
+		t.Fatalf("flash = %q", m.flashMsg)
+	}
+}
+
 func TestHubAuthoringAndEditorActions(t *testing.T) {
 	authorKind := ""
 	edited := ""

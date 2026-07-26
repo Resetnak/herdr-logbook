@@ -247,6 +247,75 @@ func TestRunCaptureProjectTextWritesMonthlyInbox(t *testing.T) {
 	}
 }
 
+func TestRunNowSetsTaskAndArchivesThePreviousOne(t *testing.T) {
+	repo := t.TempDir()
+	stateDir := t.TempDir()
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": stateDir, "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	logbook := func(args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(args, getenv, strings.NewReader(""), &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+
+	code, _, stderr := logbook("now", "--project-root", repo)
+	if code != 0 || !strings.Contains(stderr, "no current task set") {
+		t.Fatalf("empty now code = %d, stderr = %q", code, stderr)
+	}
+
+	code, stdout, stderr := logbook("now", "--project-root", repo, "Rotate the signing tokens")
+	if code != 0 {
+		t.Fatalf("set now code = %d, stderr = %q", code, stderr)
+	}
+	if strings.Contains(stdout, "archived:") {
+		t.Fatalf("first task should not archive anything: %q", stdout)
+	}
+	nowPath := strings.TrimSpace(stdout)
+
+	code, stdout, stderr = logbook("now", "--project-root", repo)
+	if code != 0 || strings.TrimSpace(stdout) != "Rotate the signing tokens" {
+		t.Fatalf("read now code = %d, stdout = %q, stderr = %q", code, stdout, stderr)
+	}
+
+	code, stdout, stderr = logbook("now", "--project-root", repo, "Write the release notes")
+	if code != 0 || !strings.Contains(stdout, "archived: Rotate the signing tokens") {
+		t.Fatalf("switch now code = %d, stdout = %q, stderr = %q", code, stdout, stderr)
+	}
+
+	data, err := os.ReadFile(nowPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "Write the release notes") || strings.Contains(content, "Rotate the signing tokens") {
+		t.Fatalf("now.md = %q", content)
+	}
+	for _, want := range []string{"## Next steps", "## Blockers", "## Context"} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("now.md dropped %q:\n%s", want, content)
+		}
+	}
+
+	inbox := filepath.Join(filepath.Dir(nowPath), "inbox", time.Now().Format("2006-01")+".md")
+	journal, err := os.ReadFile(inbox)
+	if err != nil {
+		t.Fatalf("read work journal: %v", err)
+	}
+	if !strings.Contains(string(journal), "Task done: Rotate the signing tokens") {
+		t.Fatalf("work journal = %q", journal)
+	}
+}
+
+func TestRunNowRejectsHeadingsAndEmptyInput(t *testing.T) {
+	repo := t.TempDir()
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"now", "--project-root", repo, "## Blockers"}, func(key string) string { return env[key] }, strings.NewReader(""), &stdout, &stderr)
+	if code != 2 || !strings.Contains(stderr.String(), "headings") {
+		t.Fatalf("heading task code = %d, stderr = %q", code, stderr.String())
+	}
+}
+
 func TestRunCaptureGlobalReadsStdin(t *testing.T) {
 	stateDir := t.TempDir()
 	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": stateDir, "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}

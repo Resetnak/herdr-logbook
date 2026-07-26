@@ -4,6 +4,7 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- Added the active-task workflow: `herdr-logbook now` prints the current task, `herdr-logbook now "TASK"` sets it, and `t` in the Hub opens the same modal. Switching tasks archives the one being replaced into the monthly inbox as `Task done: …`, which turns `now.md` into a work journal without any extra bookkeeping. Only the `## Current task` section of `now.md` is rewritten; every other section is preserved.
 - Fixed the standalone script installers (`curl … | bash`, `irm … | iex`): without a plugin checkout they now read the released version from the manifest on `main` and install the binary to `~/.local/bin` instead of failing on a missing `herdr-plugin.toml`.
 
 ## v0.0.2 — 2026-07-24
