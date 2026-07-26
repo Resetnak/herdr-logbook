@@ -38,8 +38,9 @@ type searchLoadedMsg struct {
 }
 
 type NotesReloadedMsg struct {
-	Notes []Note
-	Err   error
+	Notes         []Note
+	Err           error
+	RefreshSearch bool
 }
 
 type flashExpiredMsg struct{ tick int }
@@ -195,15 +196,21 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	if reloaded, ok := message.(NotesReloadedMsg); ok {
 		if reloaded.Err != nil {
 			m.captureErr = reloaded.Err.Error()
-			command := m.refreshSearchCmd()
-			return m, command
+			if reloaded.RefreshSearch {
+				command := m.refreshSearchCmd()
+				return m, command
+			}
+			return m, nil
 		}
 		m.notes = reloaded.Notes
 		m.captureErr = ""
 		m.flashMsg = "✓ Note updated"
 		m.flashTick++
 		m.refreshPreview()
-		searchCommand := m.refreshSearchCmd()
+		var searchCommand tea.Cmd
+		if reloaded.RefreshSearch {
+			searchCommand = m.refreshSearchCmd()
+		}
 		return m, tea.Batch(searchCommand, flashCmd(m.flashTick))
 	}
 	if loaded, ok := message.(searchLoadedMsg); ok {
@@ -739,6 +746,9 @@ func (m HubModel) emptyStateMessage() string {
 	if m.searchQuery != "" {
 		if m.searchRefreshing {
 			return "Refreshing search index..."
+		}
+		if m.searchErr != "" {
+			return "Search index refresh failed. Results may be stale."
 		}
 		return "No matching notes. Press Esc to clear the search."
 	}

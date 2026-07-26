@@ -315,7 +315,7 @@ func TestHubEditorReturnRefreshesSearchIndex(t *testing.T) {
 	})
 	model = completeInitialSearch(t, model)
 
-	model, command := updateHub(model, NotesReloadedMsg{Notes: []Note{{Title: "Edited", Type: NoteProjectNote}}})
+	model, command := updateHub(model, NotesReloadedMsg{Notes: []Note{{Title: "Edited", Type: NoteProjectNote}}, RefreshSearch: true})
 	runSearchLoadCommand(t, command)
 	if searchLoads != 2 || len(model.notes) != 1 || model.notes[0].Title != "Edited" {
 		t.Fatalf("editor return = search loads %d, notes %#v", searchLoads, model.notes)
@@ -330,11 +330,40 @@ func TestHubEditorErrorStillRefreshesSearchIndex(t *testing.T) {
 	})
 	model = completeInitialSearch(t, model)
 
-	model, command := updateHub(model, NotesReloadedMsg{Err: errors.New("editor failed")})
+	model, command := updateHub(model, NotesReloadedMsg{Err: errors.New("editor failed"), RefreshSearch: true})
 	loaded := runSearchLoadCommand(t, command)
 	model, _ = updateHub(model, loaded)
 	if searchLoads != 2 || !strings.Contains(model.captureErr, "editor failed") {
 		t.Fatalf("editor error = search loads %d, capture error %q", searchLoads, model.captureErr)
+	}
+}
+
+func TestHubEditorSetupErrorDoesNotRefreshSearchIndex(t *testing.T) {
+	searchLoads := 0
+	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
+		searchLoads++
+		return nil, nil
+	})
+	model = completeInitialSearch(t, model)
+
+	model, command := updateHub(model, NotesReloadedMsg{Err: errors.New("editor unavailable")})
+	if command != nil || searchLoads != 1 || !strings.Contains(model.captureErr, "editor unavailable") {
+		t.Fatalf("editor setup error = command %v, search loads %d, capture error %q", command != nil, searchLoads, model.captureErr)
+	}
+}
+
+func TestHubFailedSearchRefreshDoesNotReportNoMatches(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
+		return nil, errors.New("scan failed")
+	})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("missing")})
+	loaded := runSearchLoadCommand(t, model.Init())
+	model, _ = updateHub(model, loaded)
+
+	view := model.View()
+	if !strings.Contains(view, "Search index refresh failed") || strings.Contains(view, "No matching notes") {
+		t.Fatalf("failed search showed the wrong empty state:\n%s", view)
 	}
 }
 
