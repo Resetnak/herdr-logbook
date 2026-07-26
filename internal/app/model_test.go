@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
 	tea "github.com/charmbracelet/bubbletea"
@@ -450,9 +451,22 @@ func runSearchLoadCommand(t *testing.T, command tea.Cmd) searchLoadedMsg {
 	case searchLoadedMsg:
 		return message
 	case tea.BatchMsg:
+		results := make(chan tea.Msg, len(message))
 		for _, batched := range message {
-			if loaded, ok := batched().(searchLoadedMsg); ok {
-				return loaded
+			go func(command tea.Cmd) {
+				results <- command()
+			}(batched)
+		}
+		timeout := time.NewTimer(time.Second)
+		defer timeout.Stop()
+		for range len(message) {
+			select {
+			case result := <-results:
+				if loaded, ok := result.(searchLoadedMsg); ok {
+					return loaded
+				}
+			case <-timeout.C:
+				t.Fatal("timed out waiting for search entries")
 			}
 		}
 	}
