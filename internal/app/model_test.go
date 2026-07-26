@@ -242,6 +242,39 @@ func TestHubRefreshReloadsNotes(t *testing.T) {
 	}
 }
 
+func TestHubRefreshPreservesPreviewViewportInput(t *testing.T) {
+	searchLoads := 0
+	notes := []Note{{Title: "Long", Type: NoteNow, Content: strings.Repeat("line\n", 100)}}
+	model := NewHub(notes, "api", "main", "central").
+		WithActions(nil, func() ([]Note, error) { return notes, nil }).
+		WithSearch(nil, func() ([]searchindex.Entry, error) {
+			searchLoads++
+			return nil, nil
+		})
+	model = completeInitialSearch(t, model)
+	model.width = 120
+	model.height = 12
+	model.panel = panelPreview
+	model.refreshPreview()
+	model.preview.KeyMap.PageDown.SetKeys("r")
+
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	runSearchLoadCommand(t, command)
+	if model.preview.YOffset == 0 || searchLoads != 2 {
+		t.Fatalf("refresh = preview offset %d, search loads %d", model.preview.YOffset, searchLoads)
+	}
+}
+
+func TestHubStatusPrioritizesActionError(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	model.captureErr = "editor failed"
+	model.searchErr = "index failed"
+	view := model.View()
+	if !strings.Contains(view, "editor failed") || strings.Contains(view, "index failed") {
+		t.Fatalf("status did not prioritize the action error:\n%s", view)
+	}
+}
+
 func TestHubSearchShowsCrossProjectResults(t *testing.T) {
 	model := NewHub(nil, "api", "main", "central").WithSearch([]searchindex.Entry{
 		{Path: "/payments/notes/cache.md", ProjectID: "payments", ProjectName: "payments", Title: "Cache policy", Content: "Bound entries."},

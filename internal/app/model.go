@@ -245,6 +245,7 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateSearch(message)
 	}
 
+	var command tea.Cmd
 	switch msg := message.(type) {
 	case tea.WindowSizeMsg:
 		m.resize(msg.Width, msg.Height)
@@ -294,9 +295,7 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.notes = notes
 					m.captureErr = ""
-					m.refreshPreview()
-					command := m.refreshSearchCmd()
-					return m, command
+					command = m.refreshSearchCmd()
 				}
 			}
 		case "tab":
@@ -332,11 +331,11 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.panel == panelPreview {
-		var command tea.Cmd
-		m.preview, command = m.preview.Update(message)
-		return m, command
+		var viewportCommand tea.Cmd
+		m.preview, viewportCommand = m.preview.Update(message)
+		return m, tea.Batch(command, viewportCommand)
 	}
-	return m, nil
+	return m, command
 }
 
 func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
@@ -491,11 +490,12 @@ func (m HubModel) View() string {
 	if m.flashMsg != "" {
 		status = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(m.flashMsg) + " · " + status
 	}
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-	for _, message := range []string{m.captureErr, m.searchErr} {
-		if message != "" {
-			status = errorStyle.Render(message) + " · " + status
-		}
+	errorMessage := m.captureErr
+	if errorMessage == "" {
+		errorMessage = m.searchErr
+	}
+	if errorMessage != "" {
+		status = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(errorMessage) + " · " + status
 	}
 	return body + "\n" + lipgloss.NewStyle().Faint(true).Render(status)
 }
