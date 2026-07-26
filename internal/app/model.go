@@ -115,7 +115,7 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 		captureBox:  captureBox,
 		searchBox:   searchBox,
 		scopes: []scopeItem{
-			{name: "Now", types: map[NoteType]bool{NoteNow: true}, emptyMessage: "No current context yet. Press c to capture something."},
+			{name: "Now", types: map[NoteType]bool{NoteNow: true}, emptyMessage: "Current context is unavailable. Reopen Logbook to restore now.md."},
 			{name: "Project Inbox", types: map[NoteType]bool{NoteProjectInbox: true}, emptyMessage: "No project inbox captures yet. Press c to capture something."},
 			{name: "Project Notes", types: map[NoteType]bool{NoteProjectNote: true}, emptyMessage: "No project notes yet. Press n to create one."},
 			{name: "Decisions", types: map[NoteType]bool{NoteDecision: true}, emptyMessage: "No decisions yet. Press d to create one."},
@@ -169,7 +169,6 @@ func (m HubModel) WithSearch(entries []searchindex.Entry, loadFn SearchLoadFunc)
 	m.searchEntries = entries
 	m.searchLoadFn = loadFn
 	if loadFn != nil {
-		m.searchGeneration++
 		m.searchRefreshing = true
 	}
 	return m

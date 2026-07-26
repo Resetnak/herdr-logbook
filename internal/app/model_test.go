@@ -14,7 +14,7 @@ func TestHubWideViewShowsThreePanesAndActionableEmptyState(t *testing.T) {
 	model := NewHub(nil, "api", "feature/login", "central")
 	updated, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	view := updated.(HubModel).View()
-	for _, want := range []string{"Scopes", "Notes", "Preview", "No current context yet", "Press c"} {
+	for _, want := range []string{"Scopes", "Notes", "Preview", "Current context is unavailable", "Reopen Logbook"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("wide View() missing %q:\n%s", want, view)
 		}
@@ -76,7 +76,7 @@ func TestHubScopeNavigationFiltersNotes(t *testing.T) {
 
 func TestHubEmptyStatesDescribeScopeActions(t *testing.T) {
 	wants := map[string]string{
-		"Now":           "Press c to capture",
+		"Now":           "Reopen Logbook",
 		"Project Inbox": "Press c to capture",
 		"Project Notes": "Press n to create",
 		"Decisions":     "Press d to create",
@@ -112,6 +112,9 @@ func TestHubSearchShowsRefreshingUntilInitialIndexLoads(t *testing.T) {
 	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
 		return nil, nil
 	})
+	if model.searchGeneration != 0 {
+		t.Fatalf("initial search generation = %d, want 0", model.searchGeneration)
+	}
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("missing")})
 	if view := model.View(); !strings.Contains(view, "Refreshing search index...") {
