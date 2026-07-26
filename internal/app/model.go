@@ -73,6 +73,7 @@ type HubModel struct {
 	searchLoadFn     SearchLoadFunc
 	searchGeneration uint64
 	searchRefreshing bool
+	searchDirty      bool
 	searchErr        string
 	authorKind       string
 	authorFn         AuthorFunc
@@ -194,14 +195,16 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	if reloaded, ok := message.(NotesReloadedMsg); ok {
 		if reloaded.Err != nil {
 			m.captureErr = reloaded.Err.Error()
-			return m, m.refreshSearchCmd()
+			command := m.refreshSearchCmd()
+			return m, command
 		}
 		m.notes = reloaded.Notes
 		m.captureErr = ""
 		m.flashMsg = "✓ Note updated"
 		m.flashTick++
 		m.refreshPreview()
-		return m, tea.Batch(m.refreshSearchCmd(), flashCmd(m.flashTick))
+		searchCommand := m.refreshSearchCmd()
+		return m, tea.Batch(searchCommand, flashCmd(m.flashTick))
 	}
 	if loaded, ok := message.(searchLoadedMsg); ok {
 		if loaded.generation != m.searchGeneration {
@@ -214,6 +217,11 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchEntries = loaded.entries
 			m.searchErr = ""
 			m.updateSearchResults()
+		}
+		if m.searchDirty {
+			m.searchDirty = false
+			command := m.refreshSearchCmd()
+			return m, command
 		}
 		return m, nil
 	}
@@ -280,7 +288,8 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 					m.notes = notes
 					m.captureErr = ""
 					m.refreshPreview()
-					return m, m.refreshSearchCmd()
+					command := m.refreshSearchCmd()
+					return m, command
 				}
 			}
 		case "tab":
@@ -390,7 +399,8 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.flashMsg = "✓ Saved to inbox"
 			m.flashTick++
-			return m, tea.Batch(m.refreshSearchCmd(), flashCmd(m.flashTick))
+			searchCommand := m.refreshSearchCmd()
+			return m, tea.Batch(searchCommand, flashCmd(m.flashTick))
 		}
 	}
 
@@ -608,6 +618,10 @@ func (m HubModel) loadSearchCmd(generation uint64) tea.Cmd {
 
 func (m *HubModel) refreshSearchCmd() tea.Cmd {
 	if m.searchLoadFn == nil {
+		return nil
+	}
+	if m.searchRefreshing {
+		m.searchDirty = true
 		return nil
 	}
 	m.searchGeneration++
