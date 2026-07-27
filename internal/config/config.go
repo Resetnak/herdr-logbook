@@ -113,7 +113,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("storage.project_mode must be central or repo")
 	}
 	repoDir := filepath.Clean(c.Storage.RepoDirectory)
-	if c.Storage.RepoDirectory == "" || filepath.IsAbs(repoDir) || repoDir == "." || repoDir == ".." || strings.HasPrefix(repoDir, ".."+string(filepath.Separator)) {
+	if c.Storage.RepoDirectory == "" || filepath.IsAbs(repoDir) || os.IsPathSeparator(repoDir[0]) || repoDir == "." || repoDir == ".." || strings.HasPrefix(repoDir, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("storage.repo_directory must stay inside the project")
 	}
 	if c.Project.RootStrategy != "git" {
