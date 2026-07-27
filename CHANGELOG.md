@@ -6,6 +6,8 @@ All notable changes will be documented here. The project has not published a sta
 
 - Fixed Hub search staying stale after captures, new notes, editor changes, and manual reloads. Search now updates without restarting Logbook, while overlapping index rebuilds are coalesced to avoid redundant full-store scans.
 - Improved empty-state guidance across Hub scopes and failed searches so the UI shows the relevant action or index failure instead of suggesting an unrelated capture or reporting no matches from stale results.
+- Raised test coverage from 73% to 90.9% and lifted the CI coverage floor from 70% to 90%. Both README badges now match. New tests cover the Hub's key handling, note loading and classification, the search index, capture formatting, editor resolution, project resolution and registry, config validation, storage locking and atomic writes, and every documented CLI exit code.
+- Extracted the Hub's note-authoring and editor-launch logic out of the Bubble Tea closures (`authorFromHub`, `editorCommandFor`) so both are testable without a terminal. No behaviour change.
 
 ## v0.0.3 — 2026-07-26
 

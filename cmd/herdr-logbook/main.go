@@ -247,6 +247,43 @@ func rebuildSearchIndex(state coreState) ([]searchindex.Entry, error) {
 	return entries, err
 }
 
+// authorFromHub performs the write behind the Hub's n, d, and t keys. It is a
+// plain function rather than a closure so the three write paths stay testable
+// without a terminal.
+func authorFromHub(state coreState, kind, title string) error {
+	// setNowTask takes state.Layout.Lock itself, so it must stay outside the
+	// lock the note/decision authors run under.
+	if kind == "now" {
+		if err := nowfile.ValidateTask(title); err != nil {
+			return err
+		}
+		_, err := setNowTask(state, title)
+		return err
+	}
+	return storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
+		if kind == "decision" {
+			_, err := author.CreateDecision(state.Layout.Root, title, state.Project.Name, state.Project.Branch, time.Now())
+			return err
+		}
+		_, err := author.CreateNote(state.Layout.Root, title)
+		return err
+	})
+}
+
+// editorCommandFor builds the argv command the Hub's e key executes. Splitting
+// it out of the tea.Cmd closure keeps the guard and the editor resolution — the
+// two parts that can refuse — testable on their own.
+func editorCommandFor(state coreState, editorArgv []string, getenv func(string) string, path string) (*exec.Cmd, error) {
+	if err := validateEditableNote(state, path); err != nil {
+		return nil, err
+	}
+	resolved, err := editor.Resolve(editorArgv, getenv, runtime.GOOS, exec.LookPath)
+	if err != nil {
+		return nil, err
+	}
+	return exec.Command(resolved.Command[0], append(resolved.Command[1:], path)...), nil
+}
+
 func validateEditableNote(state coreState, path string) error {
 	info, err := os.Lstat(path)
 	if err != nil {
@@ -348,26 +385,7 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		return reloadNotes()
 	}
 	authorNote := func(kind, title string) ([]app.Note, error) {
-		// setNowTask takes state.Layout.Lock itself, so it must stay outside the
-		// lock the note/decision authors run under.
-		if kind == "now" {
-			if err := nowfile.ValidateTask(title); err != nil {
-				return nil, err
-			}
-			if _, err := setNowTask(state, title); err != nil {
-				return nil, err
-			}
-			return reloadNotes()
-		}
-		err := storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
-			if kind == "decision" {
-				_, err := author.CreateDecision(state.Layout.Root, title, state.Project.Name, state.Project.Branch, time.Now())
-				return err
-			}
-			_, err := author.CreateNote(state.Layout.Root, title)
-			return err
-		})
-		if err != nil {
+		if err := authorFromHub(state, kind, title); err != nil {
 			return nil, err
 		}
 		return reloadNotes()
@@ -377,14 +395,10 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		editorArgv = strings.Fields(*editorCmd) // ponytail: simple split; HERDR_LOGBOOK_EDITOR handles quoted paths
 	}
 	editNote := func(note app.Note) tea.Cmd {
-		if err := validateEditableNote(state, note.Path); err != nil {
-			return func() tea.Msg { return app.NotesReloadedMsg{Err: err} }
-		}
-		resolved, err := editor.Resolve(editorArgv, getenv, runtime.GOOS, exec.LookPath)
+		command, err := editorCommandFor(state, editorArgv, getenv, note.Path)
 		if err != nil {
 			return func() tea.Msg { return app.NotesReloadedMsg{Err: err} }
 		}
-		command := exec.Command(resolved.Command[0], append(resolved.Command[1:], note.Path)...)
 		return tea.ExecProcess(command, func(runErr error) tea.Msg {
 			if runErr != nil {
 				return app.NotesReloadedMsg{Err: fmt.Errorf("editor exited with error: %w (the note file was saved to disk)", runErr), RefreshSearch: true}

@@ -2,6 +2,7 @@ package herdr
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -94,5 +95,38 @@ func TestSelectedTextRejectsMalformedContext(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("SelectedText() error = nil")
+	}
+}
+
+func TestContextHandlesAnAbsentOrNullContextJSON(t *testing.T) {
+	empty := func(key string) string {
+		if key == "HERDR_PANE_ID" {
+			return "pane-1"
+		}
+		return "" // no HERDR_PLUGIN_CONTEXT_JSON at all
+	}
+	ctx, err := ReadContext(empty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ctx.PaneID != "pane-1" || ctx.ContextKeys != nil || ctx.SelectedTextPresent {
+		t.Fatalf("ReadContext() without context JSON = %#v", ctx)
+	}
+	if text, err := SelectedText(empty); err != nil || text != "" {
+		t.Fatalf("SelectedText() without context JSON = %q, %v", text, err)
+	}
+	if dir := ResolveWorkingDirectory(ctx, ""); dir != "" {
+		t.Fatalf("ResolveWorkingDirectory() with nothing to fall back to = %q", dir)
+	}
+
+	// Valid JSON that is not an object must be refused, not silently treated as empty.
+	null := func(key string) string {
+		if key == "HERDR_PLUGIN_CONTEXT_JSON" {
+			return "null"
+		}
+		return ""
+	}
+	if _, err := ReadContext(null); err == nil || !strings.Contains(err.Error(), "expected an object") {
+		t.Fatalf("ReadContext() null error = %v", err)
 	}
 }

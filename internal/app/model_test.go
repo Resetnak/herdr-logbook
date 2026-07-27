@@ -9,6 +9,7 @@ import (
 
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestHubWideViewShowsThreePanesAndActionableEmptyState(t *testing.T) {
@@ -485,6 +486,368 @@ func TestHubIgnoresSupersededSearchRefresh(t *testing.T) {
 	model, _ = updateHub(model, nextResult)
 	if len(model.searchEntries) != 1 || model.searchEntries[0].Title != "refresh-3" {
 		t.Fatalf("latest search refresh was not applied: %#v", model.searchEntries)
+	}
+}
+
+func TestHubPanelAndScopeKeysMoveFocusAndSelection(t *testing.T) {
+	notes := []Note{
+		{Title: "Now", Type: NoteNow, Content: "# Now"},
+		{Title: "Cache", Type: NoteProjectNote, Content: "# Cache"},
+	}
+	model := NewHub(notes, "api", "main", "central")
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyTab})
+	if model.panel != panelNotes {
+		t.Fatalf("Tab panel = %d", model.panel)
+	}
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyShiftTab})
+	if model.panel != panelScopes {
+		t.Fatalf("Shift+Tab panel = %d", model.panel)
+	}
+	// h at the leftmost panel must stay put rather than wrap around.
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	if model.panel != panelScopes {
+		t.Fatalf("h at the left edge = %d", model.panel)
+	}
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	if model.panel != panelScopes {
+		t.Fatalf("l then h = %d", model.panel)
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
+	if model.panel != panelPreview {
+		t.Fatalf("v panel = %d", model.panel)
+	}
+
+	// Enter walks scopes → notes → preview only while the scope has notes.
+	stepping := NewHub(notes, "api", "main", "central").WithView("all")
+	stepping, _ = updateHub(stepping, tea.KeyMsg{Type: tea.KeyEnter})
+	if stepping.panel != panelNotes {
+		t.Fatalf("first Enter = %d", stepping.panel)
+	}
+	stepping, _ = updateHub(stepping, tea.KeyMsg{Type: tea.KeyEnter})
+	if stepping.panel != panelPreview {
+		t.Fatalf("second Enter = %d", stepping.panel)
+	}
+
+	// j/k move the selection inside the notes panel and clamp at both ends.
+	selecting := NewHub(notes, "api", "main", "central").WithView("all")
+	selecting, _ = updateHub(selecting, tea.KeyMsg{Type: tea.KeyRight})
+	selecting, _ = updateHub(selecting, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if selecting.noteIndex != 1 {
+		t.Fatalf("j noteIndex = %d", selecting.noteIndex)
+	}
+	selecting, _ = updateHub(selecting, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	selecting, _ = updateHub(selecting, tea.KeyMsg{Type: tea.KeyUp})
+	if selecting.noteIndex != 0 {
+		t.Fatalf("k noteIndex = %d", selecting.noteIndex)
+	}
+}
+
+func TestHubQuitKeysAndHelpToggle(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	for _, key := range []tea.KeyMsg{
+		{Type: tea.KeyRunes, Runes: []rune{'q'}},
+		{Type: tea.KeyCtrlC},
+	} {
+		if _, cmd := updateHub(model, key); cmd == nil {
+			t.Fatalf("%v did not return a quit command", key)
+		}
+	}
+
+	helped, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
+	if !helped.help {
+		t.Fatal("? did not open help")
+	}
+	view := helped.View()
+	for _, want := range []string{"Quick Start", "Navigation:", "Set current task"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("help view missing %q:\n%s", want, view)
+		}
+	}
+	closed, _ := updateHub(helped, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}})
+	if closed.help {
+		t.Fatal("? did not close help")
+	}
+}
+
+func TestHubNotesReloadedAndFlashExpiry(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+
+	reloaded, cmd := updateHub(model, NotesReloadedMsg{Notes: []Note{{Title: "Cache", Type: NoteProjectNote, Content: "# Cache"}}})
+	if len(reloaded.notes) != 1 || reloaded.flashMsg != "✓ Note updated" || cmd == nil {
+		t.Fatalf("reload = %d notes, flash %q, cmd %v", len(reloaded.notes), reloaded.flashMsg, cmd)
+	}
+	if !strings.Contains(reloaded.View(), "✓ Note updated") {
+		t.Fatalf("flash is not visible in the status line:\n%s", reloaded.View())
+	}
+
+	// A stale tick must not clear a newer flash.
+	stale, _ := updateHub(reloaded, flashExpiredMsg{tick: reloaded.flashTick - 1})
+	if stale.flashMsg == "" {
+		t.Fatal("a stale flashExpiredMsg cleared the flash")
+	}
+	current, _ := updateHub(reloaded, flashExpiredMsg{tick: reloaded.flashTick})
+	if current.flashMsg != "" {
+		t.Fatalf("flash survived its own tick: %q", current.flashMsg)
+	}
+
+	failed, _ := updateHub(model, NotesReloadedMsg{Err: errors.New("editor exited with error")})
+	if failed.captureErr != "editor exited with error" {
+		t.Fatalf("reload error = %q", failed.captureErr)
+	}
+	if !strings.Contains(failed.View(), "editor exited with error") {
+		t.Fatalf("reload error is not visible in the status line:\n%s", failed.View())
+	}
+}
+
+func TestHubEditKeyPassesTheSelectedNote(t *testing.T) {
+	edited := ""
+	model := NewHub([]Note{{Path: "/store/notes/cache.md", Title: "Cache", Type: NoteProjectNote}}, "api", "main", "central").
+		WithAuthoring(nil, func(note Note) tea.Cmd {
+			edited = note.Path
+			return nil
+		}).WithView("all")
+
+	if _, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}}); edited != "/store/notes/cache.md" {
+		t.Fatalf("e edited %q", edited)
+	}
+
+	// Without an edit function, or with nothing selected, e must be a no-op.
+	if _, cmd := updateHub(NewHub(nil, "api", "main", "central"), tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}}); cmd != nil {
+		t.Fatal("e on an empty Hub returned a command")
+	}
+}
+
+func TestHubAuthoringRefusesWhenNoActionIsWired(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+
+	authoring, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	if !strings.Contains(authoring.View(), "New decision") {
+		t.Fatalf("d did not open the decision modal:\n%s", authoring.View())
+	}
+	authoring, _ = updateHub(authoring, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Use Redis")})
+	authoring, _ = updateHub(authoring, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if authoring.captureErr != "Authoring is unavailable." {
+		t.Fatalf("author error = %q", authoring.captureErr)
+	}
+
+	capturing, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'C'}})
+	if !strings.Contains(capturing.View(), "Global capture") {
+		t.Fatalf("C did not open the global capture modal:\n%s", capturing.View())
+	}
+	capturing, _ = updateHub(capturing, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("note")})
+	capturing, _ = updateHub(capturing, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if capturing.captureErr != "Capture is unavailable." {
+		t.Fatalf("capture error = %q", capturing.captureErr)
+	}
+
+	// An empty modal is rejected before any action is called.
+	empty, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	empty, _ = updateHub(empty, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("   ")})
+	empty, _ = updateHub(empty, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if empty.captureErr != "Capture text cannot be empty." || !empty.capturing {
+		t.Fatalf("empty capture error = %q, capturing = %t", empty.captureErr, empty.capturing)
+	}
+	if _, cmd := updateHub(empty, tea.KeyMsg{Type: tea.KeyCtrlC}); cmd == nil {
+		t.Fatal("Ctrl+C in the modal did not quit")
+	}
+}
+
+func TestBeginCaptureQuitsAfterSaving(t *testing.T) {
+	saved := ""
+	model, cmd := NewHub(nil, "api", "main", "central").
+		WithActions(func(text string, global bool) ([]Note, error) {
+			saved = text
+			return nil, nil
+		}, nil).
+		BeginCapture(false, true)
+	if cmd == nil || !model.capturing {
+		t.Fatalf("BeginCapture did not focus the modal: capturing = %t", model.capturing)
+	}
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("standalone capture")})
+	model, cmd = updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if saved != "standalone capture" {
+		t.Fatalf("captured %q", saved)
+	}
+	if cmd == nil {
+		t.Fatal("quitAfterCapture did not quit after saving")
+	}
+}
+
+func TestHubSearchEnterKeepsResultsAndCapsThemAtOneHundred(t *testing.T) {
+	entries := make([]searchindex.Entry, 150)
+	for i := range entries {
+		entries[i] = searchindex.Entry{Path: "/payments/n.md", ProjectName: "payments", Title: "Runbook", Content: "cache"}
+	}
+	model := NewHub(nil, "api", "main", "central").WithSearch(entries, nil)
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("pay")})
+	if len(model.searchResults) != 100 {
+		t.Fatalf("project search results = %d, want the 100 cap", len(model.searchResults))
+	}
+	if _, cmd := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlC}); cmd == nil {
+		t.Fatal("Ctrl+C while searching did not quit")
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyEnter})
+	if model.searching || model.panel != panelNotes || len(model.searchResults) != 100 {
+		t.Fatalf("Enter left search state %t, panel %d, %d results", model.searching, model.panel, len(model.searchResults))
+	}
+	if !strings.Contains(model.View(), "search: pay") {
+		t.Fatalf("status line does not show the active filter:\n%s", model.View())
+	}
+	// Esc outside the search box clears the retained query.
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyEsc})
+	if model.searchQuery != "" || len(model.searchResults) != 0 {
+		t.Fatalf("Esc left query %q and %d results", model.searchQuery, len(model.searchResults))
+	}
+}
+
+func TestNarrowViewFollowsTheFocusedPanelAndEmptyScopes(t *testing.T) {
+	model := NewHub([]Note{{Title: "Cache", Type: NoteProjectNote, Content: "# Cache\n\nBody"}}, "api", "main", "central").WithView("project")
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 60, Height: 24})
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRight})
+	if !strings.Contains(model.View(), "Cache") {
+		t.Fatalf("narrow notes panel:\n%s", model.View())
+	}
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRight})
+	if !strings.Contains(model.View(), "Body") {
+		t.Fatalf("narrow preview panel:\n%s", model.View())
+	}
+
+	// A non-Now scope with nothing in it gets its own empty-state wording.
+	empty := NewHub(nil, "api", "main", "central").WithView("project")
+	empty, _ = updateHub(empty, tea.KeyMsg{Type: tea.KeyRight})
+	if !strings.Contains(empty.View(), "No project notes yet. Press n to create one.") {
+		t.Fatalf("empty scope view:\n%s", empty.View())
+	}
+}
+
+func TestVisibleNotesToleratesAnOutOfRangeScope(t *testing.T) {
+	model := NewHub([]Note{{Title: "Cache", Type: NoteProjectNote}}, "api", "main", "central")
+	model.scopeIndex = len(model.scopes) + 3
+	if notes := model.visibleNotes(); notes != nil {
+		t.Fatalf("visibleNotes for an out-of-range scope = %#v", notes)
+	}
+}
+
+func TestWithViewSelectsTheMatchingScope(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	for view, want := range map[string]int{"project": 2, "global": 4, "all": 5, "now": 0, "": 0} {
+		if got := model.WithView(view).scopeIndex; got != want {
+			t.Fatalf("WithView(%q) scopeIndex = %d, want %d", view, got, want)
+		}
+	}
+}
+
+func TestWithStyleAndUIConfigOverrideDefaults(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central").WithStyle("notty")
+	if model.glamourStyle != "notty" || model.previewRenderer != nil {
+		t.Fatalf("WithStyle did not pin the style and drop the renderer: %q, %v", model.glamourStyle, model.previewRenderer)
+	}
+
+	configured := model.WithUIConfig(30, false, "nord")
+	if configured.scopeWidth != 30 || configured.showBranch || configured.uiTheme != "nord" {
+		t.Fatalf("WithUIConfig = %d, %t, %q", configured.scopeWidth, configured.showBranch, configured.uiTheme)
+	}
+	// Zero width and an empty theme must keep the constructor defaults.
+	kept := model.WithUIConfig(0, true, "")
+	if kept.scopeWidth != 24 || kept.uiTheme != "auto" {
+		t.Fatalf("WithUIConfig overwrote defaults: %d, %q", kept.scopeWidth, kept.uiTheme)
+	}
+}
+
+func TestThemePalettesAreDistinctPerTheme(t *testing.T) {
+	seen := map[lipgloss.Color]string{}
+	for _, theme := range []string{"Dracula", "tokyo-night", "nord", "auto"} {
+		header := getThemePalette(theme).headerFg
+		if other, clash := seen[header]; clash {
+			t.Fatalf("themes %q and %q share headerFg %q", theme, other, header)
+		}
+		seen[header] = theme
+	}
+}
+
+func TestInitLoadsSearchEntriesOnlyWhenALoaderIsSet(t *testing.T) {
+	if cmd := NewHub(nil, "api", "main", "central").Init(); cmd != nil {
+		t.Fatal("Init returned a command without a search loader")
+	}
+
+	entries := []searchindex.Entry{{Path: "/payments/a.md", ProjectName: "payments", Title: "Runbook"}}
+	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
+		return entries, nil
+	})
+	message := model.Init()()
+	loaded, ok := message.(searchLoadedMsg)
+	if !ok || loaded.err != nil || len(loaded.entries) != 1 {
+		t.Fatalf("Init message = %#v", message)
+	}
+
+	model, _ = updateHub(model, loaded)
+	if len(model.searchEntries) != 1 || model.captureErr != "" {
+		t.Fatalf("entries = %#v, err = %q", model.searchEntries, model.captureErr)
+	}
+
+	failing := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
+		return nil, errors.New("index unreadable")
+	})
+	failing, _ = updateHub(failing, failing.Init()())
+	if failing.searchErr != "index unreadable" {
+		t.Fatalf("search load error = %q", failing.searchErr)
+	}
+}
+
+func TestGoToFirstAndLastJumpsWithinTheFocusedPanel(t *testing.T) {
+	model := NewHub([]Note{
+		{Title: "One", Type: NoteProjectNote},
+		{Title: "Two", Type: NoteProjectNote},
+		{Title: "Three", Type: NoteProjectNote},
+	}, "api", "main", "central")
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if model.scopeIndex != len(model.scopes)-1 {
+		t.Fatalf("G on scopes = %d, want %d", model.scopeIndex, len(model.scopes)-1)
+	}
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.scopeIndex != 0 || model.noteIndex != 0 {
+		t.Fatalf("g on scopes = %d/%d", model.scopeIndex, model.noteIndex)
+	}
+
+	model = model.WithView("project")
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRight})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if model.noteIndex != 2 {
+		t.Fatalf("G on notes = %d, want 2", model.noteIndex)
+	}
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.noteIndex != 0 {
+		t.Fatalf("g on notes = %d, want 0", model.noteIndex)
+	}
+
+	// An empty panel must not produce a negative index.
+	empty := NewHub(nil, "api", "main", "central").WithView("project")
+	empty, _ = updateHub(empty, tea.KeyMsg{Type: tea.KeyRight})
+	empty, _ = updateHub(empty, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if empty.noteIndex != 0 {
+		t.Fatalf("G on an empty panel = %d, want 0", empty.noteIndex)
+	}
+}
+
+func TestClampKeepsValuesInsideTheRange(t *testing.T) {
+	cases := []struct{ value, low, high, want int }{
+		{5, 0, 3, 3},
+		{-2, 0, 3, 0},
+		{2, 0, 3, 2},
+		{7, 0, -1, 0}, // empty list: high < low collapses to low
+	}
+	for _, test := range cases {
+		if got := clamp(test.value, test.low, test.high); got != test.want {
+			t.Fatalf("clamp(%d, %d, %d) = %d, want %d", test.value, test.low, test.high, got, test.want)
+		}
 	}
 }
 

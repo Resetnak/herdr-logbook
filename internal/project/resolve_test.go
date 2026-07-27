@@ -1,6 +1,8 @@
 package project
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -140,4 +142,79 @@ func runGit(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %v: %v\n%s", args, err, output)
 	}
 	return strings.TrimSpace(string(output))
+}
+
+func TestResolveRejectsPathsThatAreNotUsableDirectories(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Resolve(ResolveOptions{ExplicitRoot: file}); err == nil {
+		t.Fatal("Resolve accepted a regular file as the project root")
+	}
+	if _, err := Resolve(ResolveOptions{ExplicitRoot: filepath.Join(t.TempDir(), "never-created")}); err == nil {
+		t.Fatal("Resolve accepted a missing project root")
+	}
+}
+
+func TestResolveFallsBackToTheProcessDirectory(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	got, err := Resolve(ResolveOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Root != canonicalForTest(t, dir) {
+		t.Fatalf("Resolve() root = %q, want the process directory %q", got.Root, dir)
+	}
+}
+
+func TestResolveAppliesAndValidatesTheProjectOverride(t *testing.T) {
+	writeOverride := func(t *testing.T, body string) string {
+		t.Helper()
+		root := t.TempDir()
+		if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, ".herdr-logbook.toml"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+
+	root := writeOverride(t, "project_id = \"pinned\"\ndisplay_name = \"Pinned API\"\nstorage = \"repo\"\n")
+	got, err := Resolve(ResolveOptions{ExplicitRoot: root, Runner: failingRunner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Pinned API" || got.StorageOverride != "repo" {
+		t.Fatalf("override was not applied: %#v", got)
+	}
+	pinned := got.ID
+
+	// The pinned project_id must survive a move to a different directory.
+	moved := writeOverride(t, "project_id = \"pinned\"\ndisplay_name = \"Pinned API\"\nstorage = \"repo\"\n")
+	movedProject, err := Resolve(ResolveOptions{ExplicitRoot: moved, Runner: failingRunner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if movedProject.ID != pinned {
+		t.Fatalf("pinned ID changed with the directory: %q vs %q", movedProject.ID, pinned)
+	}
+
+	for name, body := range map[string]string{
+		"malformed toml":        "project_id = \n",
+		"unknown storage":       "storage = \"sqlite\"\n",
+		"absolute root":         "root = \"/etc\"\n",
+		"root outside worktree": "root = \"../escape\"\n",
+	} {
+		bad := writeOverride(t, body)
+		if _, err := Resolve(ResolveOptions{ExplicitRoot: bad, Runner: failingRunner}); err == nil {
+			t.Fatalf("%s: Resolve accepted an invalid override", name)
+		}
+	}
+}
+
+func failingRunner(context.Context, string, ...string) (string, error) {
+	return "", fmt.Errorf("git unavailable")
 }

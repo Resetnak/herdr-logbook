@@ -3,6 +3,7 @@ package index
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -26,6 +27,34 @@ func TestScanFiltersFilesAndBuildsMetadata(t *testing.T) {
 	entry := entries[0]
 	if entry.ProjectID != "p1" || entry.Title != "Cache policy" || len(entry.Tags) != 2 || entry.Fingerprint == "" {
 		t.Fatalf("entry = %#v", entry)
+	}
+}
+
+func TestScanClassifiesNotesByStoreLayout(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "now.md"), "# Now")
+	mustWrite(t, filepath.Join(root, "inbox", "2026-07.md"), "# Inbox")
+	mustWrite(t, filepath.Join(root, "decisions", "2026-07-22-use-redis.md"), "# Decision: Use Redis")
+	mustWrite(t, filepath.Join(root, "notes", "cache.md"), "# Cache policy")
+
+	entries, err := Scan([]Store{{ProjectID: "p1", ProjectName: "api", Root: root}}, 256*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, entry := range entries {
+		got[filepath.Base(entry.Path)] = entry.NoteType
+	}
+	want := map[string]string{
+		"now.md":                  "now",
+		"2026-07.md":              "inbox",
+		"2026-07-22-use-redis.md": "decision",
+		"cache.md":                "note",
+	}
+	for name, noteType := range want {
+		if got[name] != noteType {
+			t.Fatalf("%s note type = %q, want %q", name, got[name], noteType)
+		}
 	}
 }
 
@@ -88,5 +117,81 @@ func mustWrite(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestScanRejectsANonPositiveLimitAndSkipsEmptyOrMissingStores(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "notes", "cache.md"), "# Cache policy")
+
+	if _, err := Scan([]Store{{Root: root}}, 0); err == nil {
+		t.Fatal("Scan accepted a non-positive byte limit")
+	}
+	entries, err := Scan([]Store{
+		{ProjectID: "p1", Root: ""},
+		{ProjectID: "p2", Root: filepath.Join(t.TempDir(), "never-created")},
+		{ProjectID: "p3", Root: root},
+	}, 256*1024)
+	if err != nil || len(entries) != 1 || entries[0].ProjectID != "p3" {
+		t.Fatalf("Scan across empty and missing stores = %#v, %v", entries, err)
+	}
+}
+
+func TestSearchIgnoresEmptyQueriesAndHonoursTheLimit(t *testing.T) {
+	entries := []Entry{
+		{Path: "/a.md", Title: "Cache policy", Content: "bounded"},
+		{Path: "/b.md", Title: "Cache plan", Content: "bounded"},
+	}
+	if results := Search(entries, "   ", 10); results != nil {
+		t.Fatalf("empty query returned %#v", results)
+	}
+	if results := Search(entries, "cache", 0); results != nil {
+		t.Fatalf("zero limit returned %#v", results)
+	}
+	if results := Search(entries, "cache", 1); len(results) != 1 {
+		t.Fatalf("limit 1 returned %d results", len(results))
+	}
+}
+
+// Equal scores must fall back to newest-first and then path, so repeated searches
+// return the same order.
+func TestSearchBreaksScoreTiesByModifiedTimeThenPath(t *testing.T) {
+	older := time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC)
+	newer := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
+	entries := []Entry{
+		{Path: "/b.md", Title: "Runbook", Modified: older},
+		{Path: "/c.md", Title: "Runbook", Modified: newer},
+		{Path: "/a.md", Title: "Runbook", Modified: newer},
+	}
+	results := Search(entries, "runbook", 10)
+	if len(results) != 3 {
+		t.Fatalf("results = %#v", results)
+	}
+	want := []string{"/a.md", "/c.md", "/b.md"}
+	for i, path := range want {
+		if results[i].Entry.Path != path {
+			t.Fatalf("order = %q, want %q", []string{results[0].Entry.Path, results[1].Entry.Path, results[2].Entry.Path}, want)
+		}
+	}
+}
+
+func TestSnippetTruncatesContentThatDoesNotContainTheQuery(t *testing.T) {
+	long := strings.Repeat("word ", 100)
+	results := Search([]Entry{{Path: "/a.md", Title: "Cache policy", Content: long}}, "cache", 10)
+	if len(results) != 1 {
+		t.Fatalf("results = %#v", results)
+	}
+	if !strings.HasSuffix(results[0].Snippet, "…") || len([]rune(results[0].Snippet)) != 161 {
+		t.Fatalf("snippet = %q (%d runes)", results[0].Snippet, len([]rune(results[0].Snippet)))
+	}
+}
+
+func TestLoadCacheTreatsAMissingFileAsEmpty(t *testing.T) {
+	cache, err := LoadCache(filepath.Join(t.TempDir(), "index-v1.json"))
+	if err != nil || cache.Version != CacheVersion || len(cache.Entries) != 0 {
+		t.Fatalf("LoadCache on a missing file = %#v, %v", cache, err)
+	}
+	if _, err := LoadCache(t.TempDir()); err == nil {
+		t.Fatal("LoadCache accepted a directory")
 	}
 }

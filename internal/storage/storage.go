@@ -91,7 +91,7 @@ func Initialize(layout Layout) error {
 }
 
 func containedPath(base, relative string) (string, error) {
-	if base == "" || relative == "" || filepath.IsAbs(relative) {
+	if base == "" || relative == "" || filepath.IsAbs(relative) || os.IsPathSeparator(relative[0]) {
 		return "", fmt.Errorf("repository storage path %q escapes project root", relative)
 	}
 	baseAbs, err := filepath.Abs(base)

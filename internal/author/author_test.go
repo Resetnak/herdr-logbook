@@ -3,6 +3,7 @@ package author
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,44 @@ func TestSlugHandlesUnicodeReservedNamesAndEmptyTitles(t *testing.T) {
 	}
 	if _, err := Slug("../"); err == nil {
 		t.Fatal("Slug traversal-only title succeeded")
+	}
+}
+
+func TestCreateNoteWritesTitleAndDeduplicatesFilenames(t *testing.T) {
+	root := t.TempDir()
+	first, err := CreateNote(root, "  Token Rotation  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := CreateNote(root, "Token Rotation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(first) != "token-rotation.md" || filepath.Base(second) != "token-rotation-2.md" {
+		t.Fatalf("note paths = %q, %q", first, second)
+	}
+	if filepath.Dir(first) != filepath.Join(root, "notes") {
+		t.Fatalf("note was written outside notes/: %q", first)
+	}
+	data, err := os.ReadFile(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "# Token Rotation\n" {
+		t.Fatalf("note body = %q", data)
+	}
+	info, err := os.Stat(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("note mode = %v, want 0600", info.Mode().Perm())
+	}
+	if _, err := CreateNote(root, "../../escape"); err != nil {
+		t.Fatalf("slug should strip traversal, got %v", err)
+	}
+	if _, err := CreateNote(root, "###"); err == nil {
+		t.Fatal("CreateNote accepted a title with no usable filename")
 	}
 }
 
