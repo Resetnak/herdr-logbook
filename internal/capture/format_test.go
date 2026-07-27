@@ -58,3 +58,37 @@ func TestFormatRejectsBlankText(t *testing.T) {
 		t.Fatal("Format() blank error = nil")
 	}
 }
+
+func TestFormatSelectionListsMetadataAsBulletsAndFencesBackticks(t *testing.T) {
+	when := time.Date(2026, 7, 22, 14, 32, 0, 0, time.UTC)
+	got, err := Format(Entry{
+		Time: when, Selection: true, Branch: "feature/`quoted`", SourceCWD: "/tmp/api",
+		Text: "line one\nline two",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Terminal capture", "- Branch: ", "- Source: `/tmp/api`", "feature/`quoted`"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("selection format missing %q:\n%s", want, got)
+		}
+	}
+	// A value containing backticks must be wrapped in a longer, padded fence.
+	if !strings.Contains(got, "`` feature/`quoted` ``") {
+		t.Fatalf("inline code fence was not widened:\n%s", got)
+	}
+}
+
+func TestFenceAlwaysOutgrowsTheLongestBacktickRun(t *testing.T) {
+	cases := map[string]string{
+		"plain text":   "```",
+		"one ` inside": "```",
+		"``` inside":   "````",
+		"````` inside": "``````",
+	}
+	for text, want := range cases {
+		if got := Fence(text); got != want {
+			t.Fatalf("Fence(%q) = %q, want %q", text, got, want)
+		}
+	}
+}

@@ -109,3 +109,33 @@ func TestValidateRejectsInvalidUIConfig(t *testing.T) {
 		t.Fatalf("Validate() invalid default_view error = %v", err)
 	}
 }
+
+func TestValidateRejectsEveryRemainingInvalidField(t *testing.T) {
+	cases := map[string]func(*Config){
+		"unsupported config version":   func(c *Config) { c.Version = 2 },
+		"project_mode must be central": func(c *Config) { c.Storage.ProjectMode = "sqlite" },
+		"repo_directory absolute":      func(c *Config) { c.Storage.RepoDirectory = string(filepath.Separator) + "etc" },
+		"repo_directory empty":         func(c *Config) { c.Storage.RepoDirectory = "" },
+		"repo_directory parent":        func(c *Config) { c.Storage.RepoDirectory = ".." },
+		"root_strategy must be git":    func(c *Config) { c.Project.RootStrategy = "marker" },
+		"index limit":                  func(c *Config) { c.Search.MaxIndexFileBytes = 0 },
+		"preview limit":                func(c *Config) { c.Search.MaxPreviewFileBytes = -1 },
+		"selection limit":              func(c *Config) { c.Capture.MaxSelectionBytes = 0 },
+		"empty editor argument":        func(c *Config) { c.Editor.Command = []string{"vim", ""} },
+		"NUL in editor argument":       func(c *Config) { c.Editor.Command = []string{"vim\x00-f"} },
+	}
+	for name, mutate := range cases {
+		cfg := Default()
+		mutate(&cfg)
+		if err := cfg.Validate(); err == nil {
+			t.Fatalf("%s: Validate() accepted the config", name)
+		}
+	}
+
+	cfg := Default()
+	cfg.UI.DefaultView = ""
+	cfg.Editor.Command = []string{"nvim", "-f"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() rejected a valid config: %v", err)
+	}
+}

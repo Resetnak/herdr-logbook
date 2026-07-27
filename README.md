@@ -12,7 +12,7 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 <br>
 
 [![CI](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml/badge.svg)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-73%25-yellowgreen)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tested on macOS only](https://img.shields.io/badge/tested-macOS%20only-orange)](docs/herdr-compatibility.md)

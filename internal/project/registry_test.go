@@ -87,3 +87,22 @@ func TestLoadRegistryRejectsCorruption(t *testing.T) {
 		t.Fatalf("LoadRegistry() error = %v", err)
 	}
 }
+
+func TestLoadRegistryRejectsUnreadablePathsAndFutureVersions(t *testing.T) {
+	// A directory in place of the file is the portable stand-in for an unreadable registry.
+	if _, err := LoadRegistry(t.TempDir()); err == nil || !strings.Contains(err.Error(), "read registry") {
+		t.Fatalf("LoadRegistry() on a directory error = %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "projects.toml")
+	if err := os.WriteFile(path, []byte("version = 2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadRegistry(path); err == nil || !strings.Contains(err.Error(), "unsupported registry version") {
+		t.Fatalf("LoadRegistry() version error = %v", err)
+	}
+	// UpdateRegistry must refuse rather than overwrite a registry it cannot read.
+	if err := UpdateRegistry(path, path+".lock", 2*time.Second, Project{ID: "p_abc", Name: "abc"}, "central", t.TempDir(), time.Now()); err == nil {
+		t.Fatal("UpdateRegistry overwrote an unsupported registry")
+	}
+}

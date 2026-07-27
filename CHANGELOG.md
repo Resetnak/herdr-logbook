@@ -4,6 +4,9 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- Raised test coverage from 73% to 90.9% and lifted the CI coverage floor from 70% to 90%. Both README badges now match. New tests cover the Hub's key handling, note loading and classification, the search index, capture formatting, editor resolution, project resolution and registry, config validation, storage locking and atomic writes, and every documented CLI exit code.
+- Extracted the Hub's note-authoring and editor-launch logic out of the Bubble Tea closures (`authorFromHub`, `editorCommandFor`) so both are testable without a terminal. No behaviour change.
+
 ## v0.0.3 — 2026-07-26
 
 The active task becomes a first-class command, and switching tasks writes your work journal for you. Pre-release. Still verified only on macOS arm64 (see [docs/herdr-compatibility.md](docs/herdr-compatibility.md)); not a stable release or a v0.1.0 platform-support claim.

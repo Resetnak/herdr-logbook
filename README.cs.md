@@ -12,7 +12,7 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 <br>
 
 [![CI](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml/badge.svg)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
-[![Pokrytí](https://img.shields.io/badge/pokrytí-73%25-yellowgreen)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
+[![Pokrytí](https://img.shields.io/badge/pokrytí-90%25-brightgreen)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Licence: MIT](https://img.shields.io/badge/Licence-MIT-green.svg)](LICENSE)
 [![Testováno jen na macOS](https://img.shields.io/badge/testováno-jen%20macOS-orange)](docs/herdr-compatibility.md)

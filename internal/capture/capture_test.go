@@ -78,3 +78,58 @@ func TestAppendConcurrentCapturesArePreserved(t *testing.T) {
 		}
 	}
 }
+
+func TestAppendValidatesTheRequestBeforeTouchingDisk(t *testing.T) {
+	dir := t.TempDir()
+	lock := filepath.Join(t.TempDir(), "capture.lock")
+	when := time.Date(2026, 7, 22, 14, 32, 0, 0, time.UTC)
+
+	cases := map[string]Request{
+		"no byte limit": {InboxDir: dir, LockPath: lock, Entry: Entry{Time: when, Text: "note"}},
+		"invalid utf-8": {InboxDir: dir, LockPath: lock, Entry: Entry{Time: when, Text: "note \xff"}, MaxBytes: 1024},
+		"nul byte":      {InboxDir: dir, LockPath: lock, Entry: Entry{Time: when, Text: "note\x00"}, MaxBytes: 1024},
+		"blank text":    {InboxDir: dir, LockPath: lock, Entry: Entry{Time: when, Text: "   "}, MaxBytes: 1024},
+	}
+	for name, request := range cases {
+		if _, err := Append(request); err == nil {
+			t.Fatalf("%s: Append succeeded", name)
+		}
+	}
+	if entries, err := os.ReadDir(dir); err != nil || len(entries) != 0 {
+		t.Fatalf("a rejected capture created files: %#v, %v", entries, err)
+	}
+}
+
+// The inbox is one Markdown file per month, so appends must keep exactly one blank
+// line between entries no matter how the previous write ended.
+func TestAppendSeparatesEntriesRegardlessOfTrailingNewlines(t *testing.T) {
+	when := time.Date(2026, 7, 22, 14, 32, 0, 0, time.UTC)
+	for name, existing := range map[string]string{
+		"no trailing newline":  "# Inbox — 2026-07\n\n## earlier\n\nprevious",
+		"one trailing newline": "# Inbox — 2026-07\n\n## earlier\n\nprevious\n",
+		"blank line already":   "# Inbox — 2026-07\n\n## earlier\n\nprevious\n\n",
+	} {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "2026-07.md")
+		if err := os.WriteFile(path, []byte(existing), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		// A zero LockTimeout must fall back to the default rather than fail.
+		if _, err := Append(Request{
+			InboxDir: dir, LockPath: filepath.Join(t.TempDir(), "capture.lock"),
+			Entry: Entry{Time: when, Text: "later"}, MaxBytes: 1024,
+		}); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "previous\n\n\n") || strings.Contains(string(data), "previous##") {
+			t.Fatalf("%s: entry separation = %q", name, data)
+		}
+		if !strings.Contains(string(data), "previous") || !strings.Contains(string(data), "later") {
+			t.Fatalf("%s: an entry was lost: %q", name, data)
+		}
+	}
+}
