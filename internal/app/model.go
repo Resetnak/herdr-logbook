@@ -371,7 +371,7 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshPreview()
 			if openEditor && m.editFn != nil {
 				for _, note := range notes {
-					if !oldPaths[note.Path] {
+					if (kind == "now" && note.Type == NoteNow) || (kind != "now" && !oldPaths[note.Path]) {
 						return m, m.editFn(note)
 					}
 				}
