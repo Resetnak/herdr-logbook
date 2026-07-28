@@ -4,6 +4,10 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+## v0.0.4 — 2026-07-28
+
+The shortcut you open the Logbook with now closes it too, and Hub search stops serving stale results. Pre-release. Still verified only on macOS arm64 (see [docs/herdr-compatibility.md](docs/herdr-compatibility.md)); not a stable release or a v0.1.0 platform-support claim.
+
 - The `open` and `capture` actions now toggle instead of stacking panes: invoking one while its pane is open but unfocused focuses that pane, and invoking it again from there closes it. Panes are matched by the label Herdr reports (`herdr pane list`); if the listing cannot be read, the action falls back to opening a pane as before.
 - Documented how to update the plugin in both READMEs. Herdr has no `plugin update` command, so re-running `herdr plugin install` (or the script installer, or a pull plus rebuild for a linked checkout) is the update path.
 - Fixed Hub search staying stale after captures, new notes, editor changes, and manual reloads. Search now updates without restarting Logbook, while overlapping index rebuilds are coalesced to avoid redundant full-store scans.
