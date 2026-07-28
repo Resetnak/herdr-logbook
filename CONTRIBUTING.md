@@ -43,7 +43,8 @@ bash -n scripts/open.sh scripts/install.sh
 2. **Write Unit Tests** for any new logic or Bubble Tea UI state changes.
 3. **Run Verification Commands** listed above to make sure everything passes cleanly.
 4. **Commit with Clear Messages** explaining *why* the change was made.
-5. **Open a Pull Request** describing your changes and testing performed.
+5. **Add a `CHANGELOG.md` Entry** under `## Unreleased` for anything a user would notice: a fixed bug, a new flag, changed behaviour. Purely internal refactors and test-only changes do not need one.
+6. **Open a Pull Request** describing your changes and testing performed.
 
 ---
 
