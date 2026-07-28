@@ -19,7 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     # Code scanning uploads require a public repo (or GitHub Advanced Security).
     # Skip on private repos so CI stays green; runs automatically once public.
-    if: github.event.repository.visibility == 'public'
+    #
+    # Dependabot pull requests get a read-only GITHUB_TOKEN no matter what this
+    # workflow requests, so the SARIF upload fails with "Resource not accessible
+    # by integration" and blocks the auto-merge. The push and schedule triggers
+    # still scan the same code, so nothing goes unanalysed.
+    if: github.event.repository.visibility == 'public' && github.actor != 'dependabot[bot]'
 
     strategy:
       fail-fast: false

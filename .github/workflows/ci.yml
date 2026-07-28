@@ -1,7 +1,11 @@
 name: CI
 
 on:
+  # Branch pushes are covered by the pull_request run. Listing push without a
+  # branch filter made every commit on a branch with an open PR run the whole
+  # matrix twice, because the two events produce different concurrency refs.
   push:
+    branches: [main]
   pull_request:
 
 permissions:
