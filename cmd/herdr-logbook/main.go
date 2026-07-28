@@ -401,10 +401,10 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		}
 		return tea.ExecProcess(command, func(runErr error) tea.Msg {
 			if runErr != nil {
-				return app.NotesReloadedMsg{Err: fmt.Errorf("editor exited with error: %w (the note file was saved to disk)", runErr)}
+				return app.NotesReloadedMsg{Err: fmt.Errorf("editor exited with error: %w (the note file was saved to disk)", runErr), RefreshSearch: true}
 			}
 			notes, loadErr := reloadNotes()
-			return app.NotesReloadedMsg{Notes: notes, Err: loadErr}
+			return app.NotesReloadedMsg{Notes: notes, Err: loadErr, RefreshSearch: true}
 		})
 	}
 	previewStyle := state.Config.UI.PreviewStyle
