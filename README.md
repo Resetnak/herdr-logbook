@@ -210,6 +210,25 @@ go build -o bin\herdr-logbook.exe .\cmd\herdr-logbook
 herdr plugin link (Get-Location) --enabled
 ```
 
+### Updating
+
+Herdr has no `plugin update` command — re-running the installer *is* the update path. It re-fetches the repository and downloads the release binary matching the version in `herdr-plugin.toml`.
+
+```bash
+herdr plugin install Resetnak/herdr-logbook              # latest main
+herdr plugin install Resetnak/herdr-logbook --ref v0.0.3 # a specific release
+```
+
+> ⚠️ This fails with `plugin herdr-logbook is already linked from a local path` if you installed via Option 4. A local link always wins over GitHub; run `herdr plugin unlink herdr-logbook` first, or update the checkout instead (see below).
+
+If you used the script installer (Option 2), re-run the same `curl … | bash` or `irm … | iex` line.
+
+If you linked a source checkout (Option 4), pull and rebuild. Herdr reads the plugin scripts straight from your working tree, but the binary is yours to rebuild:
+
+```bash
+git pull && go build -o bin/herdr-logbook ./cmd/herdr-logbook
+```
+
 ---
 
 ## ⚙️ Configuration
@@ -251,6 +270,8 @@ type = "plugin_action"
 command = "herdr-logbook.open"
 description = "Herdr Logbook"
 ```
+
+The shortcut toggles instead of stacking panes: if the Logbook pane is open but not focused it takes you there, and pressing it again from the focused pane closes it.
 
 Reload Herdr configuration:
 ```bash

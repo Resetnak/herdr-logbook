@@ -52,6 +52,8 @@ jobs:
       - run: go build -ldflags "-X main.version=ci" -o herdr-logbook${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/herdr-logbook
       - if: runner.os != 'Windows'
         run: bash -n scripts/open.sh scripts/install.sh
+      - if: runner.os != 'Windows'
+        run: bash scripts/open_test.sh
       - if: runner.os == 'Windows'
         shell: powershell
         run: |

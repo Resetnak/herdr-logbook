@@ -4,6 +4,8 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- The `open` and `capture` actions now toggle instead of stacking panes: invoking one while its pane is open but unfocused focuses that pane, and invoking it again from there closes it. Panes are matched by the label Herdr reports (`herdr pane list`); if the listing cannot be read, the action falls back to opening a pane as before.
+- Documented how to update the plugin in both READMEs. Herdr has no `plugin update` command, so re-running `herdr plugin install` (or the script installer, or a pull plus rebuild for a linked checkout) is the update path.
 - Fixed Hub search staying stale after captures, new notes, editor changes, and manual reloads. Search now updates without restarting Logbook, while overlapping index rebuilds are coalesced to avoid redundant full-store scans.
 - Improved empty-state guidance across Hub scopes and failed searches so the UI shows the relevant action or index failure instead of suggesting an unrelated capture or reporting no matches from stale results.
 - Fixed `Ctrl+E` in the current-task modal opening a freshly created monthly inbox instead of `now.md`. The Hub picked the editor target by looking for a note path it had not seen before, but `now.md` is rewritten in place and so never appears as a new path.
