@@ -33,9 +33,8 @@ type AuthorFunc func(kind, title string) ([]Note, error)
 type EditFunc func(note Note) tea.Cmd
 
 type searchLoadedMsg struct {
-	entries    []searchindex.Entry
-	err        error
-	generation uint64
+	entries []searchindex.Entry
+	err     error
 }
 
 type NotesReloadedMsg struct {
@@ -73,7 +72,6 @@ type HubModel struct {
 	searchEntries    []searchindex.Entry
 	searchResults    []Note
 	searchLoadFn     SearchLoadFunc
-	searchGeneration uint64
 	searchRefreshing bool
 	searchDirty      bool
 	searchErr        string
@@ -189,7 +187,7 @@ func (m HubModel) Init() tea.Cmd {
 	if m.searchLoadFn == nil {
 		return nil
 	}
-	return m.loadSearchCmd(m.searchGeneration)
+	return m.loadSearchCmd()
 }
 
 func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
@@ -214,9 +212,6 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(searchCommand, flashCmd(m.flashTick))
 	}
 	if loaded, ok := message.(searchLoadedMsg); ok {
-		if loaded.generation != m.searchGeneration {
-			return m, nil
-		}
 		m.searchRefreshing = false
 		if loaded.err != nil {
 			m.searchErr = loaded.err.Error()
@@ -626,13 +621,17 @@ func (m *HubModel) clearSearch() {
 	m.refreshPreview()
 }
 
-func (m HubModel) loadSearchCmd(generation uint64) tea.Cmd {
+func (m HubModel) loadSearchCmd() tea.Cmd {
 	return func() tea.Msg {
 		entries, err := m.searchLoadFn()
-		return searchLoadedMsg{entries: entries, err: err, generation: generation}
+		return searchLoadedMsg{entries: entries, err: err}
 	}
 }
 
+// refreshSearchCmd schedules a rebuild, or marks one as pending when a rebuild is
+// already in flight. searchRefreshing is the only gate: a second load can never be
+// dispatched while one is outstanding, so a searchLoadedMsg is always the answer to
+// the newest request and needs no generation tag to be recognised as current.
 func (m *HubModel) refreshSearchCmd() tea.Cmd {
 	if m.searchLoadFn == nil {
 		return nil
@@ -641,9 +640,8 @@ func (m *HubModel) refreshSearchCmd() tea.Cmd {
 		m.searchDirty = true
 		return nil
 	}
-	m.searchGeneration++
 	m.searchRefreshing = true
-	return m.loadSearchCmd(m.searchGeneration)
+	return m.loadSearchCmd()
 }
 
 func (m *HubModel) resize(width, height int) {

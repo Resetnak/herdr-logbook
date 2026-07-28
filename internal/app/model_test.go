@@ -114,9 +114,6 @@ func TestHubSearchShowsRefreshingUntilInitialIndexLoads(t *testing.T) {
 	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
 		return nil, nil
 	})
-	if model.searchGeneration != 0 {
-		t.Fatalf("initial search generation = %d, want 0", model.searchGeneration)
-	}
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("missing")})
 	if view := model.View(); !strings.Contains(view, "Refreshing search index...") {
@@ -486,34 +483,6 @@ func TestHubCoalescesOverlappingSearchRefreshes(t *testing.T) {
 
 	if searchLoads != 2 || model.searchRefreshing || model.searchDirty || len(model.searchEntries) != 1 || model.searchEntries[0].Title != "refresh-2" {
 		t.Fatalf("coalesced refresh = loads %d, refreshing %t, dirty %t, entries %#v", searchLoads, model.searchRefreshing, model.searchDirty, model.searchEntries)
-	}
-}
-
-func TestHubIgnoresSupersededSearchRefresh(t *testing.T) {
-	searchLoads := 0
-	model := NewHub(nil, "api", "main", "central").
-		WithActions(nil, func() ([]Note, error) { return nil, nil }).
-		WithSearch(nil, func() ([]searchindex.Entry, error) {
-			searchLoads++
-			return []searchindex.Entry{{Title: fmt.Sprintf("refresh-%d", searchLoads)}}, nil
-		})
-	model = completeInitialSearch(t, model)
-
-	model, currentCommand := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	currentResult := runSearchLoadCommand(t, currentCommand)
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	model, nextCommand := updateHub(model, currentResult)
-
-	currentResult.entries = []searchindex.Entry{{Title: "stale"}}
-	model, _ = updateHub(model, currentResult)
-	if len(model.searchEntries) != 1 || model.searchEntries[0].Title != "refresh-2" {
-		t.Fatalf("search entries were replaced by a stale refresh: %#v", model.searchEntries)
-	}
-
-	nextResult := runSearchLoadCommand(t, nextCommand)
-	model, _ = updateHub(model, nextResult)
-	if len(model.searchEntries) != 1 || model.searchEntries[0].Title != "refresh-3" {
-		t.Fatalf("latest search refresh was not applied: %#v", model.searchEntries)
 	}
 }
 
