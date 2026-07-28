@@ -210,6 +210,25 @@ go build -o bin\herdr-logbook.exe .\cmd\herdr-logbook
 herdr plugin link (Get-Location) --enabled
 ```
 
+### Aktualizace
+
+Herdr nemá příkaz `plugin update` — aktualizace se dělá opětovným spuštěním instalace. Herdr znovu stáhne repozitář a vezme si release binárku odpovídající verzi v `herdr-plugin.toml`.
+
+```bash
+herdr plugin install Resetnak/herdr-logbook              # nejnovější main
+herdr plugin install Resetnak/herdr-logbook --ref v0.0.3 # konkrétní vydání
+```
+
+> ⚠️ Pokud jste instalovali Možností 4, tento příkaz skončí chybou `plugin herdr-logbook is already linked from a local path`. Lokální link má vždy přednost před GitHubem; nejdřív spusťte `herdr plugin unlink herdr-logbook`, nebo místo toho aktualizujte svůj checkout (viz níže).
+
+Pokud jste použili skriptový instalátor (Možnost 2), spusťte znovu tentýž řádek `curl … | bash`, resp. `irm … | iex`.
+
+Pokud máte přilinkovaný zdrojový checkout (Možnost 4), stáhněte změny a přebuildujte. Herdr čte skripty pluginu přímo z vašeho pracovního stromu, ale binárku si musíte zkompilovat sami:
+
+```bash
+git pull && go build -o bin/herdr-logbook ./cmd/herdr-logbook
+```
+
 ---
 
 ## ⚙️ Konfigurace
@@ -251,6 +270,8 @@ type = "plugin_action"
 command = "herdr-logbook.open"
 description = "Herdr Logbook"
 ```
+
+Zkratka funguje jako přepínač, místo aby otevírala další a další panely: pokud je panel Logbooku otevřený, ale nemá fokus, zkratka vás do něj přepne; dalším stiskem z tohoto panelu se zavře.
 
 Znovu načtěte konfiguraci Herdru:
 ```bash
