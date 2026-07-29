@@ -19,7 +19,7 @@ Steps to reproduce the behavior:
 A clear and concise description of what you expected to happen.
 
 **Environment:**
- - OS: [e.g. macOS 14.5, Ubuntu 24.04, Windows 11]
+ - OS: [e.g. macOS 14.5, Ubuntu 24.04, Windows 11, WSL 2 + Ubuntu 24.04]
  - Herdr version: [e.g. 0.7.0]
  - Herdr Logbook version: [e.g. v0.1.0 or dev]
 
