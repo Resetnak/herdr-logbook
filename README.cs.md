@@ -15,7 +15,7 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 [![Pokrytí](https://img.shields.io/badge/pokrytí-90%25-brightgreen)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![Licence: MIT](https://img.shields.io/badge/Licence-MIT-green.svg)](LICENSE)
-[![Testováno jen na macOS](https://img.shields.io/badge/testováno-jen%20macOS-orange)](docs/herdr-compatibility.md)
+[![Testováno na macOS, hlášeno funkční na WSL 2](https://img.shields.io/badge/testováno-macOS%20%C2%B7%20WSL%202-yellow)](docs/herdr-compatibility.md)
 [![Herdr](https://img.shields.io/badge/Herdr-%E2%89%A50.7.0-2088FF)](herdr-plugin.toml)
 [![Stav](https://img.shields.io/badge/stav-pre--release-orange)](CHANGELOG.md)
 
@@ -33,9 +33,9 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
   <sub>Claude Code pracuje v repozitáři — stiskněte <code>Ctrl+B</code> a poté <code>m</code> a vedle agenta se otevře Logbook Hub: inbox, rozhodnutí, vyhledávání napříč projekty. Vyrenderováno z <a href="cassette.tape">cassette.tape</a>.</sub>
 </div>
 
-> ⚠️ **Testováno pouze na macOS (arm64).** Binárky pro Linux a Windows se kompilují křížově a procházejí jednotkovými testy v CI, ale plugin **nebyl** na těchto platformách ověřen proti skutečnému hostiteli Herdr. Používáte je na vlastní riziko. Viz [matice kompatibility](docs/herdr-compatibility.md).
+> ⚠️ **Ověřeno na macOS (arm64); na WSL 2 (Windows) hlášeno jako funkční.** Build `linux/amd64` uživatel spustil pod WSL 2 proti skutečnému hostiteli Herdr. Binárky pro nativní Linux, nativní Windows (PowerShell) a Intel macOS se kompilují křížově a procházejí jednotkovými testy v CI, ale **nebyly** ověřeny proti skutečnému hostiteli Herdr. Používáte je na vlastní riziko. Viz [matice kompatibility](docs/herdr-compatibility.md).
 >
-> Používáte Herdr na Linuxu nebo Windows? Krátká zpráva, že plugin funguje (nebo nefunguje), je nejrychlejší cesta k ověření vaší platformy — [otevřete issue](https://github.com/Resetnak/herdr-logbook/issues).
+> Používáte Herdr na nativním Linuxu nebo nativních Windows? Krátká zpráva, že plugin funguje (nebo nefunguje), je nejrychlejší cesta k ověření vaší platformy — [otevřete issue](https://github.com/Resetnak/herdr-logbook/issues).
 
 ---
 
@@ -132,9 +132,9 @@ Vše je čistý Markdown, takže na kterýkoli z těchto nástrojů můžete kdy
 
 Herdr Logbook vyžaduje [Herdr](https://herdr.dev) ≥ 0.7.0 — nainstalujete jej přes `brew install herdr` (viz [herdr.dev](https://herdr.dev)).
 
-> ⚡ **Není potřeba kompilátor Go**: Instalátor stáhne z GitHub Releases předkompilovanou binárku pro vaši platformu a ověří její SHA-256 kontrolní součet (skripty `scripts/install.sh` / `scripts/install.ps1`). Binárky se sestavují pro Linux, macOS i Windows (`amd64` a `arm64`), ale jen macOS (arm64) je ověřen proti skutečnému hostiteli Herdr — viz stav platforem níže.
+> ⚡ **Není potřeba kompilátor Go**: Instalátor stáhne z GitHub Releases předkompilovanou binárku pro vaši platformu a ověří její SHA-256 kontrolní součet (skripty `scripts/install.sh` / `scripts/install.ps1`). Binárky se sestavují pro Linux, macOS i Windows (`amd64` a `arm64`), ale proti skutečnému hostiteli Herdr je ověřen jen macOS (arm64), u WSL 2 (`linux/amd64`) máme hlášení, že funguje — viz stav platforem níže.
 
-> ⚠️ **Stav platforem — pouze macOS**: Tento plugin byl testován **pouze na macOS (arm64)**. Jednotkové testy sice běží v CI na Linuxu, macOS i Windows, ale samotná integrace pluginu s Herdrem (panely a akce) **nebyla** na Linuxu ani Windows testována. Tyto balíčky jsou poskytovány „tak jak jsou". Viz [matice kompatibility](docs/herdr-compatibility.md).
+> ⚠️ **Stav platforem — macOS ověřen, WSL 2 hlášen**: Integrace pluginu s Herdrem (panely a akce) byla otestována na **macOS (arm64)**. Build `linux/amd64` je hlášen jako funkční pod **WSL 2 (Windows)**. Jednotkové testy navíc běží v CI na Linuxu, macOS i Windows, ale integrace na nativním Linuxu a nativních Windows (PowerShell) **nebyla** proti skutečnému hostiteli Herdr ověřena; tyto balíčky jsou poskytovány „tak jak jsou". Viz [matice kompatibility](docs/herdr-compatibility.md).
 
 ### Možnost 1: Přes Herdr Plugin Manager (Doporučeno)
 
@@ -171,6 +171,8 @@ Stáhněte si samostatné předkompilované balíčky (s ověřeným SHA-256 kon
 | **macOS** | Apple Silicon (`arm64`) / Intel (`amd64`) | `.tar.gz` |
 | **Linux** | `amd64` / `arm64` | `.tar.gz` |
 | **Windows** | `amd64` / `arm64` | `.zip` |
+
+> 🐧 **Na WSL 2** stáhněte archív pro **Linux** (na běžném x64 stroji `amd64`), ne ten pro Windows — Herdr i plugin běží uvnitř WSL distribuce.
 
 ---
 
@@ -216,7 +218,7 @@ Herdr nemá příkaz `plugin update` — aktualizace se dělá opětovným spuš
 
 ```bash
 herdr plugin install Resetnak/herdr-logbook              # nejnovější main
-herdr plugin install Resetnak/herdr-logbook --ref v0.0.4 # konkrétní vydání
+herdr plugin install Resetnak/herdr-logbook --ref v0.0.5 # konkrétní vydání
 ```
 
 > ⚠️ Pokud jste instalovali Možností 4, tento příkaz skončí chybou `plugin herdr-logbook is already linked from a local path`. Lokální link má vždy přednost před GitHubem; nejdřív spusťte `herdr plugin unlink herdr-logbook`, nebo místo toho aktualizujte svůj checkout (viz níže).

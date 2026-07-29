@@ -4,6 +4,13 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+## v0.0.5 — 2026-07-29
+
+A platform-status update: WSL 2 is no longer listed as untested. Pre-release. macOS arm64 remains the only host verified against the checklist in [docs/herdr-compatibility.md](docs/herdr-compatibility.md); not a stable release or a v0.1.0 platform-support claim.
+
+- Recorded a WSL 2 (Windows) report: the `linux/amd64` build runs against a real Herdr host. The compatibility matrix now distinguishes `verified` (macOS, checklist run) from `reported working` (WSL 2, hands-on user report with the distro, install path, and exercised actions not recorded). Both READMEs, the badge, the GoReleaser release footer, and the release checklist were reworded to match; the bug-report template lists WSL 2 as an OS example. Native Linux and native Windows (PowerShell) remain cross-compiled and unverified.
+- Documented that WSL 2 users should take the Linux archive rather than the Windows one, since Herdr and the plugin run inside the WSL distro.
+
 ## v0.0.4 — 2026-07-28
 
 The shortcut you open the Logbook with now closes it too, and Hub search stops serving stale results. Pre-release. Still verified only on macOS arm64 (see [docs/herdr-compatibility.md](docs/herdr-compatibility.md)); not a stable release or a v0.1.0 platform-support claim.

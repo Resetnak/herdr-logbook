@@ -15,7 +15,7 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 [![Coverage](https://img.shields.io/badge/coverage-90%25-brightgreen)](https://github.com/Resetnak/herdr-logbook/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25%2B-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tested on macOS only](https://img.shields.io/badge/tested-macOS%20only-orange)](docs/herdr-compatibility.md)
+[![Tested on macOS, reported working on WSL 2](https://img.shields.io/badge/tested-macOS%20%C2%B7%20WSL%202-yellow)](docs/herdr-compatibility.md)
 [![Herdr](https://img.shields.io/badge/Herdr-%E2%89%A50.7.0-2088FF)](herdr-plugin.toml)
 [![Status](https://img.shields.io/badge/status-pre--release-orange)](CHANGELOG.md)
 
@@ -33,9 +33,9 @@ Active tasks, quick captures, and architectural decisions, stored as plain
   <sub>Claude Code working in a repo — press <code>Ctrl+B</code> then <code>m</code> and the Logbook Hub splits in beside your agent: inbox, decisions, cross-project search. Rendered from <a href="cassette.tape">cassette.tape</a>.</sub>
 </div>
 
-> ⚠️ **Tested on macOS (arm64) only.** Linux and Windows binaries are cross-compiled and pass CI unit tests, but the plugin has **not** been tested against a real Herdr host on those platforms. Use them at your own risk. See the [compatibility matrix](docs/herdr-compatibility.md).
+> ⚠️ **Verified on macOS (arm64); reported working on WSL 2 (Windows).** The `linux/amd64` build has been run against a real Herdr host under WSL 2 by a user. Native Linux, native Windows (PowerShell), and Intel macOS binaries are cross-compiled and pass CI unit tests, but have **not** been tested against a real Herdr host. Use them at your own risk. See the [compatibility matrix](docs/herdr-compatibility.md).
 >
-> Running Herdr on Linux or Windows? A quick report that the plugin works (or doesn't) is the fastest way to get your platform verified — [open an issue](https://github.com/Resetnak/herdr-logbook/issues).
+> Running Herdr on native Linux or native Windows? A quick report that the plugin works (or doesn't) is the fastest way to get your platform verified — [open an issue](https://github.com/Resetnak/herdr-logbook/issues).
 
 ---
 
@@ -132,9 +132,9 @@ Everything is plain Markdown, so you can migrate to — or combine with — any 
 
 Herdr Logbook requires [Herdr](https://herdr.dev) ≥ 0.7.0 — install it with `brew install herdr` (see [herdr.dev](https://herdr.dev)).
 
-> ⚡ **No Go compiler required**: The installer downloads a SHA-256 checksum-verified precompiled binary for your platform from GitHub Releases via `scripts/install.sh` / `scripts/install.ps1`. Binaries are built for Linux, macOS, and Windows (`amd64` & `arm64`), but only macOS (arm64) is verified against a real Herdr host — see the platform status below.
+> ⚡ **No Go compiler required**: The installer downloads a SHA-256 checksum-verified precompiled binary for your platform from GitHub Releases via `scripts/install.sh` / `scripts/install.ps1`. Binaries are built for Linux, macOS, and Windows (`amd64` & `arm64`), but only macOS (arm64) is verified against a real Herdr host, with WSL 2 (`linux/amd64`) reported working — see the platform status below.
 
-> ⚠️ **Platform status — macOS only**: This plugin has been tested **only on macOS (arm64)**. Unit tests run in CI on Linux, macOS, and Windows, but the actual Herdr plugin integration (panes and actions) has **not** been tested on Linux or Windows. Those builds are provided as-is. See the [compatibility matrix](docs/herdr-compatibility.md).
+> ⚠️ **Platform status — macOS verified, WSL 2 reported**: The Herdr plugin integration (panes and actions) has been tested on **macOS (arm64)**. The `linux/amd64` build is reported working under **WSL 2 (Windows)**. Unit tests also run in CI on Linux, macOS, and Windows, but native Linux and native Windows (PowerShell) integration has **not** been tested on a real Herdr host; those builds are provided as-is. See the [compatibility matrix](docs/herdr-compatibility.md).
 
 ### Option 1: Via Herdr Plugin Manager (Recommended)
 
@@ -171,6 +171,8 @@ Download precompiled standalone binaries (with SHA-256 checksum verification) fr
 | **macOS** | Apple Silicon (`arm64`) / Intel (`amd64`) | `.tar.gz` |
 | **Linux** | `amd64` / `arm64` | `.tar.gz` |
 | **Windows** | `amd64` / `arm64` | `.zip` |
+
+> 🐧 **On WSL 2** take the **Linux** archive (`amd64` on a typical x64 machine), not the Windows one — Herdr and the plugin run inside the WSL distro.
 
 ---
 
@@ -216,7 +218,7 @@ Herdr has no `plugin update` command — re-running the installer *is* the updat
 
 ```bash
 herdr plugin install Resetnak/herdr-logbook              # latest main
-herdr plugin install Resetnak/herdr-logbook --ref v0.0.4 # a specific release
+herdr plugin install Resetnak/herdr-logbook --ref v0.0.5 # a specific release
 ```
 
 > ⚠️ This fails with `plugin herdr-logbook is already linked from a local path` if you installed via Option 4. A local link always wins over GitHub; run `herdr plugin unlink herdr-logbook` first, or update the checkout instead (see below).

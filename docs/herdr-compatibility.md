@@ -36,19 +36,30 @@ It also received workspace, tab, and pane IDs. The invocation context contained 
 
 Herdr 0.7.5 exposes no width or height option for `plugin pane open`; the requested `92%` by `86%` popup size cannot currently be set through the documented CLI. The spike uses Herdr's default overlay size.
 
+## Reported working on WSL 2
+
+- Date: 2026-07-29
+- Herdr: exact version not recorded; the manifest requires `min_herdr_version = "0.7.0"`, so the host ran ≥ 0.7.0
+- Host: WSL 2 on Windows, `linux/amd64` build
+- Result: the plugin runs against a real Herdr host under WSL 2.
+
+This is a hands-on user report, not a run of the checklist above: the distro, the install path, and which individual actions were exercised were not recorded. It is weaker evidence than the macOS entry and is labelled that way in the matrix.
+
+WSL 2 runs the `linux/amd64` release archive — the same artifact as native Linux. That makes native Linux amd64 *likely* to work, but it is still not directly verified: WSL 2 has its own filesystem, path, and terminal quirks (e.g. `/mnt/c` interop paths), so the two are tracked as separate rows below.
+
 ## Compatibility matrix
 
 | Platform | Build | Real Herdr action/pane | Notes |
 |---|---:|---:|---|
 | macOS arm64 | verified | verified | Herdr 0.7.5, Bash launcher |
 | macOS amd64 | cross-compile only | not tested | Intel host required |
-| Linux amd64 | cross-compile only | not tested | Linux Herdr host required |
+| WSL 2 (Windows) | verified | reported working | `linux/amd64` build, Bash launcher; user report, details not recorded |
+| Linux amd64 | cross-compile only | not tested | Same artifact as WSL 2, but a native Linux Herdr host is still untested |
 | Linux arm64 | cross-compile only | not tested | Linux arm64 Herdr host required |
 | Windows amd64 | cross-compile only | not tested | PowerShell 5.1 and 7 required |
 | Windows arm64 | cross-compile only | not tested | Windows arm64 Herdr host required |
-| WSL 2 | Linux build only | not tested | WSL Herdr host required |
 
-The Windows manifest entry uses PowerShell as the pane executable and invokes the Go binary by absolute `HERDR_PLUGIN_ROOT` path. Herdr accepted the manifest on macOS, but this is not proof that CreateProcess, PowerShell 5.1, verbatim paths, and pane context propagation work on Windows.
+The Windows manifest entry uses PowerShell as the pane executable and invokes the Go binary by absolute `HERDR_PLUGIN_ROOT` path. Herdr accepted the manifest on macOS, but this is not proof that CreateProcess, PowerShell 5.1, verbatim paths, and pane context propagation work on Windows. WSL 2 does **not** exercise that path: it uses the `linux` manifest entries and the Bash launcher.
 
 ## Reproduction
 
@@ -64,4 +75,4 @@ herdr pane list
 
 ## Gate result
 
-The macOS arm64 launcher contract is suitable for subsequent local core-domain work. Production launch architecture and cross-platform support remain blocked on real Linux, Windows, WSL, Intel macOS, PowerShell 5.1, and PowerShell 7 runs.
+The macOS arm64 launcher contract is suitable for subsequent local core-domain work. The WSL 2 report is the first real-world run of the Bash launcher outside macOS, but it is a report rather than a checklist run. Full cross-platform support remains blocked on real native Linux, Windows, Intel macOS, PowerShell 5.1, and PowerShell 7 runs.

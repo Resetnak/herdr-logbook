@@ -37,5 +37,6 @@ release:
     ---
 
     Verify downloads against `checksums.txt`. Only macOS (arm64) is verified
-    against a real Herdr host — other platforms are cross-compiled and untested;
+    against a real Herdr host; WSL 2 (`linux/amd64`) is reported working.
+    Native Linux and native Windows are cross-compiled and untested;
     see [docs/herdr-compatibility.md](https://github.com/Resetnak/herdr-logbook/blob/main/docs/herdr-compatibility.md).
