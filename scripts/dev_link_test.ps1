@@ -84,9 +84,14 @@ exit /b %ERRORLEVEL%
 
     Remove-Item -Force -ErrorAction SilentlyContinue $HerdrArgs
     $env:DEV_GO_FAIL = '1'
-    & $PowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Fixture 'scripts\dev-link.ps1') *> $null
-    if ($LASTEXITCODE -ne 23) {
-        throw "build failure exit code = $LASTEXITCODE, want 23"
+    $oldPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $null = & $PowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Fixture 'scripts\dev-link.ps1') 2>&1
+    $actualFailCode = $LASTEXITCODE
+    $ErrorActionPreference = $oldPreference
+
+    if ($actualFailCode -ne 23) {
+        throw "build failure exit code = $actualFailCode, want 23"
     }
     if (Test-Path -LiteralPath $HerdrArgs) {
         throw 'herdr was called after build failure'
