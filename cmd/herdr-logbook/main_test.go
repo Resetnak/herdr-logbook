@@ -538,26 +538,37 @@ func hubState(t *testing.T, extraEnv map[string]string) (coreState, func(string)
 func TestAuthorFromHubWritesNotesDecisionsAndTheCurrentTask(t *testing.T) {
 	state, _ := hubState(t, nil)
 
-	if err := authorFromHub(state, "note", "Cache Policy"); err != nil {
+	notePath, err := authorFromHub(state, "note", "Cache Policy")
+	if err != nil {
 		t.Fatalf("note: %v", err)
 	}
-	if data, err := os.ReadFile(filepath.Join(state.Layout.Notes, "cache-policy.md")); err != nil || !strings.Contains(string(data), "# Cache Policy") {
+	if want := filepath.Join(state.Layout.Notes, "cache-policy.md"); notePath != want {
+		t.Fatalf("note path = %q, want %q", notePath, want)
+	}
+	if data, err := os.ReadFile(notePath); err != nil || !strings.Contains(string(data), "# Cache Policy") {
 		t.Fatalf("note = %q, %v", data, err)
 	}
 
-	if err := authorFromHub(state, "decision", "Use Redis"); err != nil {
+	decisionPath, err := authorFromHub(state, "decision", "Use Redis")
+	if err != nil {
 		t.Fatalf("decision: %v", err)
 	}
 	decisions, err := filepath.Glob(filepath.Join(state.Layout.Decisions, "*use-redis.md"))
-	if err != nil || len(decisions) != 1 {
-		t.Fatalf("decisions = %v, %v", decisions, err)
+	if err != nil || len(decisions) != 1 || decisions[0] != decisionPath {
+		t.Fatalf("decisions = %v (reported %q), %v", decisions, decisionPath, err)
 	}
 
-	if err := authorFromHub(state, "now", "Rotate the signing tokens"); err != nil {
+	if _, err := authorFromHub(state, "now", "Rotate the signing tokens"); err != nil {
 		t.Fatalf("now: %v", err)
 	}
-	if err := authorFromHub(state, "now", "Ship the release"); err != nil {
+	// Setting the current task rewrites now.md in place, so the reported path is
+	// now.md itself — that is what the Hub hands to the editor on Ctrl+E.
+	nowPath, err := authorFromHub(state, "now", "Ship the release")
+	if err != nil {
 		t.Fatalf("second now: %v", err)
+	}
+	if nowPath != state.Layout.Now {
+		t.Fatalf("now path = %q, want %q", nowPath, state.Layout.Now)
 	}
 	nowData, err := os.ReadFile(state.Layout.Now)
 	if err != nil || !strings.Contains(string(nowData), "Ship the release") {
@@ -569,10 +580,10 @@ func TestAuthorFromHubWritesNotesDecisionsAndTheCurrentTask(t *testing.T) {
 		t.Fatalf("previous task was not archived:\n%s", inbox)
 	}
 
-	if err := authorFromHub(state, "now", "  "); err == nil {
+	if _, err := authorFromHub(state, "now", "  "); err == nil {
 		t.Fatal("authorFromHub accepted an empty task")
 	}
-	if err := authorFromHub(state, "note", "###"); err == nil {
+	if _, err := authorFromHub(state, "note", "###"); err == nil {
 		t.Fatal("authorFromHub accepted an unusable note title")
 	}
 }

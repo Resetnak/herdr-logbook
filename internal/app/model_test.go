@@ -134,10 +134,10 @@ func TestHubCaptureModalSavesProjectNote(t *testing.T) {
 	var capturedText string
 	var capturedGlobal bool
 	model := NewHub(nil, "api", "main", "central").WithActions(
-		func(text string, global bool) ([]Note, error) {
+		func(text string, global bool) (string, []Note, error) {
 			capturedText = text
 			capturedGlobal = global
-			return []Note{{Title: "Captured", Type: NoteProjectInbox, Content: text}}, nil
+			return "/notes/inbox/2026-07.md", []Note{{Title: "Captured", Type: NoteProjectInbox, Content: text}}, nil
 		},
 		nil,
 	)
@@ -163,8 +163,8 @@ func TestHubCaptureModalSavesProjectNote(t *testing.T) {
 func TestHubCaptureRefreshesSearchIndex(t *testing.T) {
 	searchLoads := 0
 	model := NewHub(nil, "api", "main", "central").
-		WithActions(func(text string, global bool) ([]Note, error) {
-			return []Note{{Title: "Inbox", Type: NoteProjectInbox, Content: text}}, nil
+		WithActions(func(text string, global bool) (string, []Note, error) {
+			return "/notes/inbox/2026-07.md", []Note{{Title: "Inbox", Type: NoteProjectInbox, Content: text}}, nil
 		}, nil).
 		WithSearch(nil, func() ([]searchindex.Entry, error) {
 			searchLoads++
@@ -188,9 +188,9 @@ func TestHubCaptureRefreshesSearchIndex(t *testing.T) {
 func TestHubCaptureModalSupportsGlobalAndCancel(t *testing.T) {
 	called := false
 	model := NewHub(nil, "api", "main", "central").WithActions(
-		func(string, bool) ([]Note, error) {
+		func(string, bool) (string, []Note, error) {
 			called = true
-			return nil, nil
+			return "", nil, nil
 		},
 		nil,
 	)
@@ -207,7 +207,7 @@ func TestHubCaptureModalSupportsGlobalAndCancel(t *testing.T) {
 
 func TestHubCaptureErrorKeepsModalOpen(t *testing.T) {
 	model := NewHub(nil, "api", "main", "central").WithActions(
-		func(string, bool) ([]Note, error) { return nil, errors.New("disk full") },
+		func(string, bool) (string, []Note, error) { return "", nil, errors.New("disk full") },
 		nil,
 	)
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
@@ -306,9 +306,9 @@ func TestHubProjectSearchFiltersByProjectName(t *testing.T) {
 func TestHubSetsCurrentTask(t *testing.T) {
 	got := ""
 	model := NewHub([]Note{{Path: "/notes/now.md", Title: "Now", Type: NoteNow}}, "api", "main", "central").
-		WithAuthoring(func(kind, title string) ([]Note, error) {
+		WithAuthoring(func(kind, title string) (string, []Note, error) {
 			got = kind + ":" + title
-			return nil, nil
+			return "/notes/now.md", nil, nil
 		}, nil)
 
 	m, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
@@ -332,8 +332,8 @@ func TestHubSaveAndEditCurrentTaskOpensNowFile(t *testing.T) {
 	edited := ""
 	now := Note{Path: "/notes/now.md", Title: "Now", Type: NoteNow}
 	model := NewHub([]Note{now}, "api", "main", "central").
-		WithAuthoring(func(string, string) ([]Note, error) {
-			return []Note{
+		WithAuthoring(func(string, string) (string, []Note, error) {
+			return now.Path, []Note{
 				now,
 				{Path: "/notes/inbox/2026-07.md", Title: "Inbox", Type: NoteProjectInbox},
 			}, nil
@@ -360,9 +360,9 @@ func TestHubAuthoringAndEditorActions(t *testing.T) {
 	authorKind := ""
 	edited := ""
 	model := NewHub([]Note{{Path: "/notes/a.md", Title: "A", Type: NoteNow}}, "api", "main", "central").
-		WithAuthoring(func(kind, title string) ([]Note, error) {
+		WithAuthoring(func(kind, title string) (string, []Note, error) {
 			authorKind = kind + ":" + title
-			return []Note{{Path: "/notes/new.md", Title: title, Type: NoteProjectNote}}, nil
+			return "/notes/new.md", []Note{{Path: "/notes/new.md", Title: title, Type: NoteProjectNote}}, nil
 		}, func(note Note) tea.Cmd {
 			return func() tea.Msg {
 				edited = note.Path
@@ -655,9 +655,9 @@ func TestHubAuthoringRefusesWhenNoActionIsWired(t *testing.T) {
 func TestBeginCaptureQuitsAfterSaving(t *testing.T) {
 	saved := ""
 	model, cmd := NewHub(nil, "api", "main", "central").
-		WithActions(func(text string, global bool) ([]Note, error) {
+		WithActions(func(text string, global bool) (string, []Note, error) {
 			saved = text
-			return nil, nil
+			return "/notes/inbox/2026-07.md", nil, nil
 		}, nil).
 		BeginCapture(false, true)
 	if cmd == nil || !model.capturing {
@@ -890,4 +890,30 @@ func runSearchLoadCommand(t *testing.T, command tea.Cmd) searchLoadedMsg {
 	}
 	t.Fatal("command did not load search entries")
 	return searchLoadedMsg{}
+}
+
+// A capture appends to the existing monthly inbox, so no new note path appears in
+// the reloaded list. Ctrl+E must still open the file the capture landed in.
+func TestHubSaveAndEditCaptureOpensTheInboxItAppendedTo(t *testing.T) {
+	inbox := Note{Path: "/notes/inbox/2026-07.md", Title: "Inbox", Type: NoteProjectInbox}
+	edited := ""
+	model := NewHub([]Note{inbox}, "api", "main", "central").
+		WithActions(func(string, bool) (string, []Note, error) { return inbox.Path, []Note{inbox}, nil }, nil).
+		WithAuthoring(nil, func(note Note) tea.Cmd {
+			return func() tea.Msg {
+				edited = note.Path
+				return nil
+			}
+		})
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("remember this")})
+	_, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlE})
+	if command == nil {
+		t.Fatal("Ctrl+E did not open an editor")
+	}
+	command()
+	if edited != inbox.Path {
+		t.Fatalf("Ctrl+E edited %q, want the inbox %q", edited, inbox.Path)
+	}
 }

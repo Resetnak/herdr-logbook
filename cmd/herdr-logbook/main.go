@@ -250,24 +250,32 @@ func rebuildSearchIndex(state coreState) ([]searchindex.Entry, error) {
 // authorFromHub performs the write behind the Hub's n, d, and t keys. It is a
 // plain function rather than a closure so the three write paths stay testable
 // without a terminal.
-func authorFromHub(state coreState, kind, title string) error {
+func authorFromHub(state coreState, kind, title string) (string, error) {
 	// setNowTask takes state.Layout.Lock itself, so it must stay outside the
 	// lock the note/decision authors run under.
 	if kind == "now" {
 		if err := nowfile.ValidateTask(title); err != nil {
-			return err
+			return "", err
 		}
-		_, err := setNowTask(state, title)
-		return err
+		if _, err := setNowTask(state, title); err != nil {
+			return "", err
+		}
+		return state.Layout.Now, nil
 	}
-	return storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
+	var path string
+	err := storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
+		var createErr error
 		if kind == "decision" {
-			_, err := author.CreateDecision(state.Layout.Root, title, state.Project.Name, state.Project.Branch, time.Now())
-			return err
+			path, createErr = author.CreateDecision(state.Layout.Root, title, state.Project.Name, state.Project.Branch, time.Now())
+		} else {
+			path, createErr = author.CreateNote(state.Layout.Root, title)
 		}
-		_, err := author.CreateNote(state.Layout.Root, title)
-		return err
+		return createErr
 	})
+	if err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 // editorCommandFor builds the argv command the Hub's e key executes. Splitting
@@ -378,17 +386,21 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 	refreshSearch := func() ([]searchindex.Entry, error) {
 		return rebuildSearchIndex(state)
 	}
-	captureNote := func(text string, global bool) ([]app.Note, error) {
-		if _, err := appendCapture(state, text, global, false, "", ""); err != nil {
-			return nil, err
+	captureNote := func(text string, global bool) (string, []app.Note, error) {
+		path, err := appendCapture(state, text, global, false, "", "")
+		if err != nil {
+			return "", nil, err
 		}
-		return reloadNotes()
+		notes, loadErr := reloadNotes()
+		return path, notes, loadErr
 	}
-	authorNote := func(kind, title string) ([]app.Note, error) {
-		if err := authorFromHub(state, kind, title); err != nil {
-			return nil, err
+	authorNote := func(kind, title string) (string, []app.Note, error) {
+		path, err := authorFromHub(state, kind, title)
+		if err != nil {
+			return "", nil, err
 		}
-		return reloadNotes()
+		notes, loadErr := reloadNotes()
+		return path, notes, loadErr
 	}
 	editorArgv := state.Config.Editor.Command
 	if *editorCmd != "" {
@@ -611,12 +623,13 @@ func runCaptureTUI(state coreState, global bool, stdin io.Reader, stdout, stderr
 	}
 
 	saved := false
-	captureNote := func(text string, captureGlobal bool) ([]app.Note, error) {
-		if _, err := appendCapture(state, text, captureGlobal, false, "", ""); err != nil {
-			return nil, err
+	captureNote := func(text string, captureGlobal bool) (string, []app.Note, error) {
+		path, err := appendCapture(state, text, captureGlobal, false, "", "")
+		if err != nil {
+			return "", nil, err
 		}
 		saved = true
-		return nil, nil
+		return path, nil, nil
 	}
 	model := app.NewHub(nil, state.Project.Name, state.Project.Branch, state.Layout.Mode).
 		WithActions(captureNote, nil)

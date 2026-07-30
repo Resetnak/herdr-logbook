@@ -26,10 +26,14 @@ type scopeItem struct {
 	emptyMessage string
 }
 
-type CaptureFunc func(text string, global bool) ([]Note, error)
+// CaptureFunc and AuthorFunc report the path they wrote alongside the reloaded
+// notes. The Hub cannot infer it: a capture appends to an existing monthly inbox
+// and setting the current task rewrites now.md, so neither produces a note path
+// the Hub has not seen before.
+type CaptureFunc func(text string, global bool) (string, []Note, error)
 type ReloadFunc func() ([]Note, error)
 type SearchLoadFunc func() ([]searchindex.Entry, error)
-type AuthorFunc func(kind, title string) ([]Note, error)
+type AuthorFunc func(kind, title string) (string, []Note, error)
 type EditFunc func(note Note) tea.Cmd
 
 type searchLoadedMsg struct {
@@ -360,10 +364,7 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 				m.captureErr = "Capture text cannot be empty."
 				return m, nil
 			}
-			oldPaths := make(map[string]bool, len(m.notes))
-			for _, note := range m.notes {
-				oldPaths[note.Path] = true
-			}
+			var written string
 			var notes []Note
 			var err error
 			kind := m.authorKind
@@ -372,13 +373,13 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 					m.captureErr = "Authoring is unavailable."
 					return m, nil
 				}
-				notes, err = m.authorFn(m.authorKind, strings.TrimSpace(m.captureBox.Value()))
+				written, notes, err = m.authorFn(m.authorKind, strings.TrimSpace(m.captureBox.Value()))
 			} else {
 				if m.captureFn == nil {
 					m.captureErr = "Capture is unavailable."
 					return m, nil
 				}
-				notes, err = m.captureFn(m.captureBox.Value(), m.captureGlobal)
+				written, notes, err = m.captureFn(m.captureBox.Value(), m.captureGlobal)
 			}
 			if err != nil {
 				m.captureErr = err.Error()
@@ -391,9 +392,9 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.captureBox.Reset()
 			m.authorKind = ""
 			m.refreshPreview()
-			if openEditor && m.editFn != nil {
+			if openEditor && m.editFn != nil && written != "" {
 				for _, note := range notes {
-					if (kind == "now" && note.Type == NoteNow) || (kind != "now" && !oldPaths[note.Path]) {
+					if note.Path == written {
 						return m, m.editFn(note)
 					}
 				}
