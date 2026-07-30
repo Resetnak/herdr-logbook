@@ -14,33 +14,22 @@ try {
 
     @'
 $CommandArgs = @($args)
-$CommandArgs | Set-Content -LiteralPath $env:DEV_GO_ARGS
+$CommandArgs | Set-Content -LiteralPath $env:DEV_GO_ARGS -Encoding UTF8
 if ($env:DEV_GO_FAIL -eq '1') { exit 23 }
 $outputIndex = [Array]::IndexOf($CommandArgs, '-o')
 if ($outputIndex -lt 0) { exit 2 }
 $output = $CommandArgs[$outputIndex + 1]
 New-Item -ItemType Directory -Force (Split-Path -Parent $output) | Out-Null
 New-Item -ItemType File -Force $output | Out-Null
-'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go-fake.ps1')
-
-    @'
-@echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0go-fake.ps1" %*
-exit /b %ERRORLEVEL%
-'@ | Set-Content -Encoding ASCII -LiteralPath (Join-Path $FakeBin 'go.cmd')
+'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go.ps1') -Encoding UTF8
 
     @'
 $CommandArgs = @($args)
-$CommandArgs | Set-Content -LiteralPath $env:DEV_HERDR_ARGS
-'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr-fake.ps1')
-
-    @'
-@echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0herdr-fake.ps1" %*
-exit /b %ERRORLEVEL%
-'@ | Set-Content -Encoding ASCII -LiteralPath (Join-Path $FakeBin 'herdr.cmd')
+$CommandArgs | Set-Content -LiteralPath $env:DEV_HERDR_ARGS -Encoding UTF8
+'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr.ps1') -Encoding UTF8
 
     $env:PATH = "$FakeBin;$env:PATH"
+    $env:PATHEXT = ".PS1;$env:PATHEXT"
     $env:DEV_GO_ARGS = $GoArgs
     $env:DEV_HERDR_ARGS = $HerdrArgs
     $env:DEV_GO_FAIL = '0'
@@ -49,8 +38,8 @@ exit /b %ERRORLEVEL%
     if ($LASTEXITCODE -ne 0) { throw "dev-link.ps1 exited $LASTEXITCODE" }
 
     $ExpectedBinary = Join-Path $Fixture 'bin\herdr-logbook.exe'
-    $ActualGo = (Get-Content -LiteralPath $GoArgs) -join ' '
-    $ActualHerdr = (Get-Content -LiteralPath $HerdrArgs) -join ' '
+    $ActualGo = (Get-Content -LiteralPath $GoArgs -Encoding UTF8) -join ' '
+    $ActualHerdr = (Get-Content -LiteralPath $HerdrArgs -Encoding UTF8) -join ' '
     if ($ActualGo -ne "build -o $ExpectedBinary ./cmd/herdr-logbook") {
         throw "unexpected go arguments: $ActualGo"
     }
