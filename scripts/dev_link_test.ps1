@@ -14,30 +14,35 @@ try {
 
     @'
 $CommandArgs = @($args)
-$CommandArgs | Set-Content -LiteralPath $env:DEV_GO_ARGS -Encoding UTF8
-if ($env:DEV_GO_FAIL -eq '1') {
-    $global:LASTEXITCODE = 23
-    exit 23
-}
+[System.IO.File]::WriteAllLines($env:DEV_GO_ARGS, $CommandArgs, [System.Text.Encoding]::UTF8)
+if ($env:DEV_GO_FAIL -eq '1') { exit 23 }
 $outputIndex = [Array]::IndexOf($CommandArgs, '-o')
-if ($outputIndex -lt 0) {
-    $global:LASTEXITCODE = 2
-    exit 2
-}
+if ($outputIndex -lt 0) { exit 2 }
 $output = $CommandArgs[$outputIndex + 1]
 New-Item -ItemType Directory -Force (Split-Path -Parent $output) | Out-Null
 New-Item -ItemType File -Force $output | Out-Null
-$global:LASTEXITCODE = 0
-'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go.ps1') -Encoding UTF8
+'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go-fake.ps1') -Encoding UTF8
+
+    @'
+@echo off
+chcp 65001 >nul
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0go-fake.ps1" %*
+exit /b %ERRORLEVEL%
+'@ | Set-Content -Encoding ASCII -LiteralPath (Join-Path $FakeBin 'go.cmd')
 
     @'
 $CommandArgs = @($args)
-$CommandArgs | Set-Content -LiteralPath $env:DEV_HERDR_ARGS -Encoding UTF8
-$global:LASTEXITCODE = 0
-'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr.ps1') -Encoding UTF8
+[System.IO.File]::WriteAllLines($env:DEV_HERDR_ARGS, $CommandArgs, [System.Text.Encoding]::UTF8)
+'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr-fake.ps1') -Encoding UTF8
+
+    @'
+@echo off
+chcp 65001 >nul
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0herdr-fake.ps1" %*
+exit /b %ERRORLEVEL%
+'@ | Set-Content -Encoding ASCII -LiteralPath (Join-Path $FakeBin 'herdr.cmd')
 
     $env:PATH = "$FakeBin;$env:PATH"
-    $env:PATHEXT = ".PS1;$env:PATHEXT"
     $env:DEV_GO_ARGS = $GoArgs
     $env:DEV_HERDR_ARGS = $HerdrArgs
     $env:DEV_GO_FAIL = '0'
@@ -46,8 +51,8 @@ $global:LASTEXITCODE = 0
     if ($LASTEXITCODE -ne 0) { throw "dev-link.ps1 exited $LASTEXITCODE" }
 
     $ExpectedBinary = Join-Path $Fixture 'bin\herdr-logbook.exe'
-    $ActualGo = (Get-Content -LiteralPath $GoArgs -Encoding UTF8) -join ' '
-    $ActualHerdr = (Get-Content -LiteralPath $HerdrArgs -Encoding UTF8) -join ' '
+    $ActualGo = ([System.IO.File]::ReadAllLines($GoArgs, [System.Text.Encoding]::UTF8)) -join ' '
+    $ActualHerdr = ([System.IO.File]::ReadAllLines($HerdrArgs, [System.Text.Encoding]::UTF8)) -join ' '
     if ($ActualGo -ne "build -o $ExpectedBinary ./cmd/herdr-logbook") {
         throw "unexpected go arguments: $ActualGo"
     }
