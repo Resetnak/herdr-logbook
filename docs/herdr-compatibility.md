@@ -47,6 +47,17 @@ This is a hands-on user report, not a run of the checklist above: the distro, th
 
 WSL 2 runs the `linux/amd64` release archive — the same artifact as native Linux. That makes native Linux amd64 *likely* to work, but it is still not directly verified: WSL 2 has its own filesystem, path, and terminal quirks (e.g. `/mnt/c` interop paths), so the two are tracked as separate rows below.
 
+## Reporting another host
+
+Use the
+[platform compatibility report](https://github.com/Resetnak/herdr-logbook/issues/new?template=compatibility_report.md)
+to record the exact host, Herdr and shell versions, installation method, and
+actions exercised.
+
+A report updates a matrix row to verified only after the action/pane checklist,
+host details, and result are recorded. A build or syntax check alone is not
+real-host verification.
+
 ## Compatibility matrix
 
 | Platform | Build | Real Herdr action/pane | Notes |

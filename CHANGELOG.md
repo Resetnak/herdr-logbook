@@ -4,6 +4,14 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- Removed configuration keys that never affected runtime behavior; existing
+  pre-release configurations now receive unknown-key warnings for those lines.
+  Invalid `ui.theme` and `ui.preview_style` values are rejected instead of
+  silently falling back.
+- Added one-command Bash and PowerShell build/link scripts for contributors,
+  structured real-host compatibility reports, and a pinned Staticcheck version
+  in CI.
+
 ## v0.0.6 — 2026-07-30
 
 An audit-hardening release: project resolution, capture and authoring, Hub responsiveness, search, and Markdown edge cases are more robust. Pre-release. macOS arm64 remains the only host verified against the checklist in [docs/herdr-compatibility.md](docs/herdr-compatibility.md), with WSL 2 (`linux/amd64`) reported working; not a stable release or a v0.1.0 platform-support claim.
