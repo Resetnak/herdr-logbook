@@ -218,3 +218,22 @@ func TestResolveAppliesAndValidatesTheProjectOverride(t *testing.T) {
 func failingRunner(context.Context, string, ...string) (string, error) {
 	return "", fmt.Errorf("git unavailable")
 }
+
+// A Git remote may legitimately be a local filesystem path (git clone /srv/backup.git).
+// Such a remote has no host to fingerprint, but that is not a reason to refuse the
+// whole project: identity falls back to the worktree-shared git-common directory.
+func TestResolveFallsBackWhenTheRemoteHasNoHost(t *testing.T) {
+	repo := newGitRepo(t, "local-remote")
+	runGit(t, repo, "remote", "add", "origin", "/srv/git/backup.git")
+
+	got, err := Resolve(ResolveOptions{CWD: repo})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	if !strings.HasPrefix(got.Fingerprint, "git-common:") {
+		t.Fatalf("Resolve() fingerprint = %q, want a git-common fallback", got.Fingerprint)
+	}
+	if !strings.HasPrefix(got.ID, "p_") {
+		t.Fatalf("Resolve() ID = %q", got.ID)
+	}
+}

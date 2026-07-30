@@ -93,11 +93,15 @@ func Resolve(options ResolveOptions) (Project, error) {
 	if override.ProjectID != "" {
 		identity = "override:" + override.ProjectID
 	} else if gitRoot != "" {
+		// ponytail: a remote we cannot fingerprint (a local path like /srv/git/foo.git,
+		// or any URL without a host) is not fatal — drop to the git-common identity
+		// below rather than refusing to resolve the project at all.
+		fingerprint := ""
 		if remote, err := gitValue(runner, gitRoot, "config", "--get", "remote.origin.url"); err == nil && remote != "" {
-			identity, err = SanitizeRemote(remote)
-			if err != nil {
-				return Project{}, err
-			}
+			fingerprint, _ = SanitizeRemote(remote)
+		}
+		if fingerprint != "" {
+			identity = fingerprint
 			project.Fingerprint = identity
 		} else if commonDir, err := gitValue(runner, gitRoot, "rev-parse", "--git-common-dir"); err == nil {
 			if !filepath.IsAbs(commonDir) {
