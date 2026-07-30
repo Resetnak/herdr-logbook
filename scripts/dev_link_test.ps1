@@ -14,7 +14,7 @@ try {
     Copy-Item (Join-Path $RepoRoot 'scripts\dev-link.ps1') (Join-Path $Fixture 'scripts\dev-link.ps1')
 
     $ShimGo = Join-Path $TestRoot 'shim.go'
-    @'
+    $ShimCode = @'
 package main
 
 import (
@@ -48,7 +48,8 @@ func main() {
 		}
 	}
 }
-'@ | Set-Content -LiteralPath $ShimGo -Encoding UTF8
+'@
+    [System.IO.File]::WriteAllText($ShimGo, $ShimCode, [System.Text.Encoding]::UTF8)
 
     $FakeGoExe = Join-Path $FakeBin 'go.exe'
     $FakeHerdrExe = Join-Path $FakeBin 'herdr.exe'
