@@ -25,3 +25,12 @@ func TestTagsExtractsHashTagsButIgnoresFencedCode(t *testing.T) {
 		t.Fatalf("Tags() = %v, want %v", got, want)
 	}
 }
+
+// Every note written by the plugin starts with Markdown headings, and "##" is a
+// field starting with "#" — it must not register as a tag named "#".
+func TestTagsIgnoresHeadingMarkers(t *testing.T) {
+	content := "# Now\n\n## Current task\n\n### Details\n\nShip #release today.\n"
+	if got, want := Tags(content), []string{"release"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Tags() = %v, want %v", got, want)
+	}
+}

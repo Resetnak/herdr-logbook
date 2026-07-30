@@ -45,7 +45,8 @@ func Tags(content string) []string {
 			continue
 		}
 		for _, field := range strings.Fields(line) {
-			if strings.HasPrefix(field, "#") && len(field) > 1 {
+			// A field of nothing but hashes is a heading marker, not a tag.
+			if strings.HasPrefix(field, "#") && strings.Trim(field, "#") != "" {
 				addTag(seen, strings.TrimRight(strings.TrimPrefix(field, "#"), ".,;:!?)]}"))
 			}
 		}
