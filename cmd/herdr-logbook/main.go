@@ -140,6 +140,7 @@ func run(args []string, getenv func(string) string, stdin io.Reader, stdout, std
 		return runIndex(args[1:], getenv, stdout, stderr)
 	case "keybinds":
 		if len(args) != 1 {
+			printUsage(stderr)
 			return 2
 		}
 		printKeybinds(stdout)
@@ -157,6 +158,7 @@ func printKeybinds(writer io.Writer) {
   g/G                 first/last
   Enter, v            open preview
   /, Esc              search/clear
+  p                   filter search by project
 
 Actions:
   c/C  project/global capture
@@ -1057,5 +1059,5 @@ func waitForClose(reader io.Reader, timeout time.Duration) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, "usage: herdr-logbook tui | compatibility [--wait] | capture | now [TASK] | init | paths | doctor [--json] | resolve-cwd | version")
+	fmt.Fprintln(writer, "usage: herdr-logbook tui | capture | decision | now [TASK] | init | paths | doctor [--json] | index rebuild | keybinds | compatibility [--wait] | resolve-cwd | version")
 }

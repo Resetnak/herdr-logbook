@@ -996,3 +996,36 @@ func TestJSONReportsFailLoudlyWhenStdoutIsBroken(t *testing.T) {
 		t.Fatalf("index rebuild without a state directory = %d", code)
 	}
 }
+
+// The usage line is the only discovery path for someone who typed the command
+// wrong, so it has to name every subcommand run accepts.
+func TestUsageListsEverySubcommandAndKeybindsReportsBadArguments(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run(nil, func(string) string { return "" }, strings.NewReader(""), &stdout, &stderr); code != 2 {
+		t.Fatalf("empty args code = %d, want 2", code)
+	}
+	usage := stderr.String()
+	for _, want := range []string{"tui", "capture", "decision", "now", "init", "paths", "doctor", "index rebuild", "keybinds", "compatibility", "resolve-cwd", "version"} {
+		if !strings.Contains(usage, want) {
+			t.Fatalf("usage does not mention %q: %s", want, usage)
+		}
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run([]string{"keybinds", "--json"}, func(string) string { return "" }, strings.NewReader(""), &stdout, &stderr); code != 2 {
+		t.Fatalf("keybinds with an argument code = %d, want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "usage:") {
+		t.Fatalf("keybinds rejected an argument without printing usage: %q", stderr.String())
+	}
+}
+
+// The Hub advertises p as the project filter, so the CLI list must match.
+func TestPrintKeybindsCoversTheProjectFilter(t *testing.T) {
+	var out bytes.Buffer
+	printKeybinds(&out)
+	if !strings.Contains(out.String(), "p ") {
+		t.Fatalf("keybinds do not mention the project filter:\n%s", out.String())
+	}
+}
