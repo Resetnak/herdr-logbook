@@ -47,19 +47,37 @@ exit /b %ERRORLEVEL%
     $env:DEV_HERDR_ARGS = $HerdrArgs
     $env:DEV_GO_FAIL = '0'
 
-    $output = & $PowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Fixture 'scripts\dev-link.ps1')
-    if ($LASTEXITCODE -ne 0) { throw "dev-link.ps1 exited $LASTEXITCODE" }
+    $output = & $PowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Fixture 'scripts\dev-link.ps1') 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "dev-link.ps1 exited with code $LASTEXITCODE. Output:"
+        $output | ForEach-Object { Write-Host $_ }
+        throw "dev-link.ps1 exited $LASTEXITCODE"
+    }
 
     $ExpectedBinary = Join-Path $Fixture 'bin\herdr-logbook.exe'
+    if (-not (Test-Path -LiteralPath $GoArgs)) {
+        Write-Host "GoArgs file ($GoArgs) does not exist."
+        throw "missing GoArgs"
+    }
+    if (-not (Test-Path -LiteralPath $HerdrArgs)) {
+        Write-Host "HerdrArgs file ($HerdrArgs) does not exist."
+        throw "missing HerdrArgs"
+    }
     $ActualGo = ([System.IO.File]::ReadAllLines($GoArgs, [System.Text.Encoding]::UTF8)) -join ' '
     $ActualHerdr = ([System.IO.File]::ReadAllLines($HerdrArgs, [System.Text.Encoding]::UTF8)) -join ' '
     if ($ActualGo -ne "build -o $ExpectedBinary ./cmd/herdr-logbook") {
+        Write-Host "Expected go args: 'build -o $ExpectedBinary ./cmd/herdr-logbook'"
+        Write-Host "Actual go args:   '$ActualGo'"
         throw "unexpected go arguments: $ActualGo"
     }
     if ($ActualHerdr -ne "plugin link $Fixture --enabled") {
+        Write-Host "Expected herdr args: 'plugin link $Fixture --enabled'"
+        Write-Host "Actual herdr args:   '$ActualHerdr'"
         throw "unexpected herdr arguments: $ActualHerdr"
     }
     if (($output -join [Environment]::NewLine) -ne "built and linked $ExpectedBinary") {
+        Write-Host "Expected output: 'built and linked $ExpectedBinary'"
+        Write-Host "Actual output:   '$output'"
         throw "unexpected output: $output"
     }
 
