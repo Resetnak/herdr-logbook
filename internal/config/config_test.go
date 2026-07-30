@@ -45,6 +45,40 @@ func TestLoadOverridesDefaultsAndWarnsUnknownKeys(t *testing.T) {
 	}
 }
 
+func TestLoadWarnsAboutRemovedNoOpFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	data := `version = 1
+[project]
+root_strategy = "git"
+share_across_worktrees = false
+[ui]
+theme = "nord"
+popup_width = "80%"
+popup_height = "70%"
+[search]
+follow_symlinks = true
+`
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, warnings, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.UI.Theme != "nord" {
+		t.Fatalf("Load() theme = %q", got.UI.Theme)
+	}
+	for _, field := range []string{
+		"root_strategy", "share_across_worktrees", "popup_width",
+		"popup_height", "follow_symlinks",
+	} {
+		if len(warnings) != 1 || !strings.Contains(warnings[0], field) {
+			t.Fatalf("Load() warnings %q do not mention %q", warnings, field)
+		}
+	}
+}
+
 func TestLoadRejectsInvalidTypeAndValue(t *testing.T) {
 	dir := t.TempDir()
 	typePath := filepath.Join(dir, "type.toml")
@@ -108,6 +142,18 @@ func TestValidateRejectsInvalidUIConfig(t *testing.T) {
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "default_view") {
 		t.Fatalf("Validate() invalid default_view error = %v", err)
 	}
+
+	cfg = Default()
+	cfg.UI.Theme = "solarized"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "theme") {
+		t.Fatalf("Validate() invalid theme error = %v", err)
+	}
+
+	cfg = Default()
+	cfg.UI.PreviewStyle = "sepia"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "preview_style") {
+		t.Fatalf("Validate() invalid preview_style error = %v", err)
+	}
 }
 
 func TestValidateRejectsEveryRemainingInvalidField(t *testing.T) {
@@ -117,7 +163,6 @@ func TestValidateRejectsEveryRemainingInvalidField(t *testing.T) {
 		"repo_directory absolute":      func(c *Config) { c.Storage.RepoDirectory = string(filepath.Separator) + "etc" },
 		"repo_directory empty":         func(c *Config) { c.Storage.RepoDirectory = "" },
 		"repo_directory parent":        func(c *Config) { c.Storage.RepoDirectory = ".." },
-		"root_strategy must be git":    func(c *Config) { c.Project.RootStrategy = "marker" },
 		"index limit":                  func(c *Config) { c.Search.MaxIndexFileBytes = 0 },
 		"preview limit":                func(c *Config) { c.Search.MaxPreviewFileBytes = -1 },
 		"selection limit":              func(c *Config) { c.Capture.MaxSelectionBytes = 0 },

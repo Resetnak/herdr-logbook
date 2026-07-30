@@ -840,6 +840,7 @@ func TestRunTUIStartsAndExitsOnQ(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("tui code = %d, stderr = %q", code, stderr.String())
 	}
+	time.Sleep(100 * time.Millisecond)
 }
 
 func TestRunIndexRebuildScansRegisteredStores(t *testing.T) {

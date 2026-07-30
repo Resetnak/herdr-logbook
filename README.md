@@ -35,7 +35,7 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 
 > ⚠️ **Verified on macOS (arm64); reported working on WSL 2 (Windows).** The `linux/amd64` build has been run against a real Herdr host under WSL 2 by a user. Native Linux, native Windows (PowerShell), and Intel macOS binaries are cross-compiled and pass CI unit tests, but have **not** been tested against a real Herdr host. Use them at your own risk. See the [compatibility matrix](docs/herdr-compatibility.md).
 >
-> Running Herdr on native Linux or native Windows? A quick report that the plugin works (or doesn't) is the fastest way to get your platform verified — [open an issue](https://github.com/Resetnak/herdr-logbook/issues).
+> Running Herdr on native Linux or native Windows? A real-host report is the fastest way to get your platform verified — use the [platform compatibility report](https://github.com/Resetnak/herdr-logbook/issues/new?template=compatibility_report.md).
 
 ---
 

@@ -5,10 +5,6 @@ version = 1
 project_mode = "central"
 repo_directory = ".herdr/logbook"
 
-[project]
-root_strategy = "git"
-share_across_worktrees = true
-
 [editor]
 # External editor command (e.g. ["nvim"], ["vim"], ["nano"], ["code", "--wait"])
 # Leave empty to auto-detect from $HERDR_LOGBOOK_EDITOR, $VISUAL, or $EDITOR
@@ -25,14 +21,9 @@ show_branch = true
 scope_width = 24
 # Default TUI view tab on launch: "now", "project", "global", or "all"
 default_view = "now"
-# Modal dimensions for Herdr popup integration
-popup_width = "92%"
-popup_height = "86%"
-
 [search]
 max_index_file_bytes = 262144
 max_preview_file_bytes = 2097152
-follow_symlinks = false
 
 [capture]
 max_selection_bytes = 524288

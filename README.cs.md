@@ -35,7 +35,7 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 
 > ⚠️ **Ověřeno na macOS (arm64); na WSL 2 (Windows) hlášeno jako funkční.** Build `linux/amd64` uživatel spustil pod WSL 2 proti skutečnému hostiteli Herdr. Binárky pro nativní Linux, nativní Windows (PowerShell) a Intel macOS se kompilují křížově a procházejí jednotkovými testy v CI, ale **nebyly** ověřeny proti skutečnému hostiteli Herdr. Používáte je na vlastní riziko. Viz [matice kompatibility](docs/herdr-compatibility.md).
 >
-> Používáte Herdr na nativním Linuxu nebo nativních Windows? Krátká zpráva, že plugin funguje (nebo nefunguje), je nejrychlejší cesta k ověření vaší platformy — [otevřete issue](https://github.com/Resetnak/herdr-logbook/issues).
+> Používáte Herdr na nativním Linuxu nebo nativních Windows? Report z reálného hosta je nejrychlejší cesta k ověření vaší platformy — použijte [šablonu pro kompatibilitu platformy](https://github.com/Resetnak/herdr-logbook/issues/new?template=compatibility_report.md).
 
 ---
 
