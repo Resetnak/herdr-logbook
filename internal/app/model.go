@@ -303,14 +303,7 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "r":
 			if m.reloadFn != nil {
-				notes, err := m.reloadFn()
-				if err != nil {
-					m.captureErr = err.Error()
-				} else {
-					m.notes = notes
-					m.captureErr = ""
-					command = m.refreshSearchCmd()
-				}
+				command = m.reloadCmd()
 			}
 		case "tab":
 			m.panel = (m.panel + 1) % 3
@@ -798,6 +791,16 @@ func (m HubModel) visibleNotes() []Note {
 		}
 	}
 	return result
+}
+
+// reloadCmd rescans the store off the event loop. Reading every note back from
+// disk inside Update would freeze the TUI until the scan finished.
+func (m HubModel) reloadCmd() tea.Cmd {
+	reloadFn := m.reloadFn
+	return func() tea.Msg {
+		notes, err := reloadFn()
+		return NotesReloadedMsg{Notes: notes, Err: err, RefreshSearch: true}
+	}
 }
 
 func (m *HubModel) move(delta int) {

@@ -235,7 +235,8 @@ func TestHubRefreshReloadsNotes(t *testing.T) {
 	model = completeInitialSearch(t, model)
 
 	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	runSearchLoadCommand(t, command)
+	model, searchCommand := updateHub(model, runReloadCommand(t, command))
+	runSearchLoadCommand(t, searchCommand)
 	if reloads != 1 || searchLoads != 2 || len(model.notes) != 1 || model.notes[0].Title != "Fresh" {
 		t.Fatalf("refresh = reloads %d, search loads %d, notes %#v", reloads, searchLoads, model.notes)
 	}
@@ -258,7 +259,8 @@ func TestHubRefreshPreservesPreviewViewportInput(t *testing.T) {
 	model.preview.KeyMap.PageDown.SetKeys("r")
 
 	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	runSearchLoadCommand(t, command)
+	model, searchCommand := updateHub(model, runReloadCommand(t, command))
+	runSearchLoadCommand(t, searchCommand)
 	if model.preview.YOffset == 0 || searchLoads != 2 {
 		t.Fatalf("refresh = preview offset %d, search loads %d", model.preview.YOffset, searchLoads)
 	}
@@ -471,10 +473,12 @@ func TestHubCoalescesOverlappingSearchRefreshes(t *testing.T) {
 		})
 
 	initialCommand := model.Init()
-	model, firstCommand := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	model, secondCommand := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	if firstCommand != nil || secondCommand != nil || !model.searchDirty {
-		t.Fatalf("overlapping refreshes were not coalesced: first %v, second %v, dirty %t", firstCommand != nil, secondCommand != nil, model.searchDirty)
+	model, firstReload := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	model, secondReload := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	model, _ = updateHub(model, runReloadCommand(t, firstReload))
+	model, _ = updateHub(model, runReloadCommand(t, secondReload))
+	if searchLoads != 0 || !model.searchDirty {
+		t.Fatalf("overlapping refreshes were not coalesced: loads %d, dirty %t", searchLoads, model.searchDirty)
 	}
 
 	initialResult := runSearchLoadCommand(t, initialCommand)
@@ -861,6 +865,18 @@ func completeInitialSearch(t *testing.T, model HubModel) HubModel {
 	return model
 }
 
+func runReloadCommand(t *testing.T, command tea.Cmd) NotesReloadedMsg {
+	t.Helper()
+	if command == nil {
+		t.Fatal("reload was not scheduled")
+	}
+	message, ok := command().(NotesReloadedMsg)
+	if !ok {
+		t.Fatalf("reload command produced %T", message)
+	}
+	return message
+}
+
 func runSearchLoadCommand(t *testing.T, command tea.Cmd) searchLoadedMsg {
 	t.Helper()
 	if command == nil {
@@ -996,5 +1012,30 @@ func TestHubPreviewPanelScrollsWithoutChangingTheSelection(t *testing.T) {
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
 	if model.noteIndex != 0 {
 		t.Fatalf("G in the preview moved the selection to note %d", model.noteIndex)
+	}
+}
+
+// Reloading rescans the whole store. Doing it inside Update freezes the TUI for
+// the duration: no repaint, no input, no way to tell the user anything.
+func TestHubReloadRunsOffTheEventLoop(t *testing.T) {
+	reloaded := false
+	notes := []Note{{Path: "/a.md", Title: "Cache", Type: NoteProjectNote, Content: "# Cache"}}
+	model := NewHub(nil, "api", "main", "central").
+		WithActions(nil, func() ([]Note, error) {
+			reloaded = true
+			return notes, nil
+		})
+
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if reloaded {
+		t.Fatal("r reloaded notes inside Update")
+	}
+	if command == nil {
+		t.Fatal("r produced no reload command")
+	}
+
+	message, ok := command().(NotesReloadedMsg)
+	if !ok || !reloaded || len(message.Notes) != 1 || !message.RefreshSearch {
+		t.Fatalf("reload command produced %#v (reloaded=%v)", message, reloaded)
 	}
 }
