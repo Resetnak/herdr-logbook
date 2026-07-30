@@ -13,7 +13,7 @@ try {
     New-Item -ItemType Directory -Force (Join-Path $Fixture 'scripts'), $FakeBin | Out-Null
     Copy-Item (Join-Path $RepoRoot 'scripts\dev-link.ps1') (Join-Path $Fixture 'scripts\dev-link.ps1')
 
-    $ShimGo = Join-Path $TestRoot 'shim.go'
+    $ShimGo = Join-Path $FakeBin 'shim.go'
     $ShimCode = @'
 package main
 
@@ -53,7 +53,13 @@ func main() {
 
     $FakeGoExe = Join-Path $FakeBin 'go.exe'
     $FakeHerdrExe = Join-Path $FakeBin 'herdr.exe'
-    go build -o $FakeGoExe $ShimGo
+    Push-Location $FakeBin
+    try {
+        & go build -o go.exe shim.go
+    }
+    finally {
+        Pop-Location
+    }
     Copy-Item $FakeGoExe $FakeHerdrExe
 
     $env:PATH = "$FakeBin;$env:PATH"
