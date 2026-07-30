@@ -2,7 +2,8 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $TestRoot = Join-Path ([IO.Path]::GetTempPath()) ("herdr-logbook-dev-link-" + [guid]::NewGuid())
-$Fixture = Join-Path $TestRoot 'repo žluťoučký'
+$Zlutoucky = "repo " + [char]0x017e + "lu" + [char]0x0165 + "ou" + [char]0x010d + "k" + [char]0x00fd
+$Fixture = Join-Path $TestRoot $Zlutoucky
 $FakeBin = Join-Path $TestRoot 'fake-bin'
 $GoArgs = Join-Path $TestRoot 'go.args'
 $HerdrArgs = Join-Path $TestRoot 'herdr.args'
@@ -49,35 +50,35 @@ exit /b %ERRORLEVEL%
 
     $output = & $PowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Fixture 'scripts\dev-link.ps1') 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "dev-link.ps1 exited with code $LASTEXITCODE. Output:"
-        $output | ForEach-Object { Write-Host $_ }
+        [Console]::WriteLine("dev-link.ps1 exited with code $LASTEXITCODE. Output:")
+        $output | ForEach-Object { [Console]::WriteLine($_) }
         throw "dev-link.ps1 exited $LASTEXITCODE"
     }
 
     $ExpectedBinary = Join-Path $Fixture 'bin\herdr-logbook.exe'
     if (-not (Test-Path -LiteralPath $GoArgs)) {
-        Write-Host "GoArgs file ($GoArgs) does not exist."
+        [Console]::WriteLine("GoArgs file ($GoArgs) does not exist.")
         throw "missing GoArgs"
     }
     if (-not (Test-Path -LiteralPath $HerdrArgs)) {
-        Write-Host "HerdrArgs file ($HerdrArgs) does not exist."
+        [Console]::WriteLine("HerdrArgs file ($HerdrArgs) does not exist.")
         throw "missing HerdrArgs"
     }
     $ActualGo = ([System.IO.File]::ReadAllLines($GoArgs, [System.Text.Encoding]::UTF8)) -join ' '
     $ActualHerdr = ([System.IO.File]::ReadAllLines($HerdrArgs, [System.Text.Encoding]::UTF8)) -join ' '
     if ($ActualGo -ne "build -o $ExpectedBinary ./cmd/herdr-logbook") {
-        Write-Host "Expected go args: 'build -o $ExpectedBinary ./cmd/herdr-logbook'"
-        Write-Host "Actual go args:   '$ActualGo'"
+        [Console]::WriteLine("Expected go args: 'build -o $ExpectedBinary ./cmd/herdr-logbook'")
+        [Console]::WriteLine("Actual go args:   '$ActualGo'")
         throw "unexpected go arguments: $ActualGo"
     }
     if ($ActualHerdr -ne "plugin link $Fixture --enabled") {
-        Write-Host "Expected herdr args: 'plugin link $Fixture --enabled'"
-        Write-Host "Actual herdr args:   '$ActualHerdr'"
+        [Console]::WriteLine("Expected herdr args: 'plugin link $Fixture --enabled'")
+        [Console]::WriteLine("Actual herdr args:   '$ActualHerdr'")
         throw "unexpected herdr arguments: $ActualHerdr"
     }
     if (($output -join [Environment]::NewLine) -ne "built and linked $ExpectedBinary") {
-        Write-Host "Expected output: 'built and linked $ExpectedBinary'"
-        Write-Host "Actual output:   '$output'"
+        [Console]::WriteLine("Expected output: 'built and linked $ExpectedBinary'")
+        [Console]::WriteLine("Actual output:   '$output'")
         throw "unexpected output: $output"
     }
 
