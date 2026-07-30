@@ -49,12 +49,13 @@ func TestHubPreviewRendererIsCachedByWidth(t *testing.T) {
 		{Title: "Now", Type: NoteNow, Content: "# Now\n\nCurrent"},
 		{Title: "Later", Type: NoteNow, Content: "# Later\n\nNext"},
 	}, "api", "main", "central")
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRight})
 	renderer := model.previewRenderer
 	if renderer == nil {
 		t.Fatal("preview renderer was not initialized")
 	}
 
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRight})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyDown})
 	if model.previewRenderer != renderer {
 		t.Fatal("preview renderer was rebuilt for an unchanged width")
 	}
@@ -915,5 +916,60 @@ func TestHubSaveAndEditCaptureOpensTheInboxItAppendedTo(t *testing.T) {
 	command()
 	if edited != inbox.Path {
 		t.Fatalf("Ctrl+E edited %q, want the inbox %q", edited, inbox.Path)
+	}
+}
+
+// Every keystroke funnels through refreshPreview, so re-running Glamour on an
+// unchanged note is pure waste. The rendered Markdown is cached; poisoning the
+// cache proves the cached copy is what reaches the viewport.
+func TestRefreshPreviewReusesTheRenderedMarkdown(t *testing.T) {
+	notes := []Note{{Path: "/notes/a.md", Title: "A", Type: NoteNow, Content: "# Heading\n\nBody."}}
+	model := NewHub(notes, "api", "main", "central").WithStyle("notty")
+	model.refreshPreview()
+
+	model.previewCache = "CACHED-MARKER"
+	model.refreshPreview()
+
+	if !strings.Contains(model.preview.View(), "CACHED-MARKER") {
+		t.Fatalf("refreshPreview re-rendered an unchanged note: %q", model.preview.View())
+	}
+}
+
+func TestRefreshPreviewRerendersWhenTheWidthChanges(t *testing.T) {
+	notes := []Note{{Path: "/notes/a.md", Title: "A", Type: NoteNow, Content: "# Heading\n\nBody."}}
+	model := NewHub(notes, "api", "main", "central").WithStyle("notty")
+	model.refreshPreview()
+
+	model.previewCache = "CACHED-MARKER"
+	model.resize(140, 40)
+	model.refreshPreview()
+
+	if strings.Contains(model.preview.View(), "CACHED-MARKER") {
+		t.Fatal("refreshPreview served a cached render at the old width")
+	}
+}
+
+func TestRefreshPreviewRerendersWhenTheNoteChangesOnDisk(t *testing.T) {
+	written := time.Now()
+	notes := []Note{{Path: "/notes/a.md", Title: "A", Type: NoteNow, Content: "# Heading", Modified: written}}
+	model := NewHub(notes, "api", "main", "central").WithStyle("notty")
+	model.refreshPreview()
+
+	model.previewCache = "CACHED-MARKER"
+	model.notes = []Note{{Path: "/notes/a.md", Title: "A", Type: NoteNow, Content: "# Rewritten", Modified: written.Add(time.Second)}}
+	model.refreshPreview()
+
+	if strings.Contains(model.preview.View(), "CACHED-MARKER") {
+		t.Fatal("refreshPreview served a stale render after the note changed")
+	}
+}
+
+// WithAutoStyle probes the terminal background. NewHub must not trigger that
+// probe: the caller pins the real style with WithStyle a moment later, which
+// throws any renderer built here away.
+func TestNewHubDoesNotBuildARendererBeforeTheStyleIsPinned(t *testing.T) {
+	model := NewHub([]Note{{Path: "/notes/a.md", Title: "A", Type: NoteNow, Content: "# Heading"}}, "api", "main", "central")
+	if model.previewRenderer != nil {
+		t.Fatal("NewHub built a Glamour renderer before the style was pinned")
 	}
 }

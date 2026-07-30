@@ -84,12 +84,24 @@ type HubModel struct {
 	editFn           EditFunc
 	previewRenderer  *glamour.TermRenderer
 	previewWidth     int
+	previewCache     string
+	previewKey       previewCacheKey
 	glamourStyle     string
 	flashMsg         string
 	flashTick        int
 	scopeWidth       int
 	showBranch       bool
 	uiTheme          string
+}
+
+// previewCacheKey holds everything the rendered Markdown depends on. Content is
+// compared by value, but notes keep their backing string across a refresh, so the
+// common case is a pointer-equality hit rather than a byte scan.
+type previewCacheKey struct {
+	path    string
+	content string
+	width   int
+	style   string
 }
 
 func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
@@ -125,7 +137,8 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 			{name: "All Notes", emptyMessage: "No notes yet. Press c to capture or n to create a project note."},
 		},
 	}
-	model.refreshPreview()
+	// No render here: WithAutoStyle would probe the terminal background for a
+	// result WithStyle discards moments later. The first WindowSizeMsg renders.
 	return model
 }
 
@@ -815,6 +828,8 @@ func (m *HubModel) refreshPreview() {
 	notes := m.visibleNotes()
 	if len(notes) == 0 {
 		m.noteIndex = 0
+		m.previewKey = previewCacheKey{}
+		m.previewCache = ""
 		m.preview.SetContent("")
 		return
 	}
@@ -823,27 +838,35 @@ func (m *HubModel) refreshPreview() {
 	if m.width < 70 {
 		width = max(20, m.width-4)
 	}
-	rendered := notes[m.noteIndex].Content
-	// ponytail: cache the renderer; NewTermRenderer loads chroma styles and is the
-	// expensive part, so only rebuild it when the wrap width actually changes.
-	if m.previewRenderer == nil || m.previewWidth != width {
-		style := glamour.WithAutoStyle()
-		if m.glamourStyle != "" {
-			style = glamour.WithStandardStyle(m.glamourStyle)
+	note := notes[m.noteIndex]
+	// Every keystroke reaches this function, so re-render only when the output
+	// would actually differ. Glamour parses and highlights the whole document.
+	key := previewCacheKey{path: note.Path, content: note.Content, width: width, style: m.glamourStyle}
+	if key != m.previewKey {
+		rendered := note.Content
+		// ponytail: cache the renderer too; NewTermRenderer loads chroma styles, so
+		// only rebuild it when the wrap width actually changes.
+		if m.previewRenderer == nil || m.previewWidth != width {
+			style := glamour.WithAutoStyle()
+			if m.glamourStyle != "" {
+				style = glamour.WithStandardStyle(m.glamourStyle)
+			}
+			if renderer, err := glamour.NewTermRenderer(style, glamour.WithWordWrap(width)); err == nil {
+				m.previewRenderer = renderer
+				m.previewWidth = width
+			}
 		}
-		if renderer, err := glamour.NewTermRenderer(style, glamour.WithWordWrap(width)); err == nil {
-			m.previewRenderer = renderer
-			m.previewWidth = width
+		if m.previewRenderer != nil {
+			if output, renderErr := m.previewRenderer.Render(rendered); renderErr == nil {
+				rendered = output
+			}
 		}
-	}
-	if m.previewRenderer != nil {
-		if output, renderErr := m.previewRenderer.Render(rendered); renderErr == nil {
-			rendered = output
-		}
+		m.previewCache = rendered
+		m.previewKey = key
 	}
 	m.preview.Width = width
 	m.preview.Height = max(3, m.height-6)
-	m.preview.SetContent(rendered)
+	m.preview.SetContent(m.previewCache)
 }
 
 func clamp(value, low, high int) int {
