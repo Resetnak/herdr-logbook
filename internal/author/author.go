@@ -11,6 +11,9 @@ import (
 	"github.com/Resetnak/herdr-logbook/internal/storage"
 )
 
+// maxSlugRunes keeps the longest slug under 160 bytes even for two-byte runes.
+const maxSlugRunes = 80
+
 func Slug(title string) (string, error) {
 	var slug strings.Builder
 	separator := false
@@ -28,6 +31,11 @@ func Slug(title string) (string, error) {
 	value := strings.Trim(slug.String(), "-")
 	if value == "" {
 		return "", fmt.Errorf("title does not contain a usable filename")
+	}
+	// Titles are free-form text, filenames are not: mainstream filesystems stop at
+	// 255 bytes, and a decision adds a date prefix on top of the slug.
+	if runes := []rune(value); len(runes) > maxSlugRunes {
+		value = strings.TrimRight(string(runes[:maxSlugRunes]), "-")
 	}
 	if windowsReserved(value) {
 		value = "note-" + value

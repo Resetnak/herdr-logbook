@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestSlugHandlesUnicodeReservedNamesAndEmptyTitles(t *testing.T) {
@@ -86,5 +87,43 @@ func TestCreateDecisionUsesSafeUniqueFilenameAndTemplate(t *testing.T) {
 		if !strings.Contains(string(data), want) {
 			t.Fatalf("decision missing %q:\n%s", want, data)
 		}
+	}
+}
+
+// A title is free-form text and can be a pasted paragraph. Without a cap the
+// filename runs past the 255-byte limit every mainstream filesystem enforces,
+// and note creation fails with ENAMETOOLONG.
+func TestSlugIsCappedAndStaysOnRuneBoundaries(t *testing.T) {
+	long := strings.Repeat("žluťoučký kůň úpěl ďábelské ódy ", 20)
+	slug, err := Slug(long)
+	if err != nil {
+		t.Fatalf("Slug() error = %v", err)
+	}
+	if len([]rune(slug)) > 80 || !utf8.ValidString(slug) {
+		t.Fatalf("Slug() = %q (%d runes)", slug, len([]rune(slug)))
+	}
+	if strings.HasPrefix(slug, "-") || strings.HasSuffix(slug, "-") {
+		t.Fatalf("Slug() = %q, want no dangling separator", slug)
+	}
+}
+
+func TestCreateNoteAndDecisionAcceptAVeryLongTitle(t *testing.T) {
+	root := t.TempDir()
+	long := strings.Repeat("cache invalidation and replay detection ", 20)
+
+	notePath, err := CreateNote(root, long)
+	if err != nil {
+		t.Fatalf("CreateNote() error = %v", err)
+	}
+	if _, err := os.Stat(notePath); err != nil {
+		t.Fatalf("note was not written: %v", err)
+	}
+
+	decisionPath, err := CreateDecision(root, long, "api", "main", time.Date(2026, 7, 30, 9, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("CreateDecision() error = %v", err)
+	}
+	if _, err := os.Stat(decisionPath); err != nil {
+		t.Fatalf("decision was not written: %v", err)
 	}
 }
