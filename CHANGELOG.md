@@ -4,6 +4,17 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+## v0.0.6 — 2026-07-30
+
+An audit-hardening release: project resolution, capture and authoring, Hub responsiveness, search, and Markdown edge cases are more robust. Pre-release. macOS arm64 remains the only host verified against the checklist in [docs/herdr-compatibility.md](docs/herdr-compatibility.md), with WSL 2 (`linux/amd64`) reported working; not a stable release or a v0.1.0 platform-support claim.
+
+- Fixed project resolution for repositories whose `origin` is a local path, `file://` URL, or another remote without a host; these now fall back to Git-common-directory or path identity instead of making every command fail.
+- Fixed `Ctrl+E` so capture and authoring open the exact file written, including an existing monthly inbox and the in-place `now.md`.
+- Kept the Hub responsive by caching rendered previews, avoiding an eager terminal-style probe, and moving note reloads, captures, and authoring writes off the Bubble Tea event loop. Preview-panel `j`/`k`/`g`/`G` now scroll without also changing the selected note.
+- Reduced search allocations by matching note bodies case-insensitively in place, and kept snippets valid UTF-8 at truncation boundaries.
+- Stopped Markdown heading markers from becoming tags, capped generated note and decision slugs at 80 runes, restored headers in empty inbox files, and preserved titles after very long Markdown lines.
+- Completed CLI usage and keybind output, including project-filter key `p`, and restored cursor blinking when the standalone capture TUI opens.
+
 ## v0.0.5 — 2026-07-29
 
 A platform-status update: WSL 2 is no longer listed as untested. Pre-release. macOS arm64 remains the only host verified against the checklist in [docs/herdr-compatibility.md](docs/herdr-compatibility.md); not a stable release or a v0.1.0 platform-support claim.

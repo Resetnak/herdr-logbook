@@ -218,7 +218,7 @@ Herdr has no `plugin update` command — re-running the installer *is* the updat
 
 ```bash
 herdr plugin install Resetnak/herdr-logbook              # latest main
-herdr plugin install Resetnak/herdr-logbook --ref v0.0.5 # a specific release
+herdr plugin install Resetnak/herdr-logbook --ref v0.0.6 # a specific release
 ```
 
 > ⚠️ This fails with `plugin herdr-logbook is already linked from a local path` if you installed via Option 4. A local link always wins over GitHub; run `herdr plugin unlink herdr-logbook` first, or update the checkout instead (see below).
