@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+$InformationPreference = 'Continue'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $TestRoot = Join-Path ([IO.Path]::GetTempPath()) ("herdr-logbook-dev-link-" + [guid]::NewGuid())
@@ -24,7 +25,8 @@ import (
 )
 
 func main() {
-	name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+	base := strings.ToLower(filepath.Base(os.Args[0]))
+	name := strings.TrimSuffix(base, ".exe")
 	if name == "go" {
 		argsFile := os.Getenv("DEV_GO_ARGS")
 		if argsFile != "" {
@@ -69,35 +71,35 @@ func main() {
 
     $output = & $PowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Fixture 'scripts\dev-link.ps1') 2>&1
     if ($LASTEXITCODE -ne 0) {
-        [Console]::WriteLine("dev-link.ps1 exited with code $LASTEXITCODE. Output:")
-        $output | ForEach-Object { [Console]::WriteLine($_) }
+        Write-Output "dev-link.ps1 exited with code $LASTEXITCODE. Output:"
+        $output | ForEach-Object { Write-Output $_ }
         throw "dev-link.ps1 exited $LASTEXITCODE"
     }
 
     $ExpectedBinary = Join-Path $Fixture 'bin\herdr-logbook.exe'
     if (-not (Test-Path -LiteralPath $GoArgs)) {
-        [Console]::WriteLine("GoArgs file ($GoArgs) does not exist.")
+        Write-Output "GoArgs file ($GoArgs) does not exist."
         throw "missing GoArgs"
     }
     if (-not (Test-Path -LiteralPath $HerdrArgs)) {
-        [Console]::WriteLine("HerdrArgs file ($HerdrArgs) does not exist.")
+        Write-Output "HerdrArgs file ($HerdrArgs) does not exist."
         throw "missing HerdrArgs"
     }
     $ActualGo = ([System.IO.File]::ReadAllLines($GoArgs, [System.Text.Encoding]::UTF8)) -join ' '
     $ActualHerdr = ([System.IO.File]::ReadAllLines($HerdrArgs, [System.Text.Encoding]::UTF8)) -join ' '
     if ($ActualGo -ne "build -o $ExpectedBinary ./cmd/herdr-logbook") {
-        [Console]::WriteLine("Expected go args: 'build -o $ExpectedBinary ./cmd/herdr-logbook'")
-        [Console]::WriteLine("Actual go args:   '$ActualGo'")
+        Write-Output "Expected go args: 'build -o $ExpectedBinary ./cmd/herdr-logbook'"
+        Write-Output "Actual go args:   '$ActualGo'"
         throw "unexpected go arguments: $ActualGo"
     }
     if ($ActualHerdr -ne "plugin link $Fixture --enabled") {
-        [Console]::WriteLine("Expected herdr args: 'plugin link $Fixture --enabled'")
-        [Console]::WriteLine("Actual herdr args:   '$ActualHerdr'")
+        Write-Output "Expected herdr args: 'plugin link $Fixture --enabled'"
+        Write-Output "Actual herdr args:   '$ActualHerdr'"
         throw "unexpected herdr arguments: $ActualHerdr"
     }
     if (($output -join [Environment]::NewLine) -ne "built and linked $ExpectedBinary") {
-        [Console]::WriteLine("Expected output: 'built and linked $ExpectedBinary'")
-        [Console]::WriteLine("Actual output:   '$output'")
+        Write-Output "Expected output: 'built and linked $ExpectedBinary'"
+        Write-Output "Actual output:   '$output'"
         throw "unexpected output: $output"
     }
 
@@ -117,8 +119,8 @@ func main() {
     }
 }
 catch {
-    [Console]::WriteLine("EXCEPTION IN DEV_LINK_TEST: " + $_.Exception.ToString())
-    [Console]::WriteLine("SCRIPT STACKTRACE: " + $_.ScriptStackTrace)
+    Write-Output ("EXCEPTION IN DEV_LINK_TEST: " + $_.Exception.ToString())
+    Write-Output ("SCRIPT STACKTRACE: " + $_.ScriptStackTrace)
     throw
 }
 finally {
