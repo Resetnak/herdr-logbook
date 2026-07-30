@@ -1041,7 +1041,7 @@ func TestHubReloadRunsOffTheEventLoop(t *testing.T) {
 			return notes, nil
 		})
 
-	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	_, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if reloaded {
 		t.Fatal("r reloaded notes inside Update")
 	}
