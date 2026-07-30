@@ -801,6 +801,11 @@ func (m HubModel) visibleNotes() []Note {
 }
 
 func (m *HubModel) move(delta int) {
+	// The preview panel forwards j/k to the viewport; moving the selection here
+	// would scroll one note and display another on the same keypress.
+	if m.panel == panelPreview {
+		return
+	}
 	if m.panel == panelScopes {
 		m.scopeIndex = clamp(m.scopeIndex+delta, 0, len(m.scopes)-1)
 		m.noteIndex = 0
@@ -810,6 +815,9 @@ func (m *HubModel) move(delta int) {
 }
 
 func (m *HubModel) moveTo(end bool) {
+	if m.panel == panelPreview {
+		return
+	}
 	if m.panel == panelScopes {
 		m.scopeIndex = 0
 		if end {

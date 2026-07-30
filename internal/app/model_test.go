@@ -973,3 +973,28 @@ func TestNewHubDoesNotBuildARendererBeforeTheStyleIsPinned(t *testing.T) {
 		t.Fatal("NewHub built a Glamour renderer before the style was pinned")
 	}
 }
+
+// In the preview panel j/k belong to the viewport. Moving the selection there
+// scrolls the old note and swaps in a different one on the same keypress.
+func TestHubPreviewPanelScrollsWithoutChangingTheSelection(t *testing.T) {
+	notes := []Note{
+		{Path: "/a.md", Title: "First", Type: NoteNow, Content: strings.Repeat("line\n", 100)},
+		{Path: "/b.md", Title: "Second", Type: NoteNow, Content: "# Second"},
+	}
+	model := NewHub(notes, "api", "main", "central").WithStyle("notty")
+	model.panel = panelPreview
+	model.refreshPreview()
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if model.noteIndex != 0 {
+		t.Fatalf("j in the preview moved the selection to note %d", model.noteIndex)
+	}
+	if model.preview.YOffset == 0 {
+		t.Fatal("j in the preview did not scroll the viewport")
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if model.noteIndex != 0 {
+		t.Fatalf("G in the preview moved the selection to note %d", model.noteIndex)
+	}
+}
