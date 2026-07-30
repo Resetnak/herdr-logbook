@@ -1084,3 +1084,15 @@ func TestHubCaptureSaveRunsOffTheEventLoop(t *testing.T) {
 		t.Fatalf("save message left capturing=%v notes=%#v (captured=%v)", model.capturing, model.notes, captured)
 	}
 }
+
+// The capture-only TUI hands the model straight to Bubble Tea, so whatever
+// BeginCapture returns is dropped. Init has to ask for the cursor itself.
+func TestInitBlinksTheCursorWhenTheModalIsAlreadyOpen(t *testing.T) {
+	model, _ := NewHub(nil, "api", "main", "central").BeginCapture(false, true)
+	if model.Init() == nil {
+		t.Fatal("Init did not start the capture cursor")
+	}
+	if NewHub(nil, "api", "main", "central").Init() != nil {
+		t.Fatal("Init scheduled work for a Hub with nothing to do")
+	}
+}

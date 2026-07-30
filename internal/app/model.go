@@ -210,10 +210,16 @@ func (m HubModel) BeginCapture(global, quitAfterCapture bool) (HubModel, tea.Cmd
 }
 
 func (m HubModel) Init() tea.Cmd {
-	if m.searchLoadFn == nil {
-		return nil
+	var commands []tea.Cmd
+	// The capture-only TUI opens the modal before the program starts, so the
+	// command BeginCapture returned never reaches Bubble Tea.
+	if m.capturing {
+		commands = append(commands, textarea.Blink)
 	}
-	return m.loadSearchCmd()
+	if m.searchLoadFn != nil {
+		commands = append(commands, m.loadSearchCmd())
+	}
+	return tea.Batch(commands...)
 }
 
 func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
