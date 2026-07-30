@@ -13,35 +13,47 @@ try {
     New-Item -ItemType Directory -Force (Join-Path $Fixture 'scripts'), $FakeBin | Out-Null
     Copy-Item (Join-Path $RepoRoot 'scripts\dev-link.ps1') (Join-Path $Fixture 'scripts\dev-link.ps1')
 
+    $ShimGo = Join-Path $TestRoot 'shim.go'
     @'
-$CommandArgs = @($args)
-[System.IO.File]::WriteAllLines($env:DEV_GO_ARGS, $CommandArgs, [System.Text.Encoding]::UTF8)
-if ($env:DEV_GO_FAIL -eq '1') { exit 23 }
-$outputIndex = [Array]::IndexOf($CommandArgs, '-o')
-if ($outputIndex -lt 0) { exit 2 }
-$output = $CommandArgs[$outputIndex + 1]
-New-Item -ItemType Directory -Force (Split-Path -Parent $output) | Out-Null
-New-Item -ItemType File -Force $output | Out-Null
-'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go-fake.ps1') -Encoding UTF8
+package main
 
-    @'
-@echo off
-chcp 65001 >nul
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0go-fake.ps1" %*
-exit /b %ERRORLEVEL%
-'@ | Set-Content -Encoding ASCII -LiteralPath (Join-Path $FakeBin 'go.cmd')
+import (
+	"os"
+	"path/filepath"
+	"strings"
+)
 
-    @'
-$CommandArgs = @($args)
-[System.IO.File]::WriteAllLines($env:DEV_HERDR_ARGS, $CommandArgs, [System.Text.Encoding]::UTF8)
-'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr-fake.ps1') -Encoding UTF8
+func main() {
+	name := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
+	if name == "go" {
+		argsFile := os.Getenv("DEV_GO_ARGS")
+		if argsFile != "" {
+			_ = os.WriteFile(argsFile, []byte(strings.Join(os.Args[1:], "\n")), 0644)
+		}
+		if os.Getenv("DEV_GO_FAIL") == "1" {
+			os.Exit(23)
+		}
+		for i, arg := range os.Args {
+			if arg == "-o" && i+1 < len(os.Args) {
+				out := os.Args[i+1]
+				_ = os.MkdirAll(filepath.Dir(out), 0755)
+				_ = os.WriteFile(out, nil, 0644)
+				break
+			}
+		}
+	} else if name == "herdr" {
+		argsFile := os.Getenv("DEV_HERDR_ARGS")
+		if argsFile != "" {
+			_ = os.WriteFile(argsFile, []byte(strings.Join(os.Args[1:], "\n")), 0644)
+		}
+	}
+}
+'@ | Set-Content -LiteralPath $ShimGo -Encoding UTF8
 
-    @'
-@echo off
-chcp 65001 >nul
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0herdr-fake.ps1" %*
-exit /b %ERRORLEVEL%
-'@ | Set-Content -Encoding ASCII -LiteralPath (Join-Path $FakeBin 'herdr.cmd')
+    $FakeGoExe = Join-Path $FakeBin 'go.exe'
+    $FakeHerdrExe = Join-Path $FakeBin 'herdr.exe'
+    go build -o $FakeGoExe $ShimGo
+    Copy-Item $FakeGoExe $FakeHerdrExe
 
     $env:PATH = "$FakeBin;$env:PATH"
     $env:DEV_GO_ARGS = $GoArgs
