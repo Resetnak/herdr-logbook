@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -43,10 +44,12 @@ func Append(request Request) (string, error) {
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("read inbox %q: %w", path, err)
 		}
-		if errors.Is(err, os.ErrNotExist) {
+		// A zero-byte file is left behind by an interrupted write or a stray touch;
+		// treat it like a missing one so the month heading is not lost.
+		if len(existing) == 0 {
 			existing = []byte("# Inbox — " + request.Entry.Time.Format("2006-01") + "\n\n")
-		} else if len(existing) > 0 && !strings.HasSuffix(string(existing), "\n\n") {
-			if strings.HasSuffix(string(existing), "\n") {
+		} else if !bytes.HasSuffix(existing, []byte("\n\n")) {
+			if bytes.HasSuffix(existing, []byte("\n")) {
 				existing = append(existing, '\n')
 			} else {
 				existing = append(existing, '\n', '\n')

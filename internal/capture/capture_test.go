@@ -133,3 +133,28 @@ func TestAppendSeparatesEntriesRegardlessOfTrailingNewlines(t *testing.T) {
 		}
 	}
 }
+
+// An interrupted write or a stray `touch` can leave a zero-byte inbox behind.
+// Appending to it must still produce a file with its month heading.
+func TestAppendWritesTheHeaderIntoAnEmptyInbox(t *testing.T) {
+	dir := t.TempDir()
+	when := time.Date(2026, 7, 22, 14, 32, 0, 0, time.UTC)
+	if err := os.WriteFile(filepath.Join(dir, "2026-07.md"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	path, err := Append(Request{
+		InboxDir: dir, LockPath: filepath.Join(t.TempDir(), "capture.lock"),
+		Entry: Entry{Time: when, Text: "First note"}, MaxBytes: 1024, LockTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(data), "# Inbox — 2026-07\n\n") {
+		t.Fatalf("empty inbox did not get its heading: %q", data)
+	}
+}

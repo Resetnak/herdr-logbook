@@ -1,16 +1,16 @@
 package markdown
 
 import (
-	"bufio"
 	"path/filepath"
 	"strings"
 )
 
 func Title(content, filename string) string {
 	var fence string
-	scanner := bufio.NewScanner(strings.NewReader(content))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	// strings.Lines, not bufio.Scanner: a note can hold a pasted line longer than
+	// the scanner's 64 KB token limit, and Scanner would stop reading right there.
+	for raw := range strings.Lines(content) {
+		line := strings.TrimSpace(raw)
 		if fence != "" {
 			if strings.HasPrefix(line, fence) {
 				fence = ""
