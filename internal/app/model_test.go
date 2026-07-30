@@ -148,7 +148,7 @@ func TestHubCaptureModalSavesProjectNote(t *testing.T) {
 		t.Fatalf("capture state = capturing %t, global %t", model.capturing, model.captureGlobal)
 	}
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("remember this")})
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlS})
+	model, _ = runCaptureSave(t, model, tea.KeyMsg{Type: tea.KeyCtrlS})
 
 	if capturedText != "remember this" || capturedGlobal {
 		t.Fatalf("capture callback = (%q, %t)", capturedText, capturedGlobal)
@@ -175,7 +175,7 @@ func TestHubCaptureRefreshesSearchIndex(t *testing.T) {
 
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("first ever note")})
-	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlS})
+	model, command := runCaptureSave(t, model, tea.KeyMsg{Type: tea.KeyCtrlS})
 	loaded := runSearchLoadCommand(t, command)
 	model, _ = updateHub(model, loaded)
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
@@ -213,7 +213,7 @@ func TestHubCaptureErrorKeepsModalOpen(t *testing.T) {
 	)
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("note")})
-	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlS})
+	model, _ = runCaptureSave(t, model, tea.KeyMsg{Type: tea.KeyCtrlS})
 
 	if !model.capturing || !strings.Contains(model.View(), "disk full") {
 		t.Fatalf("capture error was not visible in an open modal:\n%s", model.View())
@@ -319,7 +319,7 @@ func TestHubSetsCurrentTask(t *testing.T) {
 		t.Fatalf("t did not open the current-task modal:\n%s", m.View())
 	}
 	m, _ = updateHub(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Rotate the signing tokens")})
-	m, _ = updateHub(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	m, _ = runCaptureSave(t, m, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if got != "now:Rotate the signing tokens" {
 		t.Fatalf("author action = %q", got)
 	}
@@ -349,7 +349,7 @@ func TestHubSaveAndEditCurrentTaskOpensNowFile(t *testing.T) {
 
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Rotate the signing tokens")})
-	_, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlE})
+	_, command := runCaptureSave(t, model, tea.KeyMsg{Type: tea.KeyCtrlE})
 	if command == nil {
 		t.Fatal("Ctrl+E did not open an editor")
 	}
@@ -376,7 +376,7 @@ func TestHubAuthoringAndEditorActions(t *testing.T) {
 	// 1. Test Ctrl+S (saves note, does NOT open editor)
 	m1, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	m1, _ = updateHub(m1, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Runbook")})
-	m1, cmd1 := updateHub(m1, tea.KeyMsg{Type: tea.KeyCtrlS})
+	m1, cmd1 := runCaptureSave(t, m1, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if authorKind != "note:Runbook" {
 		t.Fatalf("author action = %q", authorKind)
 	}
@@ -393,7 +393,7 @@ func TestHubAuthoringAndEditorActions(t *testing.T) {
 	// 2. Test Ctrl+E (saves note AND opens editor)
 	m2, _ := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	m2, _ = updateHub(m2, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("Runbook 2")})
-	_, cmd2 := updateHub(m2, tea.KeyMsg{Type: tea.KeyCtrlE})
+	_, cmd2 := runCaptureSave(t, m2, tea.KeyMsg{Type: tea.KeyCtrlE})
 	if cmd2 == nil {
 		t.Fatal("Ctrl+E should return edit command")
 	}
@@ -669,7 +669,7 @@ func TestBeginCaptureQuitsAfterSaving(t *testing.T) {
 		t.Fatalf("BeginCapture did not focus the modal: capturing = %t", model.capturing)
 	}
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("standalone capture")})
-	model, cmd = updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlS})
+	model, cmd = runCaptureSave(t, model, tea.KeyMsg{Type: tea.KeyCtrlS})
 	if saved != "standalone capture" {
 		t.Fatalf("captured %q", saved)
 	}
@@ -865,6 +865,21 @@ func completeInitialSearch(t *testing.T, model HubModel) HubModel {
 	return model
 }
 
+// runCaptureSave presses the save key, runs the save off the event loop, and
+// applies the result — the sequence Bubble Tea performs at runtime.
+func runCaptureSave(t *testing.T, model HubModel, key tea.KeyMsg) (HubModel, tea.Cmd) {
+	t.Helper()
+	model, command := updateHub(model, key)
+	if command == nil {
+		t.Fatal("save was not scheduled")
+	}
+	message, ok := command().(captureSavedMsg)
+	if !ok {
+		t.Fatalf("save command produced %T", message)
+	}
+	return updateHub(model, message)
+}
+
 func runReloadCommand(t *testing.T, command tea.Cmd) NotesReloadedMsg {
 	t.Helper()
 	if command == nil {
@@ -925,7 +940,7 @@ func TestHubSaveAndEditCaptureOpensTheInboxItAppendedTo(t *testing.T) {
 
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("remember this")})
-	_, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlE})
+	_, command := runCaptureSave(t, model, tea.KeyMsg{Type: tea.KeyCtrlE})
 	if command == nil {
 		t.Fatal("Ctrl+E did not open an editor")
 	}
@@ -1037,5 +1052,35 @@ func TestHubReloadRunsOffTheEventLoop(t *testing.T) {
 	message, ok := command().(NotesReloadedMsg)
 	if !ok || !reloaded || len(message.Notes) != 1 || !message.RefreshSearch {
 		t.Fatalf("reload command produced %#v (reloaded=%v)", message, reloaded)
+	}
+}
+
+// Saving takes the storage lock (bounded at two seconds) and then rereads the
+// store. Running that inside Update freezes the modal with no sign of progress.
+func TestHubCaptureSaveRunsOffTheEventLoop(t *testing.T) {
+	captured := false
+	note := Note{Path: "/inbox/2026-07.md", Title: "Inbox", Type: NoteProjectInbox}
+	model := NewHub(nil, "api", "main", "central").
+		WithActions(func(string, bool) (string, []Note, error) {
+			captured = true
+			return note.Path, []Note{note}, nil
+		}, nil)
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("remember this")})
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if captured {
+		t.Fatal("the capture was written inside Update")
+	}
+	if command == nil {
+		t.Fatal("Ctrl+S produced no save command")
+	}
+	if !model.capturing || !strings.Contains(model.View(), "Saving") {
+		t.Fatalf("the modal did not report that a save is in flight:\n%s", model.View())
+	}
+
+	model, _ = updateHub(model, command())
+	if !captured || model.capturing || len(model.notes) != 1 {
+		t.Fatalf("save message left capturing=%v notes=%#v (captured=%v)", model.capturing, model.notes, captured)
 	}
 }

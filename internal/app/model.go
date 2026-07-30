@@ -47,6 +47,14 @@ type NotesReloadedMsg struct {
 	RefreshSearch bool
 }
 
+type captureSavedMsg struct {
+	written    string
+	notes      []Note
+	kind       string
+	openEditor bool
+	err        error
+}
+
 type flashExpiredMsg struct{ tick int }
 
 type HubModel struct {
@@ -80,6 +88,7 @@ type HubModel struct {
 	searchDirty      bool
 	searchErr        string
 	authorKind       string
+	saving           bool
 	authorFn         AuthorFunc
 	editFn           EditFunc
 	previewRenderer  *glamour.TermRenderer
@@ -244,6 +253,9 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if saved, ok := message.(captureSavedMsg); ok {
+		return m.applyCaptureSaved(saved)
+	}
 	if expired, ok := message.(flashExpiredMsg); ok {
 		if expired.tick == m.flashTick {
 			m.flashMsg = ""
@@ -365,56 +377,38 @@ func (m HubModel) updateCapture(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "ctrl+s", "ctrl+e":
-			openEditor := msg.String() == "ctrl+e"
-			if strings.TrimSpace(m.captureBox.Value()) == "" {
+			if m.saving {
+				return m, nil
+			}
+			text := m.captureBox.Value()
+			if strings.TrimSpace(text) == "" {
 				m.captureErr = "Capture text cannot be empty."
 				return m, nil
 			}
-			var written string
-			var notes []Note
-			var err error
+			openEditor := msg.String() == "ctrl+e"
 			kind := m.authorKind
-			if m.authorKind != "" {
-				if m.authorFn == nil {
-					m.captureErr = "Authoring is unavailable."
-					return m, nil
-				}
-				written, notes, err = m.authorFn(m.authorKind, strings.TrimSpace(m.captureBox.Value()))
-			} else {
-				if m.captureFn == nil {
-					m.captureErr = "Capture is unavailable."
-					return m, nil
-				}
-				written, notes, err = m.captureFn(m.captureBox.Value(), m.captureGlobal)
-			}
-			if err != nil {
-				m.captureErr = err.Error()
+			if kind != "" && m.authorFn == nil {
+				m.captureErr = "Authoring is unavailable."
 				return m, nil
 			}
-			m.notes = notes
-			m.capturing = false
+			if kind == "" && m.captureFn == nil {
+				m.captureErr = "Capture is unavailable."
+				return m, nil
+			}
+			// Writing takes the storage lock and rereads the store afterwards; both
+			// belong off the event loop so the modal keeps painting meanwhile.
+			authorFn, captureFn, global := m.authorFn, m.captureFn, m.captureGlobal
+			m.saving = true
 			m.captureErr = ""
-			m.captureBox.Blur()
-			m.captureBox.Reset()
-			m.authorKind = ""
-			m.refreshPreview()
-			if openEditor && m.editFn != nil && written != "" {
-				for _, note := range notes {
-					if note.Path == written {
-						return m, m.editFn(note)
-					}
+			return m, func() tea.Msg {
+				saved := captureSavedMsg{kind: kind, openEditor: openEditor}
+				if kind != "" {
+					saved.written, saved.notes, saved.err = authorFn(kind, strings.TrimSpace(text))
+				} else {
+					saved.written, saved.notes, saved.err = captureFn(text, global)
 				}
+				return saved
 			}
-			if m.quitAfterCapture {
-				return m, tea.Quit
-			}
-			m.flashMsg = "✓ Saved to inbox"
-			if kind == "now" {
-				m.flashMsg = "✓ Current task updated"
-			}
-			m.flashTick++
-			searchCommand := m.refreshSearchCmd()
-			return m, tea.Batch(searchCommand, flashCmd(m.flashTick))
 		}
 	}
 
@@ -509,6 +503,37 @@ func (m HubModel) View() string {
 	return body + "\n" + lipgloss.NewStyle().Faint(true).Render(status)
 }
 
+func (m HubModel) applyCaptureSaved(saved captureSavedMsg) (tea.Model, tea.Cmd) {
+	m.saving = false
+	if saved.err != nil {
+		m.captureErr = saved.err.Error()
+		return m, nil
+	}
+	m.notes = saved.notes
+	m.capturing = false
+	m.captureErr = ""
+	m.captureBox.Blur()
+	m.captureBox.Reset()
+	m.authorKind = ""
+	m.refreshPreview()
+	if saved.openEditor && m.editFn != nil && saved.written != "" {
+		for _, note := range saved.notes {
+			if note.Path == saved.written {
+				return m, m.editFn(note)
+			}
+		}
+	}
+	if m.quitAfterCapture {
+		return m, tea.Quit
+	}
+	m.flashMsg = "✓ Saved to inbox"
+	if saved.kind == "now" {
+		m.flashMsg = "✓ Current task updated"
+	}
+	m.flashTick++
+	return m, tea.Batch(m.refreshSearchCmd(), flashCmd(m.flashTick))
+}
+
 func (m HubModel) captureView() string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39"))
 	title := titleStyle.Render("📝 Project capture")
@@ -529,6 +554,9 @@ func (m HubModel) captureView() string {
 	}
 	mdHint := lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Markdown supported: # title · **bold** · - list · #tag")
 	keyHint := lipgloss.NewStyle().Foreground(lipgloss.Color("248")).Render("Ctrl+S save · Ctrl+E save & edit in editor · Esc cancel")
+	if m.saving {
+		keyHint = lipgloss.NewStyle().Foreground(lipgloss.Color("248")).Render("Saving…")
+	}
 	body += "\n\n" + mdHint + "\n" + keyHint
 	// The box must be at least as wide as the textarea's rendered rows plus
 	// horizontal padding; anything narrower makes lipgloss re-wrap those rows
