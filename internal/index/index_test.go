@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestScanFiltersFilesAndBuildsMetadata(t *testing.T) {
@@ -221,5 +222,27 @@ func TestIndexFoldFindsTheQueryRegardlessOfCase(t *testing.T) {
 				t.Fatalf("indexFold(%q, %q) = %d, want %d", testCase.haystack, testCase.needle, got, testCase.want)
 			}
 		})
+	}
+}
+
+// Snippets are sliced by byte offset, so a window edge can land inside a
+// multi-byte rune and paint a replacement character into the search list.
+func TestSnippetStaysValidUTF8(t *testing.T) {
+	// The leading "abc " shifts the 160th byte into the middle of a two-byte rune.
+	long := "abc " + strings.Repeat("žluťoučký kůň ", 40)
+	truncated := Search([]Entry{{Path: "/a.md", Title: "Cache policy", Content: long}}, "cache", 10)
+	if len(truncated) != 1 || !utf8.ValidString(truncated[0].Snippet) {
+		t.Fatalf("truncated snippet = %q", truncated[0].Snippet)
+	}
+	if !strings.HasSuffix(truncated[0].Snippet, "…") || len([]rune(truncated[0].Snippet)) != 161 {
+		t.Fatalf("truncated snippet = %q (%d runes)", truncated[0].Snippet, len([]rune(truncated[0].Snippet)))
+	}
+
+	windowed := Search([]Entry{{Path: "/b.md", Title: "Poznámky", Content: long + "cache " + long}}, "cache", 10)
+	if len(windowed) != 1 || !utf8.ValidString(windowed[0].Snippet) {
+		t.Fatalf("windowed snippet = %q", windowed[0].Snippet)
+	}
+	if !strings.Contains(strings.ToLower(windowed[0].Snippet), "cache") {
+		t.Fatalf("windowed snippet lost the match: %q", windowed[0].Snippet)
 	}
 }

@@ -240,13 +240,23 @@ func snippet(content, query string) string {
 	flat := strings.Join(strings.Fields(content), " ")
 	position := indexFold(flat, query)
 	if position < 0 {
-		if len(flat) > 160 {
-			return flat[:160] + "…"
+		runes := []rune(flat)
+		if len(runes) > 160 {
+			return string(runes[:160]) + "…"
 		}
 		return flat
 	}
+	// A byte offset around the match can land inside a multi-byte rune, and the
+	// TUI would paint the leftover bytes as replacement characters. Widen the
+	// window to the enclosing runes.
 	start := max(0, position-60)
+	for start > 0 && !utf8.RuneStart(flat[start]) {
+		start--
+	}
 	end := min(len(flat), position+len(query)+100)
+	for end < len(flat) && !utf8.RuneStart(flat[end]) {
+		end++
+	}
 	return flat[start:end]
 }
 
