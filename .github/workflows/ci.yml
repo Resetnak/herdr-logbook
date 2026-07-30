@@ -45,20 +45,25 @@ jobs:
             || { echo "::error::coverage ${total}% is below the 90% floor advertised by the README badge"; exit 1; }
       - run: go test -race ./...
       - run: go vet ./...
-      - run: go install honnef.co/go/tools/cmd/staticcheck@latest
+      - run: go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
       - run: staticcheck ./...
       - run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
       - run: govulncheck ./...
       - run: go build -ldflags "-X main.version=ci" -o herdr-logbook${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/herdr-logbook
       - if: runner.os != 'Windows'
-        run: bash -n scripts/open.sh scripts/install.sh
+        run: bash -n scripts/open.sh scripts/install.sh scripts/dev-link.sh scripts/dev_link_test.sh
       - if: runner.os != 'Windows'
         run: bash scripts/open_test.sh
+      - if: runner.os != 'Windows'
+        run: bash scripts/dev_link_test.sh
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: .\scripts\dev_link_test.ps1
       - if: runner.os == 'Windows'
         shell: powershell
         run: |
           $allErrors = @()
-          foreach ($script in @('scripts/open.ps1', 'scripts/install.ps1')) {
+          foreach ($script in @('scripts/open.ps1', 'scripts/install.ps1', 'scripts/dev-link.ps1', 'scripts/dev_link_test.ps1')) {
             $tokens = $null
             $parseErrors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script), [ref]$tokens, [ref]$parseErrors) | Out-Null

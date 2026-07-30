@@ -17,6 +17,32 @@ Herdr Logbook is a local, offline, Markdown-first working memory plugin for Herd
 
 ## 🛠️ Local Development & Testing
 
+Build the current source and link this checkout into Herdr with one command:
+
+```bash
+bash scripts/dev-link.sh
+```
+
+```powershell
+powershell -File scripts/dev-link.ps1
+```
+
+The scripts only build `bin/herdr-logbook` (or `.exe`) and run
+`herdr plugin link <repository> --enabled`. They do not invoke a plugin action
+or modify notes.
+
+Manual fallback:
+
+```bash
+go build -o bin/herdr-logbook ./cmd/herdr-logbook
+herdr plugin link "$(pwd)" --enabled
+```
+
+```powershell
+go build -o bin\herdr-logbook.exe .\cmd\herdr-logbook
+herdr plugin link (Get-Location) --enabled
+```
+
 Before submitting a Pull Request, please ensure all verification checks pass locally:
 
 ```bash
@@ -32,8 +58,20 @@ go vet ./...
 
 For shell script modifications:
 ```bash
-bash -n scripts/open.sh scripts/install.sh
+bash -n scripts/open.sh scripts/install.sh scripts/dev-link.sh scripts/dev_link_test.sh
+bash scripts/open_test.sh
+bash scripts/dev_link_test.sh
 ```
+
+---
+
+## 🧪 Platform Verification
+
+Real Herdr host reports are especially useful for platforms still marked
+untested. Use the
+[platform compatibility report](https://github.com/Resetnak/herdr-logbook/issues/new?template=compatibility_report.md)
+so the host, versions, installation path, and exercised actions are recorded
+consistently.
 
 ---
 
