@@ -92,6 +92,11 @@ exit /b %ERRORLEVEL%
         throw 'herdr was called after build failure'
     }
 }
+catch {
+    [Console]::WriteLine("EXCEPTION IN DEV_LINK_TEST: " + $_.Exception.ToString())
+    [Console]::WriteLine("SCRIPT STACKTRACE: " + $_.ScriptStackTrace)
+    throw
+}
 finally {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $TestRoot
 }
