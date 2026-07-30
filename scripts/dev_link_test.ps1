@@ -13,7 +13,7 @@ try {
     Copy-Item (Join-Path $RepoRoot 'scripts\dev-link.ps1') (Join-Path $Fixture 'scripts\dev-link.ps1')
 
     @'
-param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CommandArgs)
+$CommandArgs = @($args)
 $CommandArgs | Set-Content -LiteralPath $env:DEV_GO_ARGS
 if ($env:DEV_GO_FAIL -eq '1') { exit 23 }
 $outputIndex = [Array]::IndexOf($CommandArgs, '-o')
@@ -24,7 +24,7 @@ New-Item -ItemType File -Force $output | Out-Null
 '@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go.ps1')
 
     @'
-param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CommandArgs)
+$CommandArgs = @($args)
 $CommandArgs | Set-Content -LiteralPath $env:DEV_HERDR_ARGS
 '@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr.ps1')
 
