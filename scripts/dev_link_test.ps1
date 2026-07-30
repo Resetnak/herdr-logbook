@@ -21,12 +21,24 @@ if ($outputIndex -lt 0) { exit 2 }
 $output = $CommandArgs[$outputIndex + 1]
 New-Item -ItemType Directory -Force (Split-Path -Parent $output) | Out-Null
 New-Item -ItemType File -Force $output | Out-Null
-'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go.ps1')
+'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go-fake.ps1')
+
+    @'
+@echo off
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0go-fake.ps1" %*
+exit /b %ERRORLEVEL%
+'@ | Set-Content -Encoding ASCII -LiteralPath (Join-Path $FakeBin 'go.cmd')
 
     @'
 $CommandArgs = @($args)
 $CommandArgs | Set-Content -LiteralPath $env:DEV_HERDR_ARGS
-'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr.ps1')
+'@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr-fake.ps1')
+
+    @'
+@echo off
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0herdr-fake.ps1" %*
+exit /b %ERRORLEVEL%
+'@ | Set-Content -Encoding ASCII -LiteralPath (Join-Path $FakeBin 'herdr.cmd')
 
     $env:PATH = "$FakeBin;$env:PATH"
     $env:DEV_GO_ARGS = $GoArgs
