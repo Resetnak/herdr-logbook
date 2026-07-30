@@ -128,6 +128,7 @@ func main() {
     }
     [Console]::WriteLine("DEV LINK TEST PASSED SUCCESSFULLY")
     [Console]::Out.Flush()
+    exit 0
 }
 catch {
     [Console]::WriteLine("EXCEPTION IN DEV_LINK_TEST: " + $_.Exception.ToString())
