@@ -14,7 +14,6 @@ import (
 type Config struct {
 	Version int           `toml:"version" json:"version"`
 	Storage StorageConfig `toml:"storage" json:"storage"`
-	Project ProjectConfig `toml:"project" json:"project"`
 	Editor  EditorConfig  `toml:"editor" json:"editor"`
 	UI      UIConfig      `toml:"ui" json:"ui"`
 	Search  SearchConfig  `toml:"search" json:"search"`
@@ -24,11 +23,6 @@ type Config struct {
 type StorageConfig struct {
 	ProjectMode   string `toml:"project_mode" json:"project_mode"`
 	RepoDirectory string `toml:"repo_directory" json:"repo_directory"`
-}
-
-type ProjectConfig struct {
-	RootStrategy         string `toml:"root_strategy" json:"root_strategy"`
-	ShareAcrossWorktrees bool   `toml:"share_across_worktrees" json:"share_across_worktrees"`
 }
 
 type EditorConfig struct {
@@ -41,14 +35,11 @@ type UIConfig struct {
 	ShowBranch   bool   `toml:"show_branch" json:"show_branch"`
 	ScopeWidth   int    `toml:"scope_width" json:"scope_width"`
 	DefaultView  string `toml:"default_view" json:"default_view"`
-	PopupWidth   string `toml:"popup_width" json:"popup_width"`
-	PopupHeight  string `toml:"popup_height" json:"popup_height"`
 }
 
 type SearchConfig struct {
 	MaxIndexFileBytes   int64 `toml:"max_index_file_bytes" json:"max_index_file_bytes"`
 	MaxPreviewFileBytes int64 `toml:"max_preview_file_bytes" json:"max_preview_file_bytes"`
-	FollowSymlinks      bool  `toml:"follow_symlinks" json:"follow_symlinks"`
 }
 
 type CaptureConfig struct {
@@ -61,16 +52,13 @@ func Default() Config {
 	return Config{
 		Version: 1,
 		Storage: StorageConfig{ProjectMode: "central", RepoDirectory: ".herdr/logbook"},
-		Project: ProjectConfig{RootStrategy: "git", ShareAcrossWorktrees: true},
 		Editor:  EditorConfig{Command: []string{}},
 		UI: UIConfig{
 			Theme: "auto", PreviewStyle: "auto", ShowBranch: true,
 			ScopeWidth: 24, DefaultView: "now",
-			PopupWidth: "92%", PopupHeight: "86%",
 		},
 		Search: SearchConfig{
 			MaxIndexFileBytes: 262144, MaxPreviewFileBytes: 2097152,
-			FollowSymlinks: false,
 		},
 		Capture: CaptureConfig{
 			MaxSelectionBytes: 524288, IncludeBranch: true, IncludeSourceCWD: true,
@@ -116,8 +104,15 @@ func (c Config) Validate() error {
 	if c.Storage.RepoDirectory == "" || filepath.IsAbs(repoDir) || os.IsPathSeparator(repoDir[0]) || repoDir == "." || repoDir == ".." || strings.HasPrefix(repoDir, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("storage.repo_directory must stay inside the project")
 	}
-	if c.Project.RootStrategy != "git" {
-		return fmt.Errorf("project.root_strategy must be git")
+	switch c.UI.Theme {
+	case "", "auto", "dracula", "tokyo-night", "nord", "default":
+	default:
+		return fmt.Errorf("ui.theme must be auto, dracula, tokyo-night, nord, or default")
+	}
+	switch c.UI.PreviewStyle {
+	case "", "auto", "dark", "light", "notty":
+	default:
+		return fmt.Errorf("ui.preview_style must be auto, dark, light, or notty")
 	}
 	if c.UI.ScopeWidth <= 0 {
 		return fmt.Errorf("ui.scope_width must be positive")
