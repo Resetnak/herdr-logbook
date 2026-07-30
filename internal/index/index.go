@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	md "github.com/Resetnak/herdr-logbook/internal/markdown"
 	"github.com/Resetnak/herdr-logbook/internal/storage"
@@ -131,12 +133,12 @@ func Search(entries []Entry, query string, limit int) []Result {
 				score = 400000 + fuzzyScore
 			} else if containsTag(entry.Tags, query) {
 				score = 300000
-			} else if strings.Contains(strings.ToLower(entry.Content), query) {
+			} else if indexFold(entry.Content, query) >= 0 {
 				score = 200000
 			}
 		}
 		if score > 0 {
-			results = append(results, Result{Entry: entry, Score: score, Snippet: snippet(entry.Content, query)})
+			results = append(results, Result{Entry: entry, Score: score})
 		}
 	}
 	sort.SliceStable(results, func(i, j int) bool {
@@ -150,6 +152,11 @@ func Search(entries []Entry, query string, limit int) []Result {
 	})
 	if len(results) > limit {
 		results = results[:limit]
+	}
+	// Snippets flatten and slice the whole document, so build them only for the
+	// results that survived the limit.
+	for i := range results {
+		results[i].Snippet = snippet(results[i].Entry.Content, query)
 	}
 	return results
 }
@@ -191,6 +198,35 @@ func bestFuzzyScore(query string, values ...string) int {
 	return best
 }
 
+// indexFold returns the byte offset of the already-lowercased needle in haystack,
+// ignoring case, or -1. strings.Index(strings.ToLower(...)) would copy every note
+// body on every keystroke; this scans in place for either case of the first rune
+// and only compares a needle-sized window. It also keeps offsets usable against
+// the original string, which lowercasing does not guarantee for every rune.
+func indexFold(haystack, needle string) int {
+	if needle == "" {
+		return 0
+	}
+	first, _ := utf8.DecodeRuneInString(needle)
+	targets := string([]rune{unicode.ToLower(first), unicode.ToUpper(first)})
+	for offset := 0; offset+len(needle) <= len(haystack); {
+		index := strings.IndexAny(haystack[offset:], targets)
+		if index < 0 {
+			return -1
+		}
+		start := offset + index
+		if start+len(needle) > len(haystack) {
+			return -1
+		}
+		if strings.EqualFold(haystack[start:start+len(needle)], needle) {
+			return start
+		}
+		_, width := utf8.DecodeRuneInString(haystack[start:])
+		offset = start + width
+	}
+	return -1
+}
+
 func containsTag(tags []string, query string) bool {
 	for _, tag := range tags {
 		if strings.Contains(strings.ToLower(tag), query) {
@@ -202,8 +238,7 @@ func containsTag(tags []string, query string) bool {
 
 func snippet(content, query string) string {
 	flat := strings.Join(strings.Fields(content), " ")
-	lower := strings.ToLower(flat)
-	position := strings.Index(lower, query)
+	position := indexFold(flat, query)
 	if position < 0 {
 		if len(flat) > 160 {
 			return flat[:160] + "…"

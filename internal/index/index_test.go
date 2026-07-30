@@ -195,3 +195,31 @@ func TestLoadCacheTreatsAMissingFileAsEmpty(t *testing.T) {
 		t.Fatal("LoadCache accepted a directory")
 	}
 }
+
+func TestIndexFoldFindsTheQueryRegardlessOfCase(t *testing.T) {
+	cases := []struct {
+		name     string
+		haystack string
+		needle   string
+		want     int
+	}{
+		{"exact", "cache invalidation", "cache", 0},
+		{"uppercase haystack", "CACHE INVALIDATION", "cache", 0},
+		{"mixed case in the middle", "replay DeTeCtIoN here", "detection", 7},
+		{"at the very end", "rotate the Token", "token", 11},
+		{"false start before the real match", "aaab", "aab", 1},
+		{"absent", "cache invalidation", "redis", -1},
+		{"needle longer than haystack", "no", "nope", -1},
+		{"empty haystack", "", "token", -1},
+		{"diacritics", "Přehled Změn v Modulu", "změn", 9},
+		{"diacritics absent", "prehled zmen", "změn", -1},
+		{"multi-byte first rune with an ASCII tail", "ŽÁDNÉ zprávy", "žádné", 0},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := indexFold(testCase.haystack, testCase.needle); got != testCase.want {
+				t.Fatalf("indexFold(%q, %q) = %d, want %d", testCase.haystack, testCase.needle, got, testCase.want)
+			}
+		})
+	}
+}
