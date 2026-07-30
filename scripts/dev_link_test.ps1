@@ -1,16 +1,15 @@
 $ErrorActionPreference = 'Stop'
-$InformationPreference = 'Continue'
-
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$TestRoot = Join-Path ([IO.Path]::GetTempPath()) ("herdr-logbook-dev-link-" + [guid]::NewGuid())
-$Zlutoucky = "repo " + [char]0x017e + "lu" + [char]0x0165 + "ou" + [char]0x010d + "k" + [char]0x00fd
-$Fixture = Join-Path $TestRoot $Zlutoucky
-$FakeBin = Join-Path $TestRoot 'fake-bin'
-$GoArgs = Join-Path $TestRoot 'go.args'
-$HerdrArgs = Join-Path $TestRoot 'herdr.args'
-$PowerShell = (Get-Process -Id $PID).Path
 
 try {
+    $RepoRoot = Split-Path -Parent $PSScriptRoot
+    $TestRoot = Join-Path ([IO.Path]::GetTempPath()) ("herdr-logbook-dev-link-" + [guid]::NewGuid())
+    $Zlutoucky = "repo " + [char]0x017e + "lu" + [char]0x0165 + "ou" + [char]0x010d + "k" + [char]0x00fd
+    $Fixture = Join-Path $TestRoot $Zlutoucky
+    $FakeBin = Join-Path $TestRoot 'fake-bin'
+    $GoArgs = Join-Path $TestRoot 'go.args'
+    $HerdrArgs = Join-Path $TestRoot 'herdr.args'
+    $PowerShell = (Get-Process -Id $PID).Path
+
     New-Item -ItemType Directory -Force (Join-Path $Fixture 'scripts'), $FakeBin | Out-Null
     Copy-Item (Join-Path $RepoRoot 'scripts\dev-link.ps1') (Join-Path $Fixture 'scripts\dev-link.ps1')
 
@@ -71,36 +70,42 @@ func main() {
 
     $output = & $PowerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Fixture 'scripts\dev-link.ps1') 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Output "dev-link.ps1 exited with code $LASTEXITCODE. Output:"
-        $output | ForEach-Object { Write-Output $_ }
-        throw "dev-link.ps1 exited $LASTEXITCODE"
+        [Console]::WriteLine("dev-link.ps1 exited with code $LASTEXITCODE. Output:")
+        $output | ForEach-Object { [Console]::WriteLine($_) }
+        [Console]::Out.Flush()
+        exit 1
     }
 
     $ExpectedBinary = Join-Path $Fixture 'bin\herdr-logbook.exe'
     if (-not (Test-Path -LiteralPath $GoArgs)) {
-        Write-Output "GoArgs file ($GoArgs) does not exist."
-        throw "missing GoArgs"
+        [Console]::WriteLine("GoArgs file ($GoArgs) does not exist.")
+        [Console]::Out.Flush()
+        exit 1
     }
     if (-not (Test-Path -LiteralPath $HerdrArgs)) {
-        Write-Output "HerdrArgs file ($HerdrArgs) does not exist."
-        throw "missing HerdrArgs"
+        [Console]::WriteLine("HerdrArgs file ($HerdrArgs) does not exist.")
+        [Console]::Out.Flush()
+        exit 1
     }
     $ActualGo = ([System.IO.File]::ReadAllLines($GoArgs, [System.Text.Encoding]::UTF8)) -join ' '
     $ActualHerdr = ([System.IO.File]::ReadAllLines($HerdrArgs, [System.Text.Encoding]::UTF8)) -join ' '
     if ($ActualGo -ne "build -o $ExpectedBinary ./cmd/herdr-logbook") {
-        Write-Output "Expected go args: 'build -o $ExpectedBinary ./cmd/herdr-logbook'"
-        Write-Output "Actual go args:   '$ActualGo'"
-        throw "unexpected go arguments: $ActualGo"
+        [Console]::WriteLine("Expected go args: 'build -o $ExpectedBinary ./cmd/herdr-logbook'")
+        [Console]::WriteLine("Actual go args:   '$ActualGo'")
+        [Console]::Out.Flush()
+        exit 1
     }
     if ($ActualHerdr -ne "plugin link $Fixture --enabled") {
-        Write-Output "Expected herdr args: 'plugin link $Fixture --enabled'"
-        Write-Output "Actual herdr args:   '$ActualHerdr'"
-        throw "unexpected herdr arguments: $ActualHerdr"
+        [Console]::WriteLine("Expected herdr args: 'plugin link $Fixture --enabled'")
+        [Console]::WriteLine("Actual herdr args:   '$ActualHerdr'")
+        [Console]::Out.Flush()
+        exit 1
     }
     if (($output -join [Environment]::NewLine) -ne "built and linked $ExpectedBinary") {
-        Write-Output "Expected output: 'built and linked $ExpectedBinary'"
-        Write-Output "Actual output:   '$output'"
-        throw "unexpected output: $output"
+        [Console]::WriteLine("Expected output: 'built and linked $ExpectedBinary'")
+        [Console]::WriteLine("Actual output:   '$output'")
+        [Console]::Out.Flush()
+        exit 1
     }
 
     Remove-Item -Force -ErrorAction SilentlyContinue $HerdrArgs
@@ -112,17 +117,26 @@ func main() {
     $ErrorActionPreference = $oldPreference
 
     if ($actualFailCode -ne 23) {
-        throw "build failure exit code = $actualFailCode, want 23"
+        [Console]::WriteLine("build failure exit code = $actualFailCode, want 23")
+        [Console]::Out.Flush()
+        exit 1
     }
     if (Test-Path -LiteralPath $HerdrArgs) {
-        throw 'herdr was called after build failure'
+        [Console]::WriteLine('herdr was called after build failure')
+        [Console]::Out.Flush()
+        exit 1
     }
+    [Console]::WriteLine("DEV LINK TEST PASSED SUCCESSFULLY")
+    [Console]::Out.Flush()
 }
 catch {
-    Write-Output ("EXCEPTION IN DEV_LINK_TEST: " + $_.Exception.ToString())
-    Write-Output ("SCRIPT STACKTRACE: " + $_.ScriptStackTrace)
-    throw
+    [Console]::WriteLine("EXCEPTION IN DEV_LINK_TEST: " + $_.Exception.ToString())
+    [Console]::WriteLine("SCRIPT STACKTRACE: " + $_.ScriptStackTrace)
+    [Console]::Out.Flush()
+    exit 1
 }
 finally {
-    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $TestRoot
+    if ($TestRoot -and (Test-Path -LiteralPath $TestRoot)) {
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $TestRoot
+    }
 }
