@@ -15,17 +15,25 @@ try {
     @'
 $CommandArgs = @($args)
 $CommandArgs | Set-Content -LiteralPath $env:DEV_GO_ARGS -Encoding UTF8
-if ($env:DEV_GO_FAIL -eq '1') { exit 23 }
+if ($env:DEV_GO_FAIL -eq '1') {
+    $global:LASTEXITCODE = 23
+    exit 23
+}
 $outputIndex = [Array]::IndexOf($CommandArgs, '-o')
-if ($outputIndex -lt 0) { exit 2 }
+if ($outputIndex -lt 0) {
+    $global:LASTEXITCODE = 2
+    exit 2
+}
 $output = $CommandArgs[$outputIndex + 1]
 New-Item -ItemType Directory -Force (Split-Path -Parent $output) | Out-Null
 New-Item -ItemType File -Force $output | Out-Null
+$global:LASTEXITCODE = 0
 '@ | Set-Content -LiteralPath (Join-Path $FakeBin 'go.ps1') -Encoding UTF8
 
     @'
 $CommandArgs = @($args)
 $CommandArgs | Set-Content -LiteralPath $env:DEV_HERDR_ARGS -Encoding UTF8
+$global:LASTEXITCODE = 0
 '@ | Set-Content -LiteralPath (Join-Path $FakeBin 'herdr.ps1') -Encoding UTF8
 
     $env:PATH = "$FakeBin;$env:PATH"
