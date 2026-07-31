@@ -28,9 +28,9 @@ func Title(content, filename string) string {
 		if strings.HasPrefix(line, "# ") {
 			title := strings.TrimSpace(strings.TrimRight(strings.TrimSpace(strings.TrimPrefix(line, "# ")), "#"))
 			if title != "" {
-				return title
+				return StripTerminalControl(title)
 			}
 		}
 	}
-	return strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+	return StripTerminalControl(strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename)))
 }

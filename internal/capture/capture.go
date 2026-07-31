@@ -2,14 +2,13 @@ package capture
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	md "github.com/Resetnak/herdr-logbook/internal/markdown"
 	"github.com/Resetnak/herdr-logbook/internal/storage"
 )
 
@@ -31,6 +30,12 @@ func Append(request Request) (string, error) {
 	if !utf8.ValidString(request.Entry.Text) || strings.ContainsRune(request.Entry.Text, '\x00') {
 		return "", fmt.Errorf("capture text must be valid UTF-8 without NUL bytes")
 	}
+	// CRLF is how a Windows pipe delivers ordinary text, so normalise it before
+	// the control-character check rather than rejecting the whole capture.
+	request.Entry.Text = strings.ReplaceAll(request.Entry.Text, "\r\n", "\n")
+	if strings.ContainsFunc(request.Entry.Text, md.IsTerminalControl) {
+		return "", fmt.Errorf("capture text must not contain terminal control characters")
+	}
 	formatted, err := Format(request.Entry)
 	if err != nil {
 		return "", err
@@ -40,8 +45,8 @@ func Append(request Request) (string, error) {
 	}
 	path := filepath.Join(request.InboxDir, request.Entry.Time.Format("2006-01")+".md")
 	err = storage.WithLock(request.LockPath, request.LockTimeout, func() error {
-		existing, err := os.ReadFile(path)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+		existing, err := storage.ReadForRewrite(path)
+		if err != nil {
 			return fmt.Errorf("read inbox %q: %w", path, err)
 		}
 		// A zero-byte file is left behind by an interrupted write or a stray touch;

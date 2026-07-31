@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	md "github.com/Resetnak/herdr-logbook/internal/markdown"
 )
 
 const (
@@ -71,6 +73,11 @@ func ValidateTask(task string) error {
 	}
 	if !utf8.ValidString(trimmed) || strings.ContainsRune(trimmed, '\x00') {
 		return fmt.Errorf("task text must be valid UTF-8 without NUL bytes")
+	}
+	// now.md is read outside the TUI too — cat, glow, an editor — none of which
+	// strip escapes before they reach the terminal.
+	if strings.ContainsFunc(trimmed, md.IsTerminalControl) {
+		return fmt.Errorf("task text must not contain terminal control characters")
 	}
 	for line := range strings.SplitSeq(trimmed, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "#") {
