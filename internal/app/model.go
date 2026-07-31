@@ -7,7 +7,9 @@ import (
 
 	"github.com/Resetnak/herdr-logbook/internal/digest"
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
+	md "github.com/Resetnak/herdr-logbook/internal/markdown"
 	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -58,7 +60,49 @@ type captureSavedMsg struct {
 	err        error
 }
 
-type flashExpiredMsg struct{ tick int }
+type flashDecayMsg struct {
+	tick int
+	step int
+}
+
+type digestStaggerMsg struct {
+	step int
+}
+
+// searchDebounceMsg asks for the query typed at generation gen to be matched.
+type searchDebounceMsg struct {
+	gen int
+}
+
+// searchDebounce is how long typing has to pause before the query is matched.
+// Search scans the body of every indexed note — milliseconds per keystroke,
+// growing with the corpus — and it runs on the event loop, so without this the
+// cost lands between the key and the character appearing.
+//
+// ponytail: a debounce, not a goroutine. It cuts the work by roughly the length
+// of a typed word and keeps the results a plain function of the model. Upgrade
+// path if a corpus ever makes one match visibly slow: move updateSearchResults
+// into a tea.Cmd and key the reply by gen, the way searchLoadedMsg already works.
+const searchDebounce = 90 * time.Millisecond
+
+func searchDebounceCmd(gen int) tea.Cmd {
+	return tea.Tick(searchDebounce, func(time.Time) tea.Msg {
+		return searchDebounceMsg{gen: gen}
+	})
+}
+
+// The heatmap is four weeks wide and reveals one column per step, slow enough
+// that the wipe is visible without holding up a reader who came for the numbers.
+const (
+	heatmapWeeks       = 4
+	heatmapStaggerStep = 60 * time.Millisecond
+)
+
+func digestStaggerCmd(step int) tea.Cmd {
+	return tea.Tick(heatmapStaggerStep, func(time.Time) tea.Msg {
+		return digestStaggerMsg{step: step}
+	})
+}
 
 type digestLoadedMsg struct {
 	report digest.DigestReport
@@ -95,6 +139,7 @@ type HubModel struct {
 	searchRefreshing bool
 	searchDirty      bool
 	searchErr        string
+	searchGen        int
 	authorKind       string
 	saving           bool
 	authorFn         AuthorFunc
@@ -106,6 +151,7 @@ type HubModel struct {
 	glamourStyle     string
 	flashMsg         string
 	flashTick        int
+	flashStep        int
 	scopeWidth       int
 	showBranch       bool
 	uiTheme          string
@@ -114,8 +160,10 @@ type HubModel struct {
 	digestReport     digest.DigestReport
 	digestErr        string
 	digestLoading    bool
+	digestStagger    int
 	digestFn         DigestFunc
 	digestViewport   viewport.Model
+	spinner          spinner.Model
 }
 
 // previewCacheKey holds everything the rendered Markdown depends on. Content is
@@ -138,6 +186,10 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 	searchBox.Prompt = "/ "
 	searchBox.Placeholder = "Search all projects"
 
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(getThemePalette("").headerFg)
+
 	model := HubModel{
 		notes:          notes,
 		projectName:    projectName,
@@ -154,6 +206,7 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 		searchBox:      searchBox,
 		digestDays:     1,
 		digestViewport: viewport.New(40, 18),
+		spinner:        sp,
 		scopes: []scopeItem{
 			{name: "Now", types: map[NoteType]bool{NoteNow: true}, emptyMessage: "Current context is unavailable. Reopen Logbook to restore now.md."},
 			{name: "Project Inbox", types: map[NoteType]bool{NoteProjectInbox: true}, emptyMessage: "No project inbox captures yet. Press c to capture something."},
@@ -168,9 +221,38 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 	return model
 }
 
-func flashCmd(tick int) tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return flashExpiredMsg{tick: tick}
+// flash shows a transient status message and starts its colour decay. Every
+// flash goes through here, so the decay step can never be left behind from a
+// previous message and render the new one already faded.
+func (m *HubModel) flash(message string) tea.Cmd {
+	m.flashMsg = message
+	m.flashStep = 0
+	m.flashTick++
+	return flashDecayCmd(m.flashTick, 0)
+}
+
+// flashColorFor maps a decay step to its colour: bright green, then a duller
+// green, then grey just before the message clears.
+func flashColorFor(step int) lipgloss.Color {
+	switch step {
+	case 1:
+		return lipgloss.Color("34")
+	case 2:
+		return lipgloss.Color("244")
+	default:
+		return lipgloss.Color("10")
+	}
+}
+
+// flashDecayCmd schedules the next step of the flash colour decay: the message
+// holds at full brightness, then fades over two short steps before it clears.
+func flashDecayCmd(tick, step int) tea.Cmd {
+	duration := 2 * time.Second
+	if step > 0 {
+		duration = 400 * time.Millisecond
+	}
+	return tea.Tick(duration, func(time.Time) tea.Msg {
+		return flashDecayMsg{tick: tick, step: step}
 	})
 }
 
@@ -239,12 +321,22 @@ func (m HubModel) Init() tea.Cmd {
 		commands = append(commands, textarea.Blink)
 	}
 	if m.searchLoadFn != nil {
-		commands = append(commands, m.loadSearchCmd())
+		commands = append(commands, m.loadSearchCmd(), m.spinner.Tick)
 	}
 	return tea.Batch(commands...)
 }
 
 func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
+	if tick, ok := message.(spinner.TickMsg); ok {
+		// Drop the loop as soon as nothing is loading, so an idle Hub stops
+		// waking up ten times a second.
+		if !m.busy() {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(tick)
+		return m, cmd
+	}
 	if reloaded, ok := message.(NotesReloadedMsg); ok {
 		if reloaded.Err != nil {
 			m.captureErr = reloaded.Err.Error()
@@ -256,14 +348,13 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.notes = reloaded.Notes
 		m.captureErr = ""
-		m.flashMsg = "✓ Note updated"
-		m.flashTick++
+		flashCommand := m.flash("✓ Note updated")
 		m.refreshPreview()
 		var searchCommand tea.Cmd
 		if reloaded.RefreshSearch {
 			searchCommand = m.refreshSearchCmd()
 		}
-		return m, tea.Batch(searchCommand, flashCmd(m.flashTick))
+		return m, tea.Batch(searchCommand, flashCommand)
 	}
 	if loaded, ok := message.(searchLoadedMsg); ok {
 		m.searchRefreshing = false
@@ -284,9 +375,15 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	if saved, ok := message.(captureSavedMsg); ok {
 		return m.applyCaptureSaved(saved)
 	}
-	if expired, ok := message.(flashExpiredMsg); ok {
-		if expired.tick == m.flashTick {
-			m.flashMsg = ""
+	if decay, ok := message.(flashDecayMsg); ok {
+		if decay.tick == m.flashTick {
+			if decay.step >= 2 {
+				m.flashMsg = ""
+				m.flashStep = 0
+			} else {
+				m.flashStep = decay.step + 1
+				return m, flashDecayCmd(m.flashTick, m.flashStep)
+			}
 		}
 		return m, nil
 	}
@@ -297,9 +394,31 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.digestReport = loaded.report
 			m.digestErr = ""
+			m.digestStagger = 1
 			m.refreshDigestViewport()
+			return m, digestStaggerCmd(m.digestStagger)
 		}
 		return m, nil
+	}
+	if debounce, ok := message.(searchDebounceMsg); ok {
+		// Only the newest tick counts; the ones behind it describe a query the
+		// user has already typed past.
+		if debounce.gen == m.searchGen {
+			m.updateSearchResults()
+			m.noteIndex = 0
+			m.refreshPreview()
+		}
+		return m, nil
+	}
+	if stagger, ok := message.(digestStaggerMsg); ok {
+		// Only the tick that matches the current column advances the reveal, so
+		// ticks left over from a digest that was closed and reopened are ignored.
+		if !m.digest || stagger.step != m.digestStagger || stagger.step >= heatmapWeeks {
+			return m, nil
+		}
+		m.digestStagger = stagger.step + 1
+		m.refreshDigestViewport()
+		return m, digestStaggerCmd(m.digestStagger)
 	}
 	if m.capturing {
 		return m.updateCapture(message)
@@ -362,12 +481,7 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		case "s":
 			if m.digestFn != nil {
 				m.digest = true
-				m.digestLoading = true
-				digestFn, days := m.digestFn, m.digestDays
-				return m, func() tea.Msg {
-					report, err := digestFn(days)
-					return digestLoadedMsg{report: report, err: err}
-				}
+				return m, m.startDigestCmd()
 			}
 		case "tab":
 			m.panel = (m.panel + 1) % 3
@@ -546,8 +660,13 @@ func (m HubModel) View() string {
 	} else if m.searchQuery != "" {
 		status = fmt.Sprintf("search: %s · Esc clear · %s", m.searchQuery, status)
 	}
+	if m.searchRefreshing {
+		// Kept short: the status bar is not truncated and this prefix is present
+		// on every launch, including terminals below 70 columns.
+		status = m.spinner.View() + " indexing · " + status
+	}
 	if m.flashMsg != "" {
-		status = lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render(m.flashMsg) + " · " + status
+		status = lipgloss.NewStyle().Foreground(flashColorFor(m.flashStep)).Render(m.flashMsg) + " · " + status
 	}
 	errorMessage := m.captureErr
 	if errorMessage == "" {
@@ -582,12 +701,11 @@ func (m HubModel) applyCaptureSaved(saved captureSavedMsg) (tea.Model, tea.Cmd) 
 	if m.quitAfterCapture {
 		return m, tea.Quit
 	}
-	m.flashMsg = "✓ Saved to inbox"
+	message := "✓ Saved to inbox"
 	if saved.kind == "now" {
-		m.flashMsg = "✓ Current task updated"
+		message = "✓ Current task updated"
 	}
-	m.flashTick++
-	return m, tea.Batch(m.refreshSearchCmd(), flashCmd(m.flashTick))
+	return m, tea.Batch(m.refreshSearchCmd(), m.flash(message))
 }
 
 func (m HubModel) captureView() string {
@@ -656,16 +774,33 @@ func (m HubModel) updateSearch(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.searching = false
 			m.searchBox.Blur()
 			m.panel = panelNotes
+			// Enter means "show me the results now", so it cannot wait out a
+			// debounce that is still in flight.
+			m.searchGen++
+			m.updateSearchResults()
+			m.noteIndex = 0
+			m.refreshPreview()
 			return m, nil
 		}
 	}
 	var command tea.Cmd
 	m.searchBox, command = m.searchBox.Update(message)
-	m.searchQuery = strings.TrimSpace(m.searchBox.Value())
-	m.updateSearchResults()
-	m.noteIndex = 0
-	m.refreshPreview()
-	return m, command
+	query := strings.TrimSpace(m.searchBox.Value())
+	if query == m.searchQuery {
+		return m, command
+	}
+	m.searchQuery = query
+	// Clearing is instant: there is nothing to scan, and leaving stale results on
+	// screen until the debounce fires would look like the delete did not register.
+	if query == "" {
+		m.searchGen++
+		m.searchResults = nil
+		m.noteIndex = 0
+		m.refreshPreview()
+		return m, command
+	}
+	m.searchGen++
+	return m, tea.Batch(command, searchDebounceCmd(m.searchGen))
 }
 
 func (m *HubModel) updateSearchResults() {
@@ -703,6 +838,9 @@ func searchNote(entry searchindex.Entry) Note {
 
 func (m *HubModel) clearSearch() {
 	m.searching = false
+	// Retire any debounce still in flight, so it cannot repopulate the results
+	// the user just cleared.
+	m.searchGen++
 	m.searchQuery = ""
 	m.projectSearch = false
 	m.searchResults = nil
@@ -710,6 +848,25 @@ func (m *HubModel) clearSearch() {
 	m.searchBox.Reset()
 	m.noteIndex = 0
 	m.refreshPreview()
+}
+
+// busy reports whether anything the spinner stands for is still running.
+func (m HubModel) busy() bool {
+	return m.searchRefreshing || m.digestLoading
+}
+
+// startDigestCmd loads the digest for the current range and restarts the
+// heatmap reveal. ponytail: if a second tick loop is started while one is still
+// running the spinner briefly spins double speed, then both loops stop together
+// once busy() goes false — not worth a generation tag.
+func (m *HubModel) startDigestCmd() tea.Cmd {
+	m.digestLoading = true
+	m.digestStagger = 1
+	digestFn, days := m.digestFn, m.digestDays
+	return tea.Batch(m.spinner.Tick, func() tea.Msg {
+		report, err := digestFn(days)
+		return digestLoadedMsg{report: report, err: err}
+	})
 }
 
 func (m HubModel) loadSearchCmd() tea.Cmd {
@@ -732,7 +889,7 @@ func (m *HubModel) refreshSearchCmd() tea.Cmd {
 		return nil
 	}
 	m.searchRefreshing = true
-	return m.loadSearchCmd()
+	return tea.Batch(m.loadSearchCmd(), m.spinner.Tick)
 }
 
 func (m *HubModel) resize(width, height int) {
@@ -769,6 +926,8 @@ func (m HubModel) WithUIConfig(scopeWidth int, showBranch bool, theme string) Hu
 	if theme != "" {
 		m.uiTheme = theme
 	}
+	// The spinner is built before the theme is known, so it picks up its colour here.
+	m.spinner.Style = lipgloss.NewStyle().Foreground(getThemePalette(m.uiTheme).headerFg)
 	return m
 }
 
@@ -797,7 +956,11 @@ func (m HubModel) scopesView() string {
 		prefix := "  "
 		line := scope.name
 		if index == m.scopeIndex {
-			prefix = "● "
+			if m.panel == panelScopes {
+				prefix = "▶ "
+			} else {
+				prefix = "● "
+			}
 			line = activeStyle.Render(scope.name)
 		}
 		output.WriteString(prefix + line + "\n")
@@ -824,7 +987,11 @@ func (m HubModel) notesView() string {
 		prefix := "  "
 		line := note.Title
 		if index == m.noteIndex {
-			prefix = "› "
+			if m.panel == panelNotes {
+				prefix = "▶ "
+			} else {
+				prefix = "› "
+			}
 			line = activeStyle.Render(note.Title)
 		}
 		output.WriteString(prefix + line + "\n")
@@ -938,7 +1105,10 @@ func (m *HubModel) refreshPreview() {
 	// would actually differ. Glamour parses and highlights the whole document.
 	key := previewCacheKey{path: note.Path, content: note.Content, width: width, style: m.glamourStyle}
 	if key != m.previewKey {
-		rendered := note.Content
+		// Glamour passes OSC sequences straight through, so an escape stored in a
+		// note is an escape executed on display. Capture refuses them on the way
+		// in; a note written in an external editor never went through capture.
+		rendered := md.StripTerminalControl(note.Content)
 		// ponytail: cache the renderer too; NewTermRenderer loads chroma styles, so
 		// only rebuild it when the wrap width actually changes.
 		if m.previewRenderer == nil || m.previewWidth != width {
@@ -996,10 +1166,8 @@ func (m HubModel) updateDigest(message tea.Msg) (tea.Model, tea.Cmd) {
 				if err := clipboard.WriteAll(md); err != nil {
 					m.digestErr = "Clipboard: " + err.Error()
 				} else {
-					m.flashMsg = "✓ Standup copied to clipboard"
-					m.flashTick++
 					m.digest = false
-					return m, flashCmd(m.flashTick)
+					return m, m.flash("✓ Standup copied to clipboard")
 				}
 			}
 			return m, nil
@@ -1010,12 +1178,7 @@ func (m HubModel) updateDigest(message tea.Msg) (tea.Model, tea.Cmd) {
 				m.digestDays = 1
 			}
 			if m.digestFn != nil {
-				m.digestLoading = true
-				digestFn, days := m.digestFn, m.digestDays
-				return m, func() tea.Msg {
-					report, err := digestFn(days)
-					return digestLoadedMsg{report: report, err: err}
-				}
+				return m, m.startDigestCmd()
 			}
 			return m, nil
 		}
@@ -1033,7 +1196,7 @@ func (m HubModel) digestView() string {
 
 	if m.digestLoading {
 		body.WriteString(titleStyle.Render("📊 Activity Digest") + "\n\n")
-		body.WriteString("Loading…\n")
+		body.WriteString(m.spinner.View() + " Loading…\n")
 	} else if m.digestErr != "" {
 		body.WriteString(titleStyle.Render("📊 Activity Digest") + "\n\n")
 		body.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.digestErr) + "\n")
@@ -1067,7 +1230,11 @@ func (m *HubModel) refreshDigestViewport() {
 	content.WriteString(titleStyle.Render("📊 Activity Heatmap (Last 4 Weeks)") + "\n\n")
 
 	// Heatmap
-	content.WriteString(digest.RenderHeatmap(m.digestReport.Heatmap, 4))
+	stagger := m.digestStagger
+	if stagger <= 0 {
+		stagger = heatmapWeeks
+	}
+	content.WriteString(digest.RenderHeatmapStaggered(m.digestReport.Heatmap, heatmapWeeks, stagger))
 	if m.digestReport.Streak > 0 {
 		content.WriteString(fmt.Sprintf("   🔥 %d day streak", m.digestReport.Streak))
 	}
