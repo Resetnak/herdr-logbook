@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Resetnak/herdr-logbook/internal/digest"
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -1094,5 +1095,78 @@ func TestInitBlinksTheCursorWhenTheModalIsAlreadyOpen(t *testing.T) {
 	}
 	if NewHub(nil, "api", "main", "central").Init() != nil {
 		t.Fatal("Init scheduled work for a Hub with nothing to do")
+	}
+}
+
+// The digest opens before its store scan finishes, so both the loading state
+// and a failed scan need a view of their own.
+func TestDigestViewShowsLoadingThenError(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central").WithDigest(func(int) (digest.DigestReport, error) {
+		return digest.DigestReport{}, errors.New("store is unreadable")
+	})
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	if !strings.Contains(model.View(), "Loading") {
+		t.Fatalf("digest view did not show a loading state:\n%s", model.View())
+	}
+
+	model, _ = updateHub(model, command())
+	if !strings.Contains(model.View(), "store is unreadable") {
+		t.Fatalf("digest view did not surface the error:\n%s", model.View())
+	}
+
+	// A failed digest must not leave a stale report on the clipboard path.
+	if _, command = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")}); command != nil {
+		t.Error("y copied while the digest was in an error state")
+	}
+}
+
+func TestDigestViewLoadsRendersAndTogglesRange(t *testing.T) {
+	var requested []int
+	model := NewHub(nil, "api", "main", "central").WithDigest(func(days int) (digest.DigestReport, error) {
+		requested = append(requested, days)
+		return digest.DigestReport{
+			Generated: time.Now(),
+			Days:      days,
+			Streak:    3,
+			Items: []digest.ActivityItem{
+				{Kind: "task", Summary: "Rotate the signing tokens", Time: time.Now()},
+				{Kind: "decision", Summary: "Use opaque refresh tokens", Time: time.Now()},
+			},
+			CurrentTask: "Implement token rotation",
+			Heatmap:     []digest.DayActivity{{Date: time.Now().Format("2006-01-02"), Count: 2}},
+		}, nil
+	})
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	if !model.digest || command == nil {
+		t.Fatalf("s did not open the digest view (digest=%v, command=%v)", model.digest, command != nil)
+	}
+	model, _ = updateHub(model, command())
+
+	view := model.View()
+	for _, want := range []string{"Activity Heatmap", "Rotate the signing tokens", "Use opaque refresh tokens", "Implement token rotation", "3 day streak", "Copy Markdown"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("digest view missing %q:\n%s", want, view)
+		}
+	}
+
+	model, command = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	if command == nil {
+		t.Fatal("t did not reload the digest")
+	}
+	model, _ = updateHub(model, command())
+	if !strings.Contains(model.View(), "This Week") {
+		t.Fatalf("t did not switch the range:\n%s", model.View())
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyEsc})
+	if model.digest {
+		t.Fatal("Esc did not return to the Hub")
+	}
+	if len(requested) != 2 || requested[0] != 1 || requested[1] != 7 {
+		t.Fatalf("digest requested days = %v, want [1 7]", requested)
 	}
 }

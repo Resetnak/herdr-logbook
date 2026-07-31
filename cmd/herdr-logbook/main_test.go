@@ -312,6 +312,56 @@ func TestRunNowSetsTaskAndArchivesThePreviousOne(t *testing.T) {
 	}
 }
 
+func TestRunDigestReportsTodaysActivity(t *testing.T) {
+	repo := t.TempDir()
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	logbook := func(stdin string, args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(args, getenv, strings.NewReader(stdin), &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+
+	if code, _, stderr := logbook("Postgres pool exhausted under load\n", "capture", "--stdin", "--project-root", repo); code != 0 {
+		t.Fatalf("capture code = %d, stderr = %q", code, stderr)
+	}
+	if code, _, stderr := logbook("", "now", "--project-root", repo, "Rotate the signing tokens"); code != 0 {
+		t.Fatalf("now code = %d, stderr = %q", code, stderr)
+	}
+
+	code, stdout, stderr := logbook("", "digest", "--project-root", repo)
+	if code != 0 {
+		t.Fatalf("digest code = %d, stderr = %q", code, stderr)
+	}
+	for _, want := range []string{"## Standup —", "Postgres pool exhausted under load", "Rotate the signing tokens"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("digest markdown missing %q:\n%s", want, stdout)
+		}
+	}
+
+	code, stdout, stderr = logbook("", "digest", "--project-root", repo, "--days", "7", "--json")
+	if code != 0 {
+		t.Fatalf("digest --json code = %d, stderr = %q", code, stderr)
+	}
+	var report struct {
+		Days    int `json:"Days"`
+		Streak  int `json:"Streak"`
+		Heatmap []struct {
+			Date  string `json:"Date"`
+			Count int    `json:"Count"`
+		} `json:"Heatmap"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+		t.Fatalf("digest JSON = %q: %v", stdout, err)
+	}
+	if report.Days != 7 || report.Streak != 1 || len(report.Heatmap) != 28 {
+		t.Fatalf("digest report = %+v", report)
+	}
+	if last := report.Heatmap[len(report.Heatmap)-1]; last.Date != time.Now().Format("2006-01-02") || last.Count == 0 {
+		t.Fatalf("heatmap should end on today with activity, got %+v", last)
+	}
+}
+
 func TestRunNowRejectsHeadingsAndEmptyInput(t *testing.T) {
 	repo := t.TempDir()
 	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}

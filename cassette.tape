@@ -46,7 +46,12 @@ Type `export PATH=$REPO/bin:$PATH HERDR_PLUGIN_STATE_DIR=/tmp/hl-demo-home/.loca
 Enter
 Type "herdr-logbook init >/dev/null && herdr-logbook capture -text 'Rotate JWT signing keys before the v2 launch' >/dev/null && herdr-logbook capture -text 'Postgres pool exhausted under load - raise max_connections' >/dev/null && herdr-logbook decision -title 'Use opaque refresh tokens instead of long-lived JWTs' -no-edit >/dev/null"
 Enter
-Type `S=$(ls -d /tmp/hl-demo-home/.local/state/herdr/plugins/herdr-logbook/store/projects/p_*) && printf '# Now\n\n## Current task\nImplement token rotation for the API gateway.\n\n## Next steps\n- [ ] Add replay detection.\n- [ ] Rotate signing keys before v2 launch.\n' > $S/now.md && herdr-logbook index rebuild >/dev/null && unset HERDR_PLUGIN_STATE_DIR`
+Type `S=$(ls -d /tmp/hl-demo-home/.local/state/herdr/plugins/herdr-logbook/store/projects/p_*) && printf '# Now\n\n## Current task\nImplement token rotation for the API gateway.\n\n## Next steps\n- [ ] Add replay detection.\n- [ ] Rotate signing keys before v2 launch.\n' > $S/now.md`
+Enter
+# Backfill earlier days so the activity heatmap and the streak have history to show.
+Type `ago() { date -v-$1d "+%Y-%m-%d" 2>/dev/null || date -d "$1 days ago" "+%Y-%m-%d"; }; for i in 1 2 3 6 7 9 10 13 16 17 20 23; do printf '## %s 09:%02d\n\nReviewed the token rotation plan.\n\n' "$(ago $i)" "$i" >> $S/inbox/$(date "+%Y-%m").md; done`
+Enter
+Type `herdr-logbook index rebuild >/dev/null && unset HERDR_PLUGIN_STATE_DIR`
 Enter
 Type "clear"
 Enter
@@ -94,6 +99,14 @@ Type "Ship the token rotation PR"
 Sleep 1200ms
 Ctrl+S
 Sleep 2800ms
+
+# --- s: activity heatmap + standup; t widens it to the week, y copies the Markdown ---
+Type "s"
+Sleep 3200ms
+Type "t"
+Sleep 3000ms
+Type "y"
+Sleep 2600ms
 
 # --- Hidden teardown: detach and remove the throwaway session ---
 Hide
