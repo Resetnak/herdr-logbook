@@ -246,14 +246,22 @@ func rebuildSearchIndex(state coreState) ([]searchindex.Entry, error) {
 		stores = append(stores, searchindex.Store{ProjectID: record.ID, ProjectName: record.Name, Root: record.StorePath})
 	}
 	stores = append(stores, searchindex.Store{ProjectID: "global", ProjectName: "Global", Root: filepath.Join(state.StateDir, "store", "global")})
+	cachePath := filepath.Join(state.StateDir, "cache", "index-v1.json")
 	var entries []searchindex.Entry
 	err = storage.WithLock(filepath.Join(state.StateDir, "locks", "index.lock"), 5*time.Second, func() error {
+		// Reading the cache under the lock keeps this the only place the Hub
+		// touches it, and lets the rescan carry unchanged notes over instead of
+		// re-reading every note in every project for a one-file change.
+		cache, cacheErr := searchindex.LoadCache(cachePath)
+		if cacheErr != nil {
+			return cacheErr
+		}
 		var scanErr error
-		entries, scanErr = searchindex.Scan(stores, state.Config.Search.MaxIndexFileBytes)
+		entries, scanErr = searchindex.Refresh(stores, state.Config.Search.MaxIndexFileBytes, cache.Entries)
 		if scanErr != nil {
 			return scanErr
 		}
-		return searchindex.SaveCache(filepath.Join(state.StateDir, "cache", "index-v1.json"), searchindex.Cache{Entries: entries})
+		return searchindex.SaveCache(cachePath, searchindex.Cache{Entries: entries})
 	})
 	return entries, err
 }
@@ -389,11 +397,9 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	cache, err := searchindex.LoadCache(filepath.Join(state.StateDir, "cache", "index-v1.json"))
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 1
-	}
+	// The index is not loaded here: parsing the cache is tens of milliseconds of
+	// JSON before the first frame, and Init() schedules the same rebuild as a
+	// command anyway. The Hub opens on now.md and shows "indexing" until it lands.
 	refreshSearch := func() ([]searchindex.Entry, error) {
 		return rebuildSearchIndex(state)
 	}
@@ -442,7 +448,7 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		WithUIConfig(state.Config.UI.ScopeWidth, state.Config.UI.ShowBranch, state.Config.UI.Theme).
 		WithStyle(previewStyle).
 		WithActions(captureNote, reloadNotes).
-		WithSearch(cache.Entries, refreshSearch).
+		WithSearch(nil, refreshSearch).
 		WithAuthoring(authorNote, editNote).
 		WithDigest(digestReport)
 	program := tea.NewProgram(model, tea.WithInput(stdin), tea.WithOutput(stdout), tea.WithAltScreen(), tea.WithoutSignalHandler())
@@ -767,8 +773,8 @@ func setNowTask(state coreState, task string) (string, error) {
 		if err := storage.Initialize(state.Layout); err != nil {
 			return err
 		}
-		content, readErr := os.ReadFile(state.Layout.Now)
-		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+		content, readErr := storage.ReadForRewrite(state.Layout.Now)
+		if readErr != nil {
 			return readErr
 		}
 		previous = nowfile.CurrentTask(string(content))
@@ -1032,11 +1038,9 @@ func loadCore(projectRoot, cwd, requestedMode string, getenv func(string) string
 	if err != nil {
 		return coreState{}, &commandError{3, err}
 	}
-	mode := requestedMode
-	if mode == "" && resolved.StorageOverride != "" {
-		mode = resolved.StorageOverride
-	}
-	layout, err := storage.Resolve(stateDir, resolved.Root, resolved.ID, cfg, mode)
+	// The storage mode comes from the user only: --storage, or storage.project_mode
+	// in their own config. A repository cannot vote — see project.overrideConfig.
+	layout, err := storage.Resolve(stateDir, resolved.Root, resolved.ID, cfg, requestedMode)
 	if err != nil {
 		return coreState{}, &commandError{2, err}
 	}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	md "github.com/Resetnak/herdr-logbook/internal/markdown"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -25,20 +26,28 @@ type ResolveOptions struct {
 }
 
 type Project struct {
-	ID              string   `toml:"id" json:"id"`
-	Name            string   `toml:"name" json:"name"`
-	Root            string   `toml:"root" json:"root"`
-	Roots           []string `toml:"roots" json:"roots"`
-	Branch          string   `toml:"-" json:"branch,omitempty"`
-	Fingerprint     string   `toml:"-" json:"remote_fingerprint,omitempty"`
-	StorageOverride string   `toml:"-" json:"storage_override,omitempty"`
+	ID          string   `toml:"id" json:"id"`
+	Name        string   `toml:"name" json:"name"`
+	Root        string   `toml:"root" json:"root"`
+	Roots       []string `toml:"roots" json:"roots"`
+	Branch      string   `toml:"-" json:"branch,omitempty"`
+	Fingerprint string   `toml:"-" json:"remote_fingerprint,omitempty"`
 }
 
+// overrideConfig is the repository-side .herdr-logbook.toml. It arrives with
+// `git clone`, so every field here is attacker-controlled and must only be able
+// to affect naming and layout *inside* the repository.
+//
+// There is deliberately no storage field: honouring one would let a repository
+// redirect the user's private working memory into its own worktree, where the
+// next `git add -A && git push` publishes it. Repo-local storage stays an
+// explicit opt-in through the user's own config or --storage. A stale storage
+// key in a repository is ignored rather than rejected, so existing checkouts
+// keep resolving.
 type overrideConfig struct {
 	ProjectID   string `toml:"project_id"`
 	DisplayName string `toml:"display_name"`
 	Root        string `toml:"root"`
-	Storage     string `toml:"storage"`
 }
 
 func Resolve(options ResolveOptions) (Project, error) {
@@ -84,9 +93,9 @@ func Resolve(options ResolveOptions) (Project, error) {
 		}
 	}
 
-	project := Project{Root: root, Roots: []string{root}, Name: filepath.Base(root), StorageOverride: override.Storage}
-	if override.DisplayName != "" {
-		project.Name = override.DisplayName
+	project := Project{Root: root, Roots: []string{root}, Name: filepath.Base(root)}
+	if name := displayName(override.DisplayName); name != "" {
+		project.Name = name
 	}
 
 	identity := "path:" + root
@@ -188,10 +197,24 @@ func loadOverride(gitRoot string) (overrideConfig, error) {
 	if err := toml.Unmarshal(data, &override); err != nil {
 		return overrideConfig{}, fmt.Errorf("decode project override %q: %w", path, err)
 	}
-	if override.Storage != "" && override.Storage != "central" && override.Storage != "repo" {
-		return overrideConfig{}, fmt.Errorf("project override storage must be central or repo")
-	}
 	return override, nil
+}
+
+// maxDisplayNameRunes is what the Hub status bar can carry without pushing the
+// branch and store hints off the line.
+const maxDisplayNameRunes = 120
+
+// displayName makes the repository-supplied project name safe to print. It is
+// the one override field used verbatim — the status bar paints it on every
+// frame and author.CreateDecision writes it into the body of every decision —
+// so it gets the same treatment as captured text. An empty result means the
+// caller keeps the directory name.
+func displayName(raw string) string {
+	name := strings.TrimSpace(md.StripTerminalControl(raw))
+	if runes := []rune(name); len(runes) > maxDisplayNameRunes {
+		name = strings.TrimSpace(string(runes[:maxDisplayNameRunes]))
+	}
+	return name
 }
 
 func containedDirectory(base, relative string) (string, error) {
