@@ -49,7 +49,7 @@ Enter
 Type `S=$(ls -d /tmp/hl-demo-home/.local/state/herdr/plugins/herdr-logbook/store/projects/p_*) && printf '# Now\n\n## Current task\nImplement token rotation for the API gateway.\n\n## Next steps\n- [ ] Add replay detection.\n- [ ] Rotate signing keys before v2 launch.\n' > $S/now.md`
 Enter
 # Backfill earlier days so the activity heatmap and the streak have history to show.
-Type `ago() { date -v-$1d "+%Y-%m-%d" 2>/dev/null || date -d "$1 days ago" "+%Y-%m-%d"; }; for i in 1 2 3 6 7 9 10 13 16 17 20 23; do printf '## %s 09:%02d\n\nReviewed the token rotation plan.\n\n' "$(ago $i)" "$i" >> $S/inbox/$(date "+%Y-%m").md; done`
+Type `ago() { date -v-$1d "+%Y-%m-%d" 2>/dev/null || date -d "$1 days ago" "+%Y-%m-%d"; }; msgs=("Drafted the zero-downtime rotation runbook." "Added replay detection to the auth middleware." "Benchmarked the token cache under load." "Paired on the v2 migration plan." "Triaged a flaky gateway integration test." "Reviewed the token rotation plan."); n=0; for i in 1 2 3 6 7 9 10 13 16 17 20 23; do printf '## %s 09:%02d\n\n%s\n\n' "$(ago $i)" "$i" "${msgs[$((n % 6))]}" >> $S/inbox/$(date "+%Y-%m").md; n=$((n+1)); done`
 Enter
 Type `herdr-logbook index rebuild >/dev/null && unset HERDR_PLUGIN_STATE_DIR`
 Enter
