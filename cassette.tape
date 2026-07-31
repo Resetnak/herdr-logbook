@@ -1,7 +1,7 @@
 # cassette.tape — VHS script that renders the README demo (assets/demo.gif).
 # Regenerate from the repo root:  vhs cassette.tape
-# Needs: vhs, herdr (>= 0.7), claude, bash, and the plugin binary at
-#   go build -ldflags "-X main.version=<version>" -o bin/herdr-logbook ./cmd/herdr-logbook
+# Needs: vhs, herdr (>= 0.7), claude, bash, and go — the setup below rebuilds
+# bin/herdr-logbook itself, so the recording always shows the working tree.
 # The whole demo runs in a throwaway Herdr instance under /tmp/hl-demo-home
 # (isolated HOME: own config, plugin registry, store, and socket). Your real
 # Herdr server, config, and logbook data are never touched; the demo session
@@ -13,6 +13,7 @@ Output assets/demo.gif
 Require herdr
 Require claude
 Require bash
+Require go
 
 Set Shell "bash"
 Set FontSize 15
@@ -26,6 +27,11 @@ Set TypingSpeed 45ms
 Hide
 Type `export REPO=$PWD REAL_HOME=$HOME`
 Enter
+# Rebuild first: recording against a stale bin/ silently ships an old UI. The
+# sleep covers the build; with a cold Go cache, build once by hand beforehand.
+Type `go build -ldflags "-X main.version=$(sed -n 's/^version = "\(.*\)"/\1/p' herdr-plugin.toml)" -o bin/herdr-logbook ./cmd/herdr-logbook || { echo BUILD FAILED; sleep 5; }`
+Enter
+Sleep 20s
 Type "unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID HERDR_WORKSPACE_ID HERDR_SOCKET_PATH HERDR_BIN_PATH"
 Enter
 Type `unset $(env | sed -n 's/^\(CLAUDE[A-Z_0-9]*\)=.*/\1/p') 2>/dev/null; true`
