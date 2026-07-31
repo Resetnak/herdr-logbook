@@ -2,7 +2,11 @@
 
 All notable changes will be documented here. The project has not published a stable release.
 
-## Unreleased
+## v0.0.7 — 2026-07-31
+
+A security and performance release. Three fixes close ways a cloned repository or a piped note could act on the machine reading it, and saving a note no longer re-reads every note you own. Pre-release. macOS arm64 remains the only host verified against the checklist in [docs/herdr-compatibility.md](docs/herdr-compatibility.md), with WSL 2 (`linux/amd64`) reported working; not a stable release or a v0.1.0 platform-support claim.
+
+Breaking: `doctor --json` no longer emits `storage_override`, and `storage` in a repository's `.herdr-logbook.toml` is ignored. Neither has a replacement — the storage mode is a decision only you make.
 
 - **Security:** a cloned repository can no longer choose where your notes are
   stored. `storage` in a repository's `.herdr-logbook.toml` is ignored, so a
