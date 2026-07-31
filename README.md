@@ -228,7 +228,7 @@ Herdr has no `plugin update` command — re-running the installer *is* the updat
 
 ```bash
 herdr plugin install Resetnak/herdr-logbook              # latest main
-herdr plugin install Resetnak/herdr-logbook --ref v0.0.6 # a specific release
+herdr plugin install Resetnak/herdr-logbook --ref v0.0.7 # a specific release
 ```
 
 > ⚠️ This fails with `plugin herdr-logbook is already linked from a local path` if you installed via Option 4. A local link always wins over GitHub; run `herdr plugin unlink herdr-logbook` first, or update the checkout instead (see below).
@@ -320,6 +320,10 @@ herdr-logbook digest --json              # structured JSON for scripting
 ```
 
 Inside the TUI, press `s` to see the visual digest with a GitHub-style activity heatmap, then `y` to copy the standup Markdown to your clipboard.
+
+<p align="center">
+  <img src="assets/digest.gif" alt="The Logbook digest view: a four-week activity heatmap reveals a column at a time, followed by a standup summary of completed tasks and decisions" width="820">
+</p>
 
 ---
 

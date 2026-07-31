@@ -228,7 +228,7 @@ Herdr nemá příkaz `plugin update` — aktualizace se dělá opětovným spuš
 
 ```bash
 herdr plugin install Resetnak/herdr-logbook              # nejnovější main
-herdr plugin install Resetnak/herdr-logbook --ref v0.0.6 # konkrétní vydání
+herdr plugin install Resetnak/herdr-logbook --ref v0.0.7 # konkrétní vydání
 ```
 
 > ⚠️ Pokud jste instalovali Možností 4, tento příkaz skončí chybou `plugin herdr-logbook is already linked from a local path`. Lokální link má vždy přednost před GitHubem; nejdřív spusťte `herdr plugin unlink herdr-logbook`, nebo místo toho aktualizujte svůj checkout (viz níže).
@@ -320,6 +320,10 @@ herdr-logbook digest --json              # strukturovaný JSON pro skriptování
 ```
 
 V TUI stiskněte `s` pro vizuální přehled s mapou aktivity ve stylu GitHubu, pak `y` pro zkopírování standupu do schránky.
+
+<p align="center">
+  <img src="assets/digest.gif" alt="Přehled aktivity v Logbooku: čtyřtýdenní mapa aktivity se odkrývá po sloupcích, pod ní standup se splněnými úkoly a rozhodnutími" width="820">
+</p>
 
 ---
 

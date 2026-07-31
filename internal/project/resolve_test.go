@@ -182,18 +182,18 @@ func TestResolveAppliesAndValidatesTheProjectOverride(t *testing.T) {
 		return root
 	}
 
-	root := writeOverride(t, "project_id = \"pinned\"\ndisplay_name = \"Pinned API\"\nstorage = \"repo\"\n")
+	root := writeOverride(t, "project_id = \"pinned\"\ndisplay_name = \"Pinned API\"\n")
 	got, err := Resolve(ResolveOptions{ExplicitRoot: root, Runner: failingRunner})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Name != "Pinned API" || got.StorageOverride != "repo" {
+	if got.Name != "Pinned API" {
 		t.Fatalf("override was not applied: %#v", got)
 	}
 	pinned := got.ID
 
 	// The pinned project_id must survive a move to a different directory.
-	moved := writeOverride(t, "project_id = \"pinned\"\ndisplay_name = \"Pinned API\"\nstorage = \"repo\"\n")
+	moved := writeOverride(t, "project_id = \"pinned\"\ndisplay_name = \"Pinned API\"\n")
 	movedProject, err := Resolve(ResolveOptions{ExplicitRoot: moved, Runner: failingRunner})
 	if err != nil {
 		t.Fatal(err)
@@ -204,7 +204,6 @@ func TestResolveAppliesAndValidatesTheProjectOverride(t *testing.T) {
 
 	for name, body := range map[string]string{
 		"malformed toml":        "project_id = \n",
-		"unknown storage":       "storage = \"sqlite\"\n",
 		"absolute root":         "root = \"/etc\"\n",
 		"root outside worktree": "root = \"../escape\"\n",
 	} {
@@ -212,6 +211,78 @@ func TestResolveAppliesAndValidatesTheProjectOverride(t *testing.T) {
 		if _, err := Resolve(ResolveOptions{ExplicitRoot: bad, Runner: failingRunner}); err == nil {
 			t.Fatalf("%s: Resolve accepted an invalid override", name)
 		}
+	}
+}
+
+// .herdr-logbook.toml arrives with `git clone`, so it is attacker-controlled
+// input. Honouring `storage = "repo"` from it would let a repository redirect
+// the user's private working memory into its own worktree, where the next
+// `git add -A && git push` publishes it. Repo-local storage stays an explicit
+// opt-in the user makes through their own config or --storage, and a stale key
+// left in a repository must not fail resolution either.
+func TestResolveIgnoresStorageFromTheRepositoryOverride(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "display_name = \"Innocent Project\"\nstorage = \"repo\"\n"
+	if err := os.WriteFile(filepath.Join(root, ".herdr-logbook.toml"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := Resolve(ResolveOptions{ExplicitRoot: root, Runner: failingRunner})
+	if err != nil {
+		t.Fatalf("a stale storage key must not fail resolution: %v", err)
+	}
+	if got.Name != "Innocent Project" {
+		t.Fatalf("the rest of the override was dropped: %#v", got)
+	}
+	if storage := fmt.Sprintf("%#v", got); strings.Contains(storage, "repo") {
+		t.Fatalf("the repository's storage choice leaked into the project: %s", storage)
+	}
+}
+
+// display_name comes out of the repository, and it is painted into the status
+// bar on every frame and into the body of every decision record. It is the one
+// override field whose value is used verbatim, so it gets the same treatment as
+// captured text: no terminal control characters, and a length the status bar
+// can hold.
+func TestResolveSanitizesTheOverrideDisplayName(t *testing.T) {
+	// tomlValue is the quoted TOML literal, not a Go string: TOML has no \a, so
+	// the control characters go in as \uXXXX escapes the way a crafted
+	// repository would write them.
+	writeName := func(t *testing.T, tomlValue string) Project {
+		t.Helper()
+		root := t.TempDir()
+		if err := os.Mkdir(filepath.Join(root, ".git"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		body := "display_name = " + tomlValue + "\n"
+		if err := os.WriteFile(filepath.Join(root, ".herdr-logbook.toml"), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Resolve(ResolveOptions{ExplicitRoot: root, Runner: failingRunner})
+		if err != nil {
+			t.Fatalf("Resolve(%s): %v", tomlValue, err)
+		}
+		return got
+	}
+
+	escaped := writeName(t, `"API \u001B]52;c;aGFja2Vk\u0007 Service"`)
+	if strings.ContainsAny(escaped.Name, "\x1b\a") {
+		t.Fatalf("display_name kept control characters: %q", escaped.Name)
+	}
+
+	long := writeName(t, `"`+strings.Repeat("wide", 200)+`"`)
+	if runes := []rune(long.Name); len(runes) > 120 {
+		t.Fatalf("display_name was not bounded: %d runes", len(runes))
+	}
+
+	// A name that is nothing but control characters must fall back to the
+	// directory name rather than leaving the project nameless.
+	blank := writeName(t, `"\u001B\u0007\u001B"`)
+	if strings.TrimSpace(blank.Name) == "" {
+		t.Fatal("display_name sanitized to empty without falling back")
 	}
 }
 

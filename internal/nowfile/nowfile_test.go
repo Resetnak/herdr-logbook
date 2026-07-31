@@ -117,6 +117,14 @@ func TestValidateTaskRejectsBadInput(t *testing.T) {
 		"nul byte":     "Fix\x00it",
 		"lone hash":    "#",
 		"leading hash": "  # Now",
+		// now.md is read outside the TUI too — cat, glow, an editor — where
+		// nothing strips escapes before they reach the terminal.
+		"osc 52":  "Fix \x1b]52;c;aGFja2Vk\a",
+		"osc 0":   "Fix \x1b]0;pwned\a",
+		"bell":    "Fix\ait",
+		"c1 csi":  "Fix \u009b2J",
+		"del":     "Fix\x7fit",
+		"lone cr": "Fix\rit",
 	}
 	for name, task := range cases {
 		if err := ValidateTask(task); err == nil {

@@ -31,6 +31,112 @@ func TestScanFiltersFilesAndBuildsMetadata(t *testing.T) {
 	}
 }
 
+// Saving one note used to re-read every note in every registered project. The
+// rescan is keyed on size and modification time, so an unchanged file is carried
+// over from the previous cache instead of being read, hashed and parsed again.
+func TestRefreshReusesUnchangedEntriesWithoutReadingThem(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "notes", "cache.md")
+	const original = "# Cache policy\noriginal body"
+	const rewritten = "# Cache policy\nREWRITTEN!!!!" // same length, so only size+mtime match
+	mustWrite(t, path, original)
+
+	stores := []Store{{ProjectID: "p1", ProjectName: "api", Root: root}}
+	first, err := Scan(stores, 256*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Rewrite the body in place, keeping size and mtime identical. Only a reader
+	// that actually opened the file could notice — which is exactly what Refresh
+	// must not do for an unchanged entry.
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rewritten) != len(original) {
+		t.Fatalf("test setup: rewrite changes the size (%d vs %d)", len(rewritten), len(original))
+	}
+	if err := os.WriteFile(path, []byte(rewritten), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed, err := Refresh(stores, 256*1024, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refreshed) != 1 {
+		t.Fatalf("Refresh() returned %d entries", len(refreshed))
+	}
+	if !strings.Contains(refreshed[0].Content, "original body") {
+		t.Fatalf("Refresh() re-read an unchanged file: %q", refreshed[0].Content)
+	}
+}
+
+func TestRefreshRereadsChangedAndDropsDeletedNotes(t *testing.T) {
+	root := t.TempDir()
+	kept := filepath.Join(root, "notes", "kept.md")
+	changed := filepath.Join(root, "notes", "changed.md")
+	removed := filepath.Join(root, "notes", "removed.md")
+	mustWrite(t, kept, "# Kept\nbody")
+	mustWrite(t, changed, "# Changed\nold")
+	mustWrite(t, removed, "# Removed\nbody")
+
+	stores := []Store{{ProjectID: "p1", ProjectName: "api", Root: root}}
+	first, err := Scan(stores, 256*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mustWrite(t, changed, "# Changed\nnew body that is a different length")
+	if err := os.Remove(removed); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed, err := Refresh(stores, 256*1024, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]Entry{}
+	for _, entry := range refreshed {
+		byPath[filepath.Base(entry.Path)] = entry
+	}
+	if len(byPath) != 2 {
+		t.Fatalf("Refresh() returned %d entries: %#v", len(byPath), byPath)
+	}
+	if _, gone := byPath["removed.md"]; gone {
+		t.Fatal("Refresh() kept a deleted note")
+	}
+	if !strings.Contains(byPath["changed.md"].Content, "new body") {
+		t.Fatalf("Refresh() served a stale body: %q", byPath["changed.md"].Content)
+	}
+	if byPath["changed.md"].Fingerprint == "" {
+		t.Fatal("Refresh() left the changed entry without a fingerprint")
+	}
+}
+
+// Refresh with no previous cache must behave exactly like a cold Scan.
+func TestRefreshWithoutPreviousEntriesMatchesScan(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "notes", "cache.md"), "# Cache policy\nbody")
+	stores := []Store{{ProjectID: "p1", ProjectName: "api", Root: root}}
+
+	scanned, err := Scan(stores, 256*1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err := Refresh(stores, 256*1024, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scanned) != len(refreshed) || scanned[0].Fingerprint != refreshed[0].Fingerprint {
+		t.Fatalf("Refresh() = %#v, Scan() = %#v", refreshed, scanned)
+	}
+}
+
 func TestScanClassifiesNotesByStoreLayout(t *testing.T) {
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "now.md"), "# Now")

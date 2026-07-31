@@ -9,8 +9,21 @@ import (
 // one row per weekday, oldest week on the left. data holds daily counts ending
 // today; days past today stay blank.
 func RenderHeatmap(data []DayActivity, weeks int) string {
+	return RenderHeatmapStaggered(data, weeks, weeks)
+}
+
+// RenderHeatmapStaggered draws a GitHub-style contribution grid: one column per week,
+// one row per weekday, oldest week on the left. data holds daily counts ending
+// today; days past today stay blank. visibleWeeks caps how many columns from the left
+// are drawn during a progressive reveal; the columns beyond it stay blank rather
+// than falling back to the empty-day glyph, which would read as "no activity"
+// instead of "not drawn yet".
+func RenderHeatmapStaggered(data []DayActivity, weeks int, visibleWeeks int) string {
 	if weeks <= 0 {
 		weeks = 4
+	}
+	if visibleWeeks <= 0 || visibleWeeks > weeks {
+		visibleWeeks = weeks
 	}
 
 	counts := make(map[string]int, len(data))
@@ -38,6 +51,10 @@ func RenderHeatmap(data []DayActivity, weeks int) string {
 		for week := range weeks {
 			offset := (week-(weeks-1))*7 + (row - int(today.Weekday()))
 			if offset > 0 {
+				out.WriteString("  ")
+				continue
+			}
+			if week >= visibleWeeks {
 				out.WriteString("  ")
 				continue
 			}

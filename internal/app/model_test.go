@@ -9,6 +9,7 @@ import (
 
 	"github.com/Resetnak/herdr-logbook/internal/digest"
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -42,6 +43,30 @@ func TestHubNavigationSelectsNoteAndPreview(t *testing.T) {
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyEnter})
 	if model.panel != panelPreview || !strings.Contains(model.View(), "Current") {
 		t.Fatalf("navigation panel=%d view=%s", model.panel, model.View())
+	}
+}
+
+// Glamour passes OSC sequences through untouched, so a note body carrying one
+// reaches the terminal on preview: OSC 52 rewrites the reader's system
+// clipboard. Capture rejects control characters, but a note written in an
+// external editor never went through capture, so the preview must strip them.
+func TestHubPreviewStripsTerminalControlCharacters(t *testing.T) {
+	model := NewHub([]Note{
+		{Title: "Now", Type: NoteNow, Content: "# Now\n\nbody \x1b]52;c;aGFja2Vk\a and \x1b]0;pwned\a\n"},
+	}, "api", "main", "central").WithStyle("notty")
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 30})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRight})
+
+	// lipgloss emits its own ANSI for borders and colour; what must not survive
+	// is an escape that came out of the note.
+	view := model.View()
+	for _, leaked := range []string{"\x1b]52;", "\x1b]0;", "\a"} {
+		if strings.Contains(view, leaked) {
+			t.Fatalf("preview leaked %q from the note body:\n%q", leaked, view)
+		}
+	}
+	if !strings.Contains(view, "body") {
+		t.Fatalf("preview dropped the note body:\n%s", view)
 	}
 }
 
@@ -122,11 +147,7 @@ func TestHubSearchShowsRefreshingUntilInitialIndexLoads(t *testing.T) {
 		t.Fatalf("pending search did not show refresh state:\n%s", view)
 	}
 
-	loaded, ok := model.Init()().(searchLoadedMsg)
-	if !ok {
-		t.Fatal("Init did not load search entries")
-	}
-	model, _ = updateHub(model, loaded)
+	model, _ = updateHub(model, runSearchLoadCommand(t, model.Init()))
 	if view := model.View(); !strings.Contains(view, "No matching notes") {
 		t.Fatalf("completed empty search did not show no-match state:\n%s", view)
 	}
@@ -181,6 +202,7 @@ func TestHubCaptureRefreshesSearchIndex(t *testing.T) {
 	model, _ = updateHub(model, loaded)
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("first ever")})
+	model = applySearchDebounce(model)
 
 	if searchLoads != 2 || len(model.searchResults) != 1 {
 		t.Fatalf("search refresh = loads %d, results %#v", searchLoads, model.searchResults)
@@ -283,6 +305,7 @@ func TestHubSearchShowsCrossProjectResults(t *testing.T) {
 	}, nil)
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("cache")})
+	model = applySearchDebounce(model)
 
 	view := model.View()
 	if !model.searching || !strings.Contains(view, "Cache policy") || !strings.Contains(view, "payments") {
@@ -301,6 +324,7 @@ func TestHubProjectSearchFiltersByProjectName(t *testing.T) {
 	}, nil)
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("pay")})
+	model = applySearchDebounce(model)
 	view := model.View()
 	if !strings.Contains(view, "Runbook · payments") || strings.Contains(view, "Runbook · api") {
 		t.Fatalf("project search view was not filtered:\n%s", view)
@@ -586,14 +610,14 @@ func TestHubNotesReloadedAndFlashExpiry(t *testing.T) {
 		t.Fatalf("flash is not visible in the status line:\n%s", reloaded.View())
 	}
 
-	// A stale tick must not clear a newer flash.
-	stale, _ := updateHub(reloaded, flashExpiredMsg{tick: reloaded.flashTick - 1})
-	if stale.flashMsg == "" {
-		t.Fatal("a stale flashExpiredMsg cleared the flash")
+	// A stale tick must not decay or clear a newer flash.
+	stale, _ := updateHub(reloaded, flashDecayMsg{tick: reloaded.flashTick - 1, step: 2})
+	if stale.flashMsg == "" || stale.flashStep != 0 {
+		t.Fatalf("a stale flashDecayMsg touched the flash: %q step %d", stale.flashMsg, stale.flashStep)
 	}
-	current, _ := updateHub(reloaded, flashExpiredMsg{tick: reloaded.flashTick})
+	current, _ := updateHub(reloaded, flashDecayMsg{tick: reloaded.flashTick, step: 2})
 	if current.flashMsg != "" {
-		t.Fatalf("flash survived its own tick: %q", current.flashMsg)
+		t.Fatalf("flash survived its own final tick: %q", current.flashMsg)
 	}
 
 	failed, _ := updateHub(model, NotesReloadedMsg{Err: errors.New("editor exited with error")})
@@ -688,6 +712,7 @@ func TestHubSearchEnterKeepsResultsAndCapsThemAtOneHundred(t *testing.T) {
 
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("pay")})
+	model = applySearchDebounce(model)
 	if len(model.searchResults) != 100 {
 		t.Fatalf("project search results = %d, want the 100 cap", len(model.searchResults))
 	}
@@ -784,10 +809,9 @@ func TestInitLoadsSearchEntriesOnlyWhenALoaderIsSet(t *testing.T) {
 	model := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
 		return entries, nil
 	})
-	message := model.Init()()
-	loaded, ok := message.(searchLoadedMsg)
-	if !ok || loaded.err != nil || len(loaded.entries) != 1 {
-		t.Fatalf("Init message = %#v", message)
+	loaded := runSearchLoadCommand(t, model.Init())
+	if loaded.err != nil || len(loaded.entries) != 1 {
+		t.Fatalf("Init message = %#v", loaded)
 	}
 
 	model, _ = updateHub(model, loaded)
@@ -798,7 +822,7 @@ func TestInitLoadsSearchEntriesOnlyWhenALoaderIsSet(t *testing.T) {
 	failing := NewHub(nil, "api", "main", "central").WithSearch(nil, func() ([]searchindex.Entry, error) {
 		return nil, errors.New("index unreadable")
 	})
-	failing, _ = updateHub(failing, failing.Init()())
+	failing, _ = updateHub(failing, runSearchLoadCommand(t, failing.Init()))
 	if failing.searchErr != "index unreadable" {
 		t.Fatalf("search load error = %q", failing.searchErr)
 	}
@@ -854,9 +878,71 @@ func TestClampKeepsValuesInsideTheRange(t *testing.T) {
 	}
 }
 
+// Search scans the body of every indexed note, which costs milliseconds per
+// keystroke and grows with the corpus. Running it on the event loop means the
+// cost is paid between the key and the character appearing, so it runs on a
+// debounce instead: type freely, match once the typing pauses.
+func TestHubSearchRunsOnADebounceNotOnEveryKeystroke(t *testing.T) {
+	entries := []searchindex.Entry{
+		{Path: "/notes/lock.md", Title: "Storage lock", ProjectName: "api", Content: "flock bounded"},
+	}
+	model := NewHub(nil, "api", "main", "central").WithSearch(entries, nil)
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("lock")})
+
+	if len(model.searchResults) != 0 {
+		t.Fatalf("search ran on the keystroke: %#v", model.searchResults)
+	}
+
+	model, _ = updateHub(model, searchDebounceMsg{gen: model.searchGen})
+	if len(model.searchResults) != 1 || model.searchResults[0].Path != "/notes/lock.md" {
+		t.Fatalf("the debounced search did not produce results: %#v", model.searchResults)
+	}
+}
+
+// A debounce tick left over from an earlier keystroke must not overwrite the
+// results of a newer query.
+func TestHubSearchIgnoresStaleDebounceTicks(t *testing.T) {
+	entries := []searchindex.Entry{
+		{Path: "/notes/lock.md", Title: "Storage lock", ProjectName: "api", Content: "flock"},
+	}
+	model := NewHub(nil, "api", "main", "central").WithSearch(entries, nil)
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("lock")})
+	stale := model.searchGen
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("zzz")})
+	model, _ = updateHub(model, searchDebounceMsg{gen: stale})
+	if len(model.searchResults) != 0 {
+		t.Fatalf("a stale debounce tick applied an outdated query: %#v", model.searchResults)
+	}
+}
+
+// Enter means "show me the results now" — it must not wait out the debounce.
+func TestHubSearchEnterAppliesTheQueryImmediately(t *testing.T) {
+	entries := []searchindex.Entry{
+		{Path: "/notes/lock.md", Title: "Storage lock", ProjectName: "api", Content: "flock"},
+	}
+	model := NewHub(nil, "api", "main", "central").WithSearch(entries, nil)
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("lock")})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if len(model.searchResults) != 1 {
+		t.Fatalf("Enter did not apply the query: %#v", model.searchResults)
+	}
+}
+
 func updateHub(model HubModel, message tea.Msg) (HubModel, tea.Cmd) {
 	updated, command := model.Update(message)
 	return updated.(HubModel), command
+}
+
+// applySearchDebounce delivers the tick the search box scheduled, standing in
+// for the pause in typing that fires it at runtime.
+func applySearchDebounce(model HubModel) HubModel {
+	model, _ = updateHub(model, searchDebounceMsg{gen: model.searchGen})
+	return model
 }
 
 func completeInitialSearch(t *testing.T, model HubModel) HubModel {
@@ -895,34 +981,52 @@ func runReloadCommand(t *testing.T, command tea.Cmd) NotesReloadedMsg {
 
 func runSearchLoadCommand(t *testing.T, command tea.Cmd) searchLoadedMsg {
 	t.Helper()
+	return runFor[searchLoadedMsg](t, command)
+}
+
+// runFor runs a command tree and returns the first message of type T it
+// produces. Bubble Tea batches commands and batches nest, so the tree is walked
+// recursively; the branches run concurrently because a batch routinely holds a
+// tea.Tick that will not fire for seconds.
+func runFor[T tea.Msg](t *testing.T, command tea.Cmd) T {
+	t.Helper()
+	var zero T
 	if command == nil {
-		t.Fatal("search-index refresh was not scheduled")
+		t.Fatalf("no command was scheduled to produce %T", zero)
 	}
-	switch message := command().(type) {
-	case searchLoadedMsg:
-		return message
-	case tea.BatchMsg:
-		results := make(chan tea.Msg, len(message))
-		for _, batched := range message {
-			go func(command tea.Cmd) {
-				results <- command()
-			}(batched)
+
+	results := make(chan tea.Msg, 32)
+	var run func(tea.Cmd)
+	run = func(cmd tea.Cmd) {
+		if cmd == nil {
+			return
 		}
-		timeout := time.NewTimer(time.Second)
-		defer timeout.Stop()
-		for range len(message) {
-			select {
-			case result := <-results:
-				if loaded, ok := result.(searchLoadedMsg); ok {
-					return loaded
+		go func() {
+			switch message := cmd().(type) {
+			case tea.BatchMsg:
+				for _, child := range message {
+					run(child)
 				}
-			case <-timeout.C:
-				t.Fatal("timed out waiting for search entries")
+			default:
+				results <- message
 			}
+		}()
+	}
+	run(command)
+
+	timeout := time.NewTimer(time.Second)
+	defer timeout.Stop()
+	for {
+		select {
+		case result := <-results:
+			if found, ok := result.(T); ok {
+				return found
+			}
+		case <-timeout.C:
+			t.Fatalf("command tree never produced a %T", zero)
+			return zero
 		}
 	}
-	t.Fatal("command did not load search entries")
-	return searchLoadedMsg{}
 }
 
 // A capture appends to the existing monthly inbox, so no new note path appears in
@@ -1111,7 +1215,7 @@ func TestDigestViewShowsLoadingThenError(t *testing.T) {
 		t.Fatalf("digest view did not show a loading state:\n%s", model.View())
 	}
 
-	model, _ = updateHub(model, command())
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
 	if !strings.Contains(model.View(), "store is unreadable") {
 		t.Fatalf("digest view did not surface the error:\n%s", model.View())
 	}
@@ -1144,7 +1248,7 @@ func TestDigestViewLoadsRendersAndTogglesRange(t *testing.T) {
 	if !model.digest || command == nil {
 		t.Fatalf("s did not open the digest view (digest=%v, command=%v)", model.digest, command != nil)
 	}
-	model, _ = updateHub(model, command())
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
 
 	view := model.View()
 	for _, want := range []string{"Activity Heatmap", "Rotate the signing tokens", "Use opaque refresh tokens", "Implement token rotation", "3 day streak", "Copy Markdown"} {
@@ -1161,7 +1265,7 @@ func TestDigestViewLoadsRendersAndTogglesRange(t *testing.T) {
 	if command == nil {
 		t.Fatal("t did not reload the digest")
 	}
-	model, _ = updateHub(model, command())
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
 	view = model.View()
 	if !strings.Contains(view, "This Week") {
 		t.Fatalf("t did not switch the range:\n%s", view)
@@ -1176,5 +1280,150 @@ func TestDigestViewLoadsRendersAndTogglesRange(t *testing.T) {
 	}
 	if len(requested) != 2 || requested[0] != 1 || requested[1] != 7 {
 		t.Fatalf("digest requested days = %v, want [1 7]", requested)
+	}
+}
+
+func TestFlashMessageColorDecay(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	command := model.flash("✓ Saved to inbox")
+	if command == nil || model.flashStep != 0 {
+		t.Fatalf("flash = step %d, cmd %v", model.flashStep, command)
+	}
+
+	seen := []lipgloss.Color{flashColorFor(model.flashStep)}
+	for step := range 2 {
+		var cmd tea.Cmd
+		model, cmd = updateHub(model, flashDecayMsg{tick: model.flashTick, step: step})
+		if model.flashMsg == "" || model.flashStep != step+1 || cmd == nil {
+			t.Fatalf("decay step %d = msg %q, step %d, cmd %v", step, model.flashMsg, model.flashStep, cmd)
+		}
+		seen = append(seen, flashColorFor(model.flashStep))
+	}
+
+	// Each step must render in its own colour, otherwise the decay is invisible.
+	if seen[0] == seen[1] || seen[1] == seen[2] || seen[0] == seen[2] {
+		t.Fatalf("decay steps reuse colours: %v", seen)
+	}
+
+	model, _ = updateHub(model, flashDecayMsg{tick: model.flashTick, step: 2})
+	if model.flashMsg != "" || model.flashStep != 0 {
+		t.Fatalf("flash outlived its last step: %q step %d", model.flashMsg, model.flashStep)
+	}
+}
+
+func TestFlashResetsDecayStepOfThePreviousMessage(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	model.flash("✓ Saved to inbox")
+	model, _ = updateHub(model, flashDecayMsg{tick: model.flashTick, step: 0})
+	if model.flashStep != 1 {
+		t.Fatalf("setup: expected a faded flash, got step %d", model.flashStep)
+	}
+
+	model.flash("✓ Standup copied to clipboard")
+	if model.flashStep != 0 {
+		t.Fatalf("a new flash inherited the old decay step %d", model.flashStep)
+	}
+}
+
+func TestHeatmapStaggerRevealsEveryColumnThenStops(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	model.digest = true
+	model.digestStagger = 1
+
+	for step := 1; step < heatmapWeeks; step++ {
+		var cmd tea.Cmd
+		model, cmd = updateHub(model, digestStaggerMsg{step: step})
+		if model.digestStagger != step+1 || cmd == nil {
+			t.Fatalf("stagger step %d = %d, cmd %v", step, model.digestStagger, cmd)
+		}
+	}
+
+	final, cmd := updateHub(model, digestStaggerMsg{step: heatmapWeeks})
+	if final.digestStagger != heatmapWeeks || cmd != nil {
+		t.Fatalf("reveal kept ticking past the last column: %d, cmd %v", final.digestStagger, cmd)
+	}
+
+	// A tick left over from a digest that was closed and reopened must not
+	// rewind the reveal of the current one.
+	stale, _ := updateHub(final, digestStaggerMsg{step: 1})
+	if stale.digestStagger != heatmapWeeks {
+		t.Fatalf("a stale stagger tick rewound the reveal to %d", stale.digestStagger)
+	}
+}
+
+func TestSpinnerAnimatesWhileBusyAndStopsWhenIdle(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central").
+		WithSearch(nil, func() ([]searchindex.Entry, error) { return nil, nil })
+
+	// Something has to emit the first tick, or the spinner is frozen on frame 0.
+	tick := findSpinnerTick(model.Init())
+	if tick == nil {
+		t.Fatal("Init never starts the spinner")
+	}
+
+	frame := model.spinner.View()
+	model, cmd := updateHub(model, tick())
+	if model.spinner.View() == frame {
+		t.Fatalf("spinner did not advance a frame while busy: still %q", frame)
+	}
+	if cmd == nil {
+		t.Fatal("spinner stopped ticking while search was still refreshing")
+	}
+
+	// Once nothing is loading the loop must end instead of waking the Hub forever.
+	model.searchRefreshing = false
+	idle, cmd := updateHub(model, tick())
+	if cmd != nil {
+		t.Fatalf("spinner kept ticking after loading finished: %v", cmd)
+	}
+	if strings.Contains(idle.View(), "indexing") {
+		t.Fatalf("idle status bar still advertises indexing:\n%s", idle.View())
+	}
+}
+
+func TestSpinnerRendersInStatusBarAndDigest(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	model.searchRefreshing = true
+	view := model.View()
+	if !strings.Contains(view, model.spinner.View()+" indexing") {
+		t.Fatalf("expected the spinner beside the indexing hint:\n%s", view)
+	}
+
+	model.searchRefreshing = false
+	model.digest = true
+	model.digestLoading = true
+	digestView := model.View()
+	if !strings.Contains(digestView, model.spinner.View()+" Loading…") {
+		t.Fatalf("expected the spinner beside the digest loading hint:\n%s", digestView)
+	}
+}
+
+// findSpinnerTick unwraps the command tree Init returns and hands back the
+// spinner's own tick command, or nil when nothing starts the spinner.
+func findSpinnerTick(command tea.Cmd) tea.Cmd {
+	if command == nil {
+		return nil
+	}
+	switch msg := command().(type) {
+	case tea.BatchMsg:
+		for _, child := range msg {
+			if found := findSpinnerTick(child); found != nil {
+				return found
+			}
+		}
+	case spinner.TickMsg:
+		return command
+	}
+	return nil
+}
+
+func TestSpinnerFollowsTheConfiguredTheme(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central").WithUIConfig(0, false, "dracula")
+	model.searchRefreshing = true
+	if !strings.Contains(model.View(), model.spinner.View()) {
+		t.Fatalf("spinner is missing from the status bar:\n%s", model.View())
+	}
+	if model.spinner.Style.GetForeground() != getThemePalette("dracula").headerFg {
+		t.Errorf("spinner keeps the default colour under a custom theme: %v", model.spinner.Style.GetForeground())
 	}
 }

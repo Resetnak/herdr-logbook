@@ -92,3 +92,34 @@ func TestRenderHeatmap_LegendCoversEveryLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderHeatmapStaggeredRevealsOneColumnAtATime(t *testing.T) {
+	today := time.Now()
+	var data []DayActivity
+	for day := 27; day >= 0; day-- {
+		data = append(data, DayActivity{Date: today.AddDate(0, 0, -day).Format("2006-01-02"), Count: 10})
+	}
+
+	previous := 0
+	for visible := 1; visible <= 4; visible++ {
+		blocks := strings.Count(RenderHeatmapStaggered(data, 4, visible), "█")
+		if blocks <= previous {
+			t.Fatalf("revealing %d weeks drew %d blocks, no more than the %d before it", visible, blocks, previous)
+		}
+		previous = blocks
+	}
+
+	// An undrawn column must be blank. The empty-day glyph would make a column
+	// that has not been revealed yet look like a real run of zero-activity days.
+	full := RenderHeatmapStaggered(data, 4, 4)
+	if partial := RenderHeatmapStaggered(data, 4, 1); strings.Count(partial, "·") != strings.Count(full, "·") {
+		t.Errorf("undrawn columns use the empty-day glyph:\n%s", partial)
+	}
+}
+
+func TestRenderHeatmapIsTheFullyRevealedGrid(t *testing.T) {
+	data := []DayActivity{{Date: time.Now().Format("2006-01-02"), Count: 4}}
+	if RenderHeatmap(data, 4) != RenderHeatmapStaggered(data, 4, 4) {
+		t.Error("RenderHeatmap no longer matches a fully revealed grid")
+	}
+}

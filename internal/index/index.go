@@ -53,9 +53,25 @@ type Result struct {
 	Snippet string
 }
 
+// Scan reads every note in every store from disk.
 func Scan(stores []Store, maxFileBytes int64) ([]Entry, error) {
+	return Refresh(stores, maxFileBytes, nil)
+}
+
+// Refresh rebuilds the index, carrying over any entry from previous whose file
+// still has the same size and modification time. Saving a single note otherwise
+// costs a full re-read of every note in every registered project.
+//
+// ponytail: size plus mtime, not a content hash — hashing would mean reading the
+// file, which is the cost being avoided. A write that preserves both is missed;
+// `index rebuild` exists for that, and Scan still forces a cold read.
+func Refresh(stores []Store, maxFileBytes int64, previous []Entry) ([]Entry, error) {
 	if maxFileBytes <= 0 {
 		return nil, fmt.Errorf("index byte limit must be positive")
+	}
+	known := make(map[string]Entry, len(previous))
+	for _, entry := range previous {
+		known[entry.Path] = entry
 	}
 	var entries []Entry
 	for _, store := range stores {
@@ -78,6 +94,13 @@ func Scan(stores []Store, maxFileBytes int64) ([]Entry, error) {
 			info, err := dirEntry.Info()
 			if err != nil {
 				return err
+			}
+			// The project a store belongs to can be renamed in the registry, so
+			// the carried-over entry has to pick up the current store identity.
+			if cached, ok := known[path]; ok && cached.Size == info.Size() && cached.Modified.Equal(info.ModTime()) {
+				cached.ProjectID, cached.ProjectName = store.ProjectID, store.ProjectName
+				entries = append(entries, cached)
+				return nil
 			}
 			file, err := os.Open(path)
 			if err != nil {
@@ -179,7 +202,9 @@ func LoadCache(path string) (Cache, error) {
 func SaveCache(path string, cache Cache) error {
 	cache.Version = CacheVersion
 	cache.UpdatedAt = time.Now().UTC()
-	data, err := json.MarshalIndent(cache, "", "  ")
+	// Not MarshalIndent: the cache is machine-read, disposable, and holds every
+	// note's body, so the indentation is megabytes nobody reads.
+	data, err := json.Marshal(cache)
 	if err != nil {
 		return fmt.Errorf("encode index cache: %w", err)
 	}
