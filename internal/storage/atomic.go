@@ -1,18 +1,40 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 )
 
+// ReadForRewrite reads a file that is about to be rewritten in place, refusing
+// to follow a symlink. A read-modify-write through one would copy the target's
+// contents into a note and then replace the link with the result; index.Scan and
+// app.LoadNotes already skip symlinks when reading, and the write paths agree.
+// A missing file is not an error — the caller decides what an absent file means.
+func ReadForRewrite(path string) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("inspect %q: %w", path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%q is not a regular file", path)
+	}
+	return os.ReadFile(path)
+}
+
 func AtomicWrite(path string, data []byte, perm fs.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create destination directory %q: %w", dir, err)
 	}
-	if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+	// Lstat, not Stat: permissions are inherited from the file being replaced,
+	// and a symlink must not donate its target's mode.
+	if info, err := os.Lstat(path); err == nil && info.Mode().IsRegular() {
 		perm = info.Mode().Perm()
 	}
 
