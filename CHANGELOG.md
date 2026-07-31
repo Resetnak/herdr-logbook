@@ -4,6 +4,33 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- **Security:** a cloned repository can no longer choose where your notes are
+  stored. `storage` in a repository's `.herdr-logbook.toml` is ignored, so a
+  crafted repository cannot redirect captures into its own worktree and have
+  them pushed to its remote. Repo-local storage stays an explicit opt-in through
+  your own config or `--storage`, which are unchanged. A stale `storage` key in
+  an existing checkout is ignored rather than rejected.
+- **Security:** notes can no longer carry terminal escape sequences to your
+  screen. Captures and `now` tasks reject terminal control characters, and note
+  titles and previews strip them, so a note body holding OSC 52 can no longer
+  rewrite your system clipboard when the Hub paints it. Newlines and tabs are
+  unaffected, and CRLF input is normalised rather than refused.
+- **Security:** `now.md` and the monthly inbox are no longer read or replaced
+  through a symlink, matching the indexer and note loader, which already
+  refused them. A repository-supplied `display_name` is stripped of control
+  characters and bounded to 120 characters.
+- Made saving a note stop re-reading every note in every registered project: the
+  rescan now carries over entries whose size and modification time are unchanged
+  (125 ms → 5.5 ms and 115 MB → 2.3 MB of allocations over a 1,260-note,
+  20-project store). `index rebuild` still forces a full cold read.
+- Removed the blocking index-cache read from Hub startup; the same rebuild was
+  already scheduled as a command, and the status bar shows `indexing` until it
+  lands. The cache is also no longer written with indentation.
+- Made search run on a 90 ms debounce instead of on every keystroke, so typing a
+  query no longer pays a full scan of every indexed note body per character.
+  `Enter` still applies the query immediately.
+- Documented the trust boundaries and the detail `doctor --json` prints in
+  [SECURITY.md](SECURITY.md).
 - Added an activity digest: `s` in the Hub shows a four-week activity heatmap,
   a day streak and a standup summary for today or the past week, with `y`
   copying the standup Markdown to the clipboard. The same report is available
