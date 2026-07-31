@@ -1152,14 +1152,22 @@ func TestDigestViewLoadsRendersAndTogglesRange(t *testing.T) {
 			t.Fatalf("digest view missing %q:\n%s", want, view)
 		}
 	}
+	// The hint names where t goes, not where we already are.
+	if !strings.Contains(view, "[t] This week") {
+		t.Fatalf("today's digest should offer the week in its hint:\n%s", view)
+	}
 
 	model, command = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
 	if command == nil {
 		t.Fatal("t did not reload the digest")
 	}
 	model, _ = updateHub(model, command())
-	if !strings.Contains(model.View(), "This Week") {
-		t.Fatalf("t did not switch the range:\n%s", model.View())
+	view = model.View()
+	if !strings.Contains(view, "This Week") {
+		t.Fatalf("t did not switch the range:\n%s", view)
+	}
+	if !strings.Contains(view, "[t] Today") {
+		t.Fatalf("the week's digest should offer today in its hint:\n%s", view)
 	}
 
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyEsc})

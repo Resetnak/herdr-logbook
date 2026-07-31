@@ -1041,9 +1041,11 @@ func (m HubModel) digestView() string {
 		body.WriteString(m.digestViewport.View())
 	}
 
-	rangeLabel := "Today"
+	// The hint names the range t switches to, like the other two hints beside it
+	// name what their key does. The range in effect is already in the header.
+	rangeLabel := "This week"
 	if m.digestDays == 7 {
-		rangeLabel = "This week"
+		rangeLabel = "Today"
 	}
 	keyHint := lipgloss.NewStyle().Faint(true).Render(
 		"[y] Copy Markdown · [t] " + rangeLabel + " · [Esc] Back to Hub",
