@@ -74,6 +74,7 @@ The notes around a coding task should outlive the tool that captured them. **Her
 - **🎯 Active Task & Free Work Journal**: `t` (or `herdr-logbook now "…"`) sets the current task in `now.md`. Every switch files the task you just left into the monthly inbox, so your journal writes itself.
 - **⚖️ Architectural Decisions (ADR)**: Built-in templates for logging technical choices and consequences (`d`).
 - **🔍 Instant Fuzzy Search**: Real-time cross-project search (`/`) or project-filtered search (`p`).
+- **📊 Activity Digest & Standup**: One-keystroke (`s`) activity heatmap and standup report generator — copy to clipboard with `y`.
 - **📝 Bring Your Own Editor**: Delegates full editing to your preferred `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
 - **🔒 100% Offline & Private**: Zero telemetry, no cloud sync, no background Git operations, no AI lock-in.
 
@@ -113,6 +114,7 @@ Everything is plain Markdown, so you can migrate to — or combine with — any 
 | `n` | Create new project note |
 | `d` | Record architectural decision (ADR) |
 | `e` | Edit selected note in `$EDITOR` (`vi` / `nvim`) |
+| `s` | Open activity digest & standup view |
 | `r` | Refresh note index |
 | `?` | Toggle interactive Onboarding & Help screen |
 | `q` | Quit Logbook |
@@ -125,6 +127,14 @@ Everything is plain Markdown, so you can migrate to — or combine with — any 
 | `Esc` | Cancel capture |
 
 > 💡 **Markdown Hint**: Notes support standard Markdown syntax (`# Heading`, `**bold**`, `- list`, `` `code` ``, `#tag`).
+
+### 📊 Digest View
+| Shortcut | Action |
+| :--- | :--- |
+| `y` | **Copy standup Markdown** to system clipboard |
+| `t` | Toggle time range (today / this week) |
+| `j` / `k` or `↑` / `↓` | Scroll digest content |
+| `Esc` | Return to Hub |
 
 ---
 
@@ -296,6 +306,20 @@ herdr-logbook now --project-root ~/src/api "Fix the flaky login test"
 Switching tasks appends the one you just left to this month's inbox file as `Task done: …`, timestamped and tagged with the branch. Nothing else in `now.md` is touched — your `## Next steps`, `## Blockers`, and `## Context` sections stay exactly as you wrote them.
 
 > Flags must come before the task text (`now --project-root PATH "task"`), and the task itself cannot contain Markdown headings — they would cut the section short.
+
+---
+
+## 📊 Activity Digest (`digest`)
+
+Generate a standup report from your logged activity — tasks, captures, and decisions:
+
+```bash
+herdr-logbook digest                     # today's standup (Markdown)
+herdr-logbook digest --days 7            # this week
+herdr-logbook digest --json              # structured JSON for scripting
+```
+
+Inside the TUI, press `s` to see the visual digest with a GitHub-style activity heatmap, then `y` to copy the standup Markdown to your clipboard.
 
 ---
 

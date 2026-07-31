@@ -74,6 +74,7 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 - **🎯 Aktuální úkol a deník práce zdarma**: `t` (nebo `herdr-logbook now "…"`) nastaví aktuální úkol v `now.md`. Při každém přepnutí se předchozí úkol založí do měsíčního inboxu — deník se píše sám.
 - **⚖️ Architektonická rozhodnutí (ADR)**: Vestavěná šablona pro záznam technických rozhodnutí a důsledků (`d`).
 - **🔍 Okamžité vyhledávání**: Bleskové fuzzy vyhledávání napříč všemi projekty (`/`) nebo filtrování podle projektu (`p`).
+- **📊 Přehled aktivity a standup**: Jedna klávesa (`s`) zobrazí mapu aktivity a vygeneruje standup report — `y` ho zkopíruje do schránky.
 - **📝 Vlastní editor**: Úpravy souborů deleguje na váš oblíbený `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
 - **🔒 100% Offline & Soukromí**: Žádná telemetrie, žádný cloud, žádné automatické Git operace ani závislost na AI.
 
@@ -113,9 +114,18 @@ Vše je čistý Markdown, takže na kterýkoli z těchto nástrojů můžete kdy
 | `n` | Vytvořit novou projektovou poznámku |
 | `d` | Zaznamenat architektonické rozhodnutí (ADR) |
 | `e` | Otevřít vybranou poznámku v `$EDITOR` (`vi` / `nvim`) |
+| `s` | Otevřít přehled aktivity a standup |
 | `r` | Obnovit index poznámek |
 | `?` | Zobrazit interaktivní nápovědu a Onboarding |
 | `q` | Zavřít Logbook |
+
+### 📊 Přehled aktivity
+| Klávesa | Akce |
+| :--- | :--- |
+| `y` | **Zkopírovat standup v Markdownu** do systémové schránky |
+| `t` | Přepnout časový rozsah (dnes / tento týden) |
+| `j` / `k` nebo `↑` / `↓` | Posun obsahem přehledu |
+| `Esc` | Zpět do Hubu |
 
 ### 📝 Modální okno pro psaní
 | Klávesa | Akce |
@@ -296,6 +306,20 @@ herdr-logbook now --project-root ~/src/api "Oprava padajícího login testu"
 Přepnutí úkolu připojí ten předchozí do měsíčního souboru v inboxu jako `Task done: …` s časovým razítkem a větví. Zbytek `now.md` zůstane nedotčený — sekce `## Next steps`, `## Blockers` a `## Context` se nepřepisují.
 
 > Přepínače musí být před textem úkolu (`now --project-root CESTA "úkol"`) a samotný text nesmí obsahovat Markdown nadpisy — ty by sekci předčasně ukončily.
+
+---
+
+## 📊 Přehled aktivity (`digest`)
+
+Vygeneruje standup report z toho, co máte zaznamenané — úkoly, rychlá zachycení a rozhodnutí:
+
+```bash
+herdr-logbook digest                     # dnešní standup (Markdown)
+herdr-logbook digest --days 7            # tento týden
+herdr-logbook digest --json              # strukturovaný JSON pro skriptování
+```
+
+V TUI stiskněte `s` pro vizuální přehled s mapou aktivity ve stylu GitHubu, pak `y` pro zkopírování standupu do schránky.
 
 ---
 

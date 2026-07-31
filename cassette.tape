@@ -1,7 +1,7 @@
 # cassette.tape — VHS script that renders the README demo (assets/demo.gif).
 # Regenerate from the repo root:  vhs cassette.tape
-# Needs: vhs, herdr (>= 0.7), claude, bash, and the plugin binary at
-#   go build -ldflags "-X main.version=<version>" -o bin/herdr-logbook ./cmd/herdr-logbook
+# Needs: vhs, herdr (>= 0.7), claude, bash, and go — the setup below rebuilds
+# bin/herdr-logbook itself, so the recording always shows the working tree.
 # The whole demo runs in a throwaway Herdr instance under /tmp/hl-demo-home
 # (isolated HOME: own config, plugin registry, store, and socket). Your real
 # Herdr server, config, and logbook data are never touched; the demo session
@@ -13,6 +13,7 @@ Output assets/demo.gif
 Require herdr
 Require claude
 Require bash
+Require go
 
 Set Shell "bash"
 Set FontSize 15
@@ -26,6 +27,11 @@ Set TypingSpeed 45ms
 Hide
 Type `export REPO=$PWD REAL_HOME=$HOME`
 Enter
+# Rebuild first: recording against a stale bin/ silently ships an old UI. The
+# sleep covers the build; with a cold Go cache, build once by hand beforehand.
+Type `go build -ldflags "-X main.version=$(sed -n 's/^version = "\(.*\)"/\1/p' herdr-plugin.toml)" -o bin/herdr-logbook ./cmd/herdr-logbook || { echo BUILD FAILED; sleep 5; }`
+Enter
+Sleep 20s
 Type "unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID HERDR_WORKSPACE_ID HERDR_SOCKET_PATH HERDR_BIN_PATH"
 Enter
 Type `unset $(env | sed -n 's/^\(CLAUDE[A-Z_0-9]*\)=.*/\1/p') 2>/dev/null; true`
@@ -46,7 +52,12 @@ Type `export PATH=$REPO/bin:$PATH HERDR_PLUGIN_STATE_DIR=/tmp/hl-demo-home/.loca
 Enter
 Type "herdr-logbook init >/dev/null && herdr-logbook capture -text 'Rotate JWT signing keys before the v2 launch' >/dev/null && herdr-logbook capture -text 'Postgres pool exhausted under load - raise max_connections' >/dev/null && herdr-logbook decision -title 'Use opaque refresh tokens instead of long-lived JWTs' -no-edit >/dev/null"
 Enter
-Type `S=$(ls -d /tmp/hl-demo-home/.local/state/herdr/plugins/herdr-logbook/store/projects/p_*) && printf '# Now\n\n## Current task\nImplement token rotation for the API gateway.\n\n## Next steps\n- [ ] Add replay detection.\n- [ ] Rotate signing keys before v2 launch.\n' > $S/now.md && herdr-logbook index rebuild >/dev/null && unset HERDR_PLUGIN_STATE_DIR`
+Type `S=$(ls -d /tmp/hl-demo-home/.local/state/herdr/plugins/herdr-logbook/store/projects/p_*) && printf '# Now\n\n## Current task\nImplement token rotation for the API gateway.\n\n## Next steps\n- [ ] Add replay detection.\n- [ ] Rotate signing keys before v2 launch.\n' > $S/now.md`
+Enter
+# Backfill earlier days so the activity heatmap and the streak have history to show.
+Type `ago() { date -v-$1d "+%Y-%m-%d" 2>/dev/null || date -d "$1 days ago" "+%Y-%m-%d"; }; msgs=("Drafted the zero-downtime rotation runbook." "Added replay detection to the auth middleware." "Benchmarked the token cache under load." "Paired on the v2 migration plan." "Triaged a flaky gateway integration test." "Reviewed the token rotation plan."); n=0; for i in 1 2 3 6 7 9 10 13 16 17 20 23; do printf '## %s 09:%02d\n\n%s\n\n' "$(ago $i)" "$i" "${msgs[$((n % 6))]}" >> $S/inbox/$(date "+%Y-%m").md; n=$((n+1)); done`
+Enter
+Type `herdr-logbook index rebuild >/dev/null && unset HERDR_PLUGIN_STATE_DIR`
 Enter
 Type "clear"
 Enter
@@ -94,6 +105,14 @@ Type "Ship the token rotation PR"
 Sleep 1200ms
 Ctrl+S
 Sleep 2800ms
+
+# --- s: activity heatmap + standup; t widens it to the week, y copies the Markdown ---
+Type "s"
+Sleep 3200ms
+Type "t"
+Sleep 3000ms
+Type "y"
+Sleep 2600ms
 
 # --- Hidden teardown: detach and remove the throwaway session ---
 Hide

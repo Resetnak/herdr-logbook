@@ -12,6 +12,7 @@ This repository contains Herdr Logbook (`herdr-logbook`), a local, offline, Mark
 - `internal/app/`: Bubble Tea Hub, capture modal, search, authoring, and editor flow.
 - `internal/project/`, `internal/storage/`, `internal/capture/`: project identity, safe paths, locks, and atomic Markdown writes.
 - `internal/index/`: disposable JSON search cache; Markdown remains canonical.
+- `internal/digest/`: read-only activity roll-up over the stored Markdown (standup report and heatmap).
 - `internal/config/`, `internal/author/`, `internal/editor/`, `internal/markdown/`: validated configuration, note creation, safe argv editor resolution, and metadata parsing.
 - `scripts/` and `herdr-plugin.toml`: platform launchers and checksum-verifying installers.
 - `.github/workflows/`: CI and release packaging.

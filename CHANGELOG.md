@@ -4,6 +4,10 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- Added an activity digest: `s` in the Hub shows a four-week activity heatmap,
+  a day streak and a standup summary for today or the past week, with `y`
+  copying the standup Markdown to the clipboard. The same report is available
+  headless as `herdr-logbook digest [--days N] [--json]`.
 - Removed configuration keys that never affected runtime behavior; existing
   pre-release configurations now receive unknown-key warnings for those lines.
   Invalid `ui.theme` and `ui.preview_style` values are rejected instead of

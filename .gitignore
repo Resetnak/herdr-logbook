@@ -9,10 +9,12 @@ coverage.out
 # Local workspace and tool state
 /docs/RELEASE.md
 /docs/superpowers/
+/.agents/
 /.claude/
 /.code-review-graph/
 /.serena/
 /.tokensave/
+/skills-lock.json
 go.work
 go.work.sum
 

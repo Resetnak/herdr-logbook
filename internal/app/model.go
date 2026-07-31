@@ -5,7 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Resetnak/herdr-logbook/internal/digest"
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -35,6 +37,7 @@ type ReloadFunc func() ([]Note, error)
 type SearchLoadFunc func() ([]searchindex.Entry, error)
 type AuthorFunc func(kind, title string) (string, []Note, error)
 type EditFunc func(note Note) tea.Cmd
+type DigestFunc func(days int) (digest.DigestReport, error)
 
 type searchLoadedMsg struct {
 	entries []searchindex.Entry
@@ -56,6 +59,11 @@ type captureSavedMsg struct {
 }
 
 type flashExpiredMsg struct{ tick int }
+
+type digestLoadedMsg struct {
+	report digest.DigestReport
+	err    error
+}
 
 type HubModel struct {
 	notes            []Note
@@ -101,6 +109,13 @@ type HubModel struct {
 	scopeWidth       int
 	showBranch       bool
 	uiTheme          string
+	digest           bool
+	digestDays       int
+	digestReport     digest.DigestReport
+	digestErr        string
+	digestLoading    bool
+	digestFn         DigestFunc
+	digestViewport   viewport.Model
 }
 
 // previewCacheKey holds everything the rendered Markdown depends on. Content is
@@ -124,19 +139,21 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 	searchBox.Placeholder = "Search all projects"
 
 	model := HubModel{
-		notes:       notes,
-		projectName: projectName,
-		branch:      branch,
-		storageMode: storageMode,
-		scopeWidth:  24,
-		showBranch:  true,
-		uiTheme:     "auto",
-		width:       80,
-		height:      24,
-		panel:       panelScopes,
-		preview:     viewport.New(40, 18),
-		captureBox:  captureBox,
-		searchBox:   searchBox,
+		notes:          notes,
+		projectName:    projectName,
+		branch:         branch,
+		storageMode:    storageMode,
+		scopeWidth:     24,
+		showBranch:     true,
+		uiTheme:        "auto",
+		width:          80,
+		height:         24,
+		panel:          panelScopes,
+		preview:        viewport.New(40, 18),
+		captureBox:     captureBox,
+		searchBox:      searchBox,
+		digestDays:     1,
+		digestViewport: viewport.New(40, 18),
 		scopes: []scopeItem{
 			{name: "Now", types: map[NoteType]bool{NoteNow: true}, emptyMessage: "Current context is unavailable. Reopen Logbook to restore now.md."},
 			{name: "Project Inbox", types: map[NoteType]bool{NoteProjectInbox: true}, emptyMessage: "No project inbox captures yet. Press c to capture something."},
@@ -204,6 +221,11 @@ func (m HubModel) WithAuthoring(authorFn AuthorFunc, editFn EditFunc) HubModel {
 	return m
 }
 
+func (m HubModel) WithDigest(digestFn DigestFunc) HubModel {
+	m.digestFn = digestFn
+	return m
+}
+
 func (m HubModel) BeginCapture(global, quitAfterCapture bool) (HubModel, tea.Cmd) {
 	m.quitAfterCapture = quitAfterCapture
 	return m.openCapture(global)
@@ -268,8 +290,22 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if loaded, ok := message.(digestLoadedMsg); ok {
+		m.digestLoading = false
+		if loaded.err != nil {
+			m.digestErr = loaded.err.Error()
+		} else {
+			m.digestReport = loaded.report
+			m.digestErr = ""
+			m.refreshDigestViewport()
+		}
+		return m, nil
+	}
 	if m.capturing {
 		return m.updateCapture(message)
+	}
+	if m.digest {
+		return m.updateDigest(message)
 	}
 	if m.searching {
 		return m.updateSearch(message)
@@ -322,6 +358,16 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			if m.reloadFn != nil {
 				command = m.reloadCmd()
+			}
+		case "s":
+			if m.digestFn != nil {
+				m.digest = true
+				m.digestLoading = true
+				digestFn, days := m.digestFn, m.digestDays
+				return m, func() tea.Msg {
+					report, err := digestFn(days)
+					return digestLoadedMsg{report: report, err: err}
+				}
 			}
 		case "tab":
 			m.panel = (m.panel + 1) % 3
@@ -427,6 +473,9 @@ func (m HubModel) View() string {
 	if m.capturing {
 		return m.captureView()
 	}
+	if m.digest {
+		return m.digestView()
+	}
 	if m.help {
 		helpText := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("39")).Render("📓 Herdr Logbook — Quick Start & Help") + "\n\n" +
 			lipgloss.NewStyle().Bold(true).Render("Navigation:") + "\n" +
@@ -442,6 +491,7 @@ func (m HubModel) View() string {
 			"  t                          Set current task (previous one is archived)\n" +
 			"  e                          Edit note in external editor ($EDITOR / vi)\n" +
 			"  r                          Reload / refresh notes\n" +
+			"  s                          Standup digest & activity heatmap\n" +
 			"  ? / q                      Toggle help / quit\n\n" +
 			lipgloss.NewStyle().Bold(true).Render("Capture Modal Shortcuts:") + "\n" +
 			"  Ctrl+S                     Save note\n" +
@@ -925,4 +975,169 @@ func clamp(value, low, high int) int {
 		return high
 	}
 	return value
+}
+
+func (m HubModel) updateDigest(message tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := message.(type) {
+	case tea.WindowSizeMsg:
+		m.resize(msg.Width, msg.Height)
+		m.refreshDigestViewport()
+		return m, nil
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c":
+			return m, tea.Quit
+		case "esc", "q", "s":
+			m.digest = false
+			return m, nil
+		case "y":
+			if m.digestErr == "" {
+				md := digest.FormatMarkdown(m.digestReport)
+				if err := clipboard.WriteAll(md); err != nil {
+					m.digestErr = "Clipboard: " + err.Error()
+				} else {
+					m.flashMsg = "✓ Standup copied to clipboard"
+					m.flashTick++
+					m.digest = false
+					return m, flashCmd(m.flashTick)
+				}
+			}
+			return m, nil
+		case "t":
+			if m.digestDays == 1 {
+				m.digestDays = 7
+			} else {
+				m.digestDays = 1
+			}
+			if m.digestFn != nil {
+				m.digestLoading = true
+				digestFn, days := m.digestFn, m.digestDays
+				return m, func() tea.Msg {
+					report, err := digestFn(days)
+					return digestLoadedMsg{report: report, err: err}
+				}
+			}
+			return m, nil
+		}
+	}
+	var viewportCmd tea.Cmd
+	m.digestViewport, viewportCmd = m.digestViewport.Update(message)
+	return m, viewportCmd
+}
+
+func (m HubModel) digestView() string {
+	palette := getThemePalette(m.uiTheme)
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.headerFg)
+
+	var body strings.Builder
+
+	if m.digestLoading {
+		body.WriteString(titleStyle.Render("📊 Activity Digest") + "\n\n")
+		body.WriteString("Loading…\n")
+	} else if m.digestErr != "" {
+		body.WriteString(titleStyle.Render("📊 Activity Digest") + "\n\n")
+		body.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.digestErr) + "\n")
+	} else {
+		body.WriteString(m.digestViewport.View())
+	}
+
+	// The hint names the range t switches to, like the other two hints beside it
+	// name what their key does. The range in effect is already in the header.
+	rangeLabel := "This week"
+	if m.digestDays == 7 {
+		rangeLabel = "Today"
+	}
+	keyHint := lipgloss.NewStyle().Faint(true).Render(
+		"[y] Copy Markdown · [t] " + rangeLabel + " · [Esc] Back to Hub",
+	)
+
+	content := body.String() + "\n" + keyHint
+	return m.pane(content, max(30, m.width), max(3, m.height-2), true)
+}
+
+func (m *HubModel) refreshDigestViewport() {
+	palette := getThemePalette(m.uiTheme)
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.headerFg)
+	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.activeFg)
+	faintStyle := lipgloss.NewStyle().Faint(true)
+
+	var content strings.Builder
+
+	// Title
+	content.WriteString(titleStyle.Render("📊 Activity Heatmap (Last 4 Weeks)") + "\n\n")
+
+	// Heatmap
+	content.WriteString(digest.RenderHeatmap(m.digestReport.Heatmap, 4))
+	if m.digestReport.Streak > 0 {
+		content.WriteString(fmt.Sprintf("   🔥 %d day streak", m.digestReport.Streak))
+	}
+	content.WriteString("\n\n")
+
+	// Standup summary
+	rangeLabel := "Today"
+	if m.digestDays == 7 {
+		rangeLabel = "This Week"
+	}
+	content.WriteString(titleStyle.Render("📝 Standup Summary — "+rangeLabel) + "\n\n")
+
+	var tasks, captures, decisions []digest.ActivityItem
+	for _, item := range m.digestReport.Items {
+		switch item.Kind {
+		case "task":
+			tasks = append(tasks, item)
+		case "capture":
+			captures = append(captures, item)
+		case "decision":
+			decisions = append(decisions, item)
+		}
+	}
+
+	if len(tasks) > 0 || len(captures) > 0 {
+		content.WriteString(sectionStyle.Render("✅ Completed") + "\n")
+		for _, item := range tasks {
+			content.WriteString(fmt.Sprintf("  ✓ %s", item.Summary))
+			if item.Project != "" {
+				content.WriteString(faintStyle.Render(" (" + item.Project + ")"))
+			}
+			content.WriteString("\n")
+		}
+		for _, item := range captures {
+			content.WriteString(fmt.Sprintf("  • %s", item.Summary))
+			if item.Project != "" {
+				content.WriteString(faintStyle.Render(" (" + item.Project + ")"))
+			}
+			content.WriteString("\n")
+		}
+		content.WriteString("\n")
+	}
+
+	if len(decisions) > 0 {
+		content.WriteString(sectionStyle.Render("🏗️ Decisions") + "\n")
+		for _, item := range decisions {
+			content.WriteString(fmt.Sprintf("  ⚖ %s", item.Summary))
+			if item.Project != "" {
+				content.WriteString(faintStyle.Render(" (" + item.Project + ")"))
+			}
+			content.WriteString("\n")
+		}
+		content.WriteString("\n")
+	}
+
+	if m.digestReport.CurrentTask != "" {
+		content.WriteString(sectionStyle.Render("⚡ Currently Working On") + "\n")
+		for _, line := range strings.Split(m.digestReport.CurrentTask, "\n") {
+			if strings.TrimSpace(line) != "" {
+				content.WriteString("  " + line + "\n")
+			}
+		}
+		content.WriteString("\n")
+	}
+
+	if len(tasks) == 0 && len(captures) == 0 && len(decisions) == 0 && m.digestReport.CurrentTask == "" {
+		content.WriteString(faintStyle.Render("No activity recorded in this period.") + "\n")
+	}
+
+	m.digestViewport.Width = max(20, m.width-4)
+	m.digestViewport.Height = max(3, m.height-8)
+	m.digestViewport.SetContent(content.String())
 }

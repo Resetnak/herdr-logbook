@@ -19,6 +19,7 @@ import (
 	"github.com/Resetnak/herdr-logbook/internal/author"
 	"github.com/Resetnak/herdr-logbook/internal/capture"
 	"github.com/Resetnak/herdr-logbook/internal/config"
+	"github.com/Resetnak/herdr-logbook/internal/digest"
 	"github.com/Resetnak/herdr-logbook/internal/editor"
 	"github.com/Resetnak/herdr-logbook/internal/herdr"
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
@@ -134,6 +135,8 @@ func run(args []string, getenv func(string) string, stdin io.Reader, stdout, std
 		return runDecision(args[1:], getenv, stdin, stdout, stderr)
 	case "now":
 		return runNow(args[1:], getenv, stdout, stderr)
+	case "digest":
+		return runDigest(args[1:], getenv, stdout, stderr)
 	case "tui":
 		return runTUI(args[1:], getenv, stdin, stdout, stderr)
 	case "index":
@@ -166,6 +169,7 @@ Actions:
   d    create decision
   t    set the current task in now.md
   e    edit in external editor
+  s    standup digest & activity heatmap
   r    refresh
   ?    help
   q    close
@@ -173,7 +177,12 @@ Actions:
 Capture / Authoring Modal:
   Ctrl+S   save note
   Ctrl+E   save note & open external editor
-  Esc      cancel capture`)
+  Esc      cancel capture
+
+Digest View:
+  y    copy standup Markdown to clipboard
+  t    toggle today / this week
+  Esc  back to hub`)
 }
 
 func runIndex(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
@@ -425,13 +434,17 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 	if previewStyle == "" || previewStyle == "auto" {
 		previewStyle = detectGlamourStyle(stdout)
 	}
+	digestReport := func(days int) (digest.DigestReport, error) {
+		return digest.Collect(state.Layout.Root, state.Project.Name, state.Project.Branch, days)
+	}
 	model := app.NewHub(notes, state.Project.Name, state.Project.Branch, state.Layout.Mode).
 		WithView(effectiveView).
 		WithUIConfig(state.Config.UI.ScopeWidth, state.Config.UI.ShowBranch, state.Config.UI.Theme).
 		WithStyle(previewStyle).
 		WithActions(captureNote, reloadNotes).
 		WithSearch(cache.Entries, refreshSearch).
-		WithAuthoring(authorNote, editNote)
+		WithAuthoring(authorNote, editNote).
+		WithDigest(digestReport)
 	program := tea.NewProgram(model, tea.WithInput(stdin), tea.WithOutput(stdout), tea.WithAltScreen(), tea.WithoutSignalHandler())
 	if _, err := program.Run(); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -792,6 +805,40 @@ func firstLine(text string) string {
 	return text
 }
 
+func runDigest(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("digest", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	projectRoot := flags.String("project-root", "", "project root")
+	cwd := flags.String("cwd", "", "fallback working directory")
+	days := flags.Int("days", 1, "number of days to include (default 1)")
+	jsonOutput := flags.Bool("json", false, "output as JSON")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+		return 2
+	}
+	if *days < 1 {
+		*days = 1
+	}
+	state, failure := loadCore(*projectRoot, *cwd, "", getenv)
+	if failure != nil {
+		fmt.Fprintln(stderr, failure.err)
+		return failure.code
+	}
+	report, err := digest.Collect(state.Layout.Root, state.Project.Name, state.Project.Branch, *days)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if *jsonOutput {
+		if err := writeJSON(stdout, report, true); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		return 0
+	}
+	fmt.Fprint(stdout, digest.FormatMarkdown(report))
+	return 0
+}
+
 func runCompatibility(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 1 || (len(args) == 1 && args[0] != "--wait") {
 		fmt.Fprintln(stderr, "usage: herdr-logbook compatibility [--wait]")
@@ -1059,5 +1106,5 @@ func waitForClose(reader io.Reader, timeout time.Duration) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, "usage: herdr-logbook tui | capture | decision | now [TASK] | init | paths | doctor [--json] | index rebuild | keybinds | compatibility [--wait] | resolve-cwd | version")
+	fmt.Fprintln(writer, "usage: herdr-logbook tui | capture | decision | now [TASK] | digest [--days N] [--json] | init | paths | doctor [--json] | index rebuild | keybinds | compatibility [--wait] | resolve-cwd | version")
 }
