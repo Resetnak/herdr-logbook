@@ -10,6 +10,9 @@ import (
 	"github.com/gofrs/flock"
 )
 
+// WithLock runs fn while holding the flock at path, giving up with an error
+// after timeout. Locks do not nest: flock is per file descriptor, so taking
+// the same path twice in one call chain deadlocks until the timeout.
 func WithLock(path string, timeout time.Duration, fn func() error) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("create lock directory: %w", err)

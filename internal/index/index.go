@@ -20,12 +20,16 @@ import (
 
 const CacheVersion = 1
 
+// Store names one directory tree of notes to index, with the project identity
+// its entries should carry.
 type Store struct {
 	ProjectID   string
 	ProjectName string
 	Root        string
 }
 
+// Entry is one indexed note. The Markdown on disk stays canonical; entries
+// only exist to make search cheap and are rebuilt whenever they look stale.
 type Entry struct {
 	Path        string    `json:"path"`
 	ProjectID   string    `json:"project_id"`
@@ -38,12 +42,15 @@ type Entry struct {
 	Content     string    `json:"content"`
 }
 
+// Cache is the disposable JSON file the index round-trips through; a version
+// mismatch or corruption simply means an empty cache and a rescan.
 type Cache struct {
 	Version   int       `json:"version"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Entries   []Entry   `json:"entries"`
 }
 
+// Result is one search hit; higher Score sorts first.
 type Result struct {
 	Entry Entry
 	Score int
@@ -125,6 +132,9 @@ func Refresh(stores []Store, maxFileBytes int64, previous []Entry) ([]Entry, err
 	return entries, nil
 }
 
+// Search ranks entries against query: exact title, then title prefix, then
+// fuzzy title/path, then tag, then body containment. Ties break by recency,
+// then path, so results are stable across runs.
 func Search(entries []Entry, query string, limit int) []Result {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" || limit <= 0 {
@@ -168,6 +178,8 @@ func Search(entries []Entry, query string, limit int) []Result {
 	return results
 }
 
+// LoadCache reads the cache at path; a missing, corrupt, or wrong-version file
+// yields an empty cache rather than an error, because a rescan self-heals it.
 func LoadCache(path string) (Cache, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -183,6 +195,8 @@ func LoadCache(path string) (Cache, error) {
 	return cache, nil
 }
 
+// SaveCache stamps the cache with the current version and time and writes it
+// atomically.
 func SaveCache(path string, cache Cache) error {
 	cache.Version = CacheVersion
 	cache.UpdatedAt = time.Now().UTC()

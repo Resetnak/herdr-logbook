@@ -11,11 +11,14 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+// Registry is the TOML file listing every project the plugin has seen; search
+// and the digest walk it to find the stores.
 type Registry struct {
 	Version  int             `toml:"version"`
 	Projects []ProjectRecord `toml:"projects"`
 }
 
+// ProjectRecord is one registry row, keyed by the project's stable ID.
 type ProjectRecord struct {
 	ID                string    `toml:"id"`
 	Name              string    `toml:"name"`
@@ -28,6 +31,8 @@ type ProjectRecord struct {
 	Roots             []string  `toml:"roots"`
 }
 
+// LoadRegistry reads the registry at path; a missing file is an empty
+// registry, not an error.
 func LoadRegistry(path string) (Registry, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -71,6 +76,8 @@ func (r *Registry) Upsert(project Project, storageMode, storePath string, now ti
 	sort.Slice(r.Projects, func(i, j int) bool { return r.Projects[i].ID < r.Projects[j].ID })
 }
 
+// UpdateRegistry upserts the project's registry row (last seen, storage mode,
+// store path, known roots) under the registry lock.
 func UpdateRegistry(path, lockPath string, timeout time.Duration, project Project, storageMode, storePath string, now time.Time) error {
 	return storage.WithLock(lockPath, timeout, func() error {
 		registry, err := LoadRegistry(path)

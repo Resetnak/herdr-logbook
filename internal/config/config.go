@@ -11,6 +11,9 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+// Config mirrors the user's config.toml (see config.example.toml). Missing
+// keys keep the Default values; unknown or invalid ones surface as warnings
+// or errors from Load.
 type Config struct {
 	Version int           `toml:"version" json:"version"`
 	Storage StorageConfig `toml:"storage" json:"storage"`
@@ -48,6 +51,7 @@ type CaptureConfig struct {
 	IncludeSourceCWD  bool  `toml:"include_source_cwd" json:"include_source_cwd"`
 }
 
+// Default is the configuration used when no config.toml exists.
 func Default() Config {
 	return Config{
 		Version: 1,
@@ -66,6 +70,8 @@ func Default() Config {
 	}
 }
 
+// Load reads the config at path on top of Default. A missing file is not an
+// error; unknown keys come back as warnings so a typo never fails silently.
 func Load(path string) (Config, []string, error) {
 	cfg := Default()
 	data, err := os.ReadFile(path)

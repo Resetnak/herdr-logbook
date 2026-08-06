@@ -29,6 +29,8 @@ Describe the task currently in progress.
 Record details that will help you resume later.
 `
 
+// Layout holds the resolved on-disk shape of one project's store: where
+// now.md, the inbox, notes, decisions, and the store lock live.
 type Layout struct {
 	Mode        string `json:"mode"`
 	Root        string `json:"root"`
@@ -40,6 +42,8 @@ type Layout struct {
 	Lock        string `json:"lock"`
 }
 
+// Resolve maps a project onto its store layout: central (under stateDir) by
+// default, or repo-local when the user opted in via config or --storage.
 func Resolve(stateDir, projectRoot, projectID string, cfg config.Config, mode string) (Layout, error) {
 	if mode == "" {
 		mode = cfg.Storage.ProjectMode
@@ -74,6 +78,8 @@ func Resolve(stateDir, projectRoot, projectID string, cfg config.Config, mode st
 	return layout, nil
 }
 
+// Initialize scaffolds the store directories and a template now.md, leaving
+// anything that already exists untouched. Call it under the store lock.
 func Initialize(layout Layout) error {
 	for _, dir := range []string{layout.Root, layout.Inbox, layout.Notes, layout.Decisions} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {

@@ -12,6 +12,8 @@ import (
 	md "github.com/Resetnak/herdr-logbook/internal/markdown"
 )
 
+// NoteType classifies a note by where it lives in the store layout; the Hub's
+// scope tabs filter on it.
 type NoteType string
 
 const (
@@ -24,6 +26,8 @@ const (
 	NoteGlobalDecision NoteType = "global-decision"
 )
 
+// Note is one Markdown file loaded for the Hub, body included (bounded by
+// maxPreviewBytes).
 type Note struct {
 	Path     string
 	Title    string
@@ -33,6 +37,8 @@ type Note struct {
 	Size     int64
 }
 
+// LoadNotes reads every note in the project and global stores, skipping
+// symlinks and replacing oversized bodies with a sentinel message.
 func LoadNotes(projectRoot, globalRoot string, maxPreviewBytes int64) ([]Note, error) {
 	if maxPreviewBytes <= 0 {
 		return nil, fmt.Errorf("preview byte limit must be positive")

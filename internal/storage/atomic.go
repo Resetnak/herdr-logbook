@@ -27,6 +27,8 @@ func ReadForRewrite(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+// AtomicWrite replaces path via a same-directory temp file, fsync, and rename,
+// so readers see either the old content or the new one, never a torn write.
 func AtomicWrite(path string, data []byte, perm fs.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
