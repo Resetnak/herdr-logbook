@@ -33,7 +33,7 @@ herdr plugin link "$(pwd)" --enabled   # does NOT build — build the binary fir
 herdr plugin action invoke open --plugin herdr-logbook
 ```
 
-Subcommands: `tui`, `capture`, `decision`, `init`, `doctor [--json]`, `paths`, `index rebuild`, `keybinds`, `version`, `compatibility`. See README for flags. Exit codes carry meaning: 2 usage, 3 context/state resolution, 4 storage lock/write, 5 Herdr context, 6 editor.
+Subcommands: `tui`, `capture`, `decision`, `now [TASK]`, `digest [--days N] [--json]`, `init`, `doctor [--json]`, `paths`, `index rebuild`, `keybinds`, `version`, `compatibility [--wait]`, `resolve-cwd`. See README for flags. Exit codes carry meaning: 2 usage, 3 context/state resolution, 4 storage lock/write, 5 Herdr context, 6 editor; explicit `--help` is 0.
 
 ## Architecture
 
