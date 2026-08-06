@@ -676,11 +676,19 @@ func runCaptureTUI(state coreState, global bool, stdin io.Reader, stdout, stderr
 }
 
 func appendCapture(state coreState, content string, global, selection bool, branch, sourceCWD string) (string, error) {
+	request, err := buildCaptureRequest(state, content, global, selection, branch, sourceCWD)
+	if err != nil {
+		return "", err
+	}
+	return capture.Append(request)
+}
+
+func buildCaptureRequest(state coreState, content string, global, selection bool, branch, sourceCWD string) (capture.Request, error) {
 	if strings.TrimSpace(content) == "" {
-		return "", fmt.Errorf("capture text is empty")
+		return capture.Request{}, fmt.Errorf("capture text is empty")
 	}
 	if int64(len(content)) > state.Config.Capture.MaxSelectionBytes {
-		return "", fmt.Errorf("capture size exceeds limit of %d bytes", state.Config.Capture.MaxSelectionBytes)
+		return capture.Request{}, fmt.Errorf("capture size exceeds limit of %d bytes", state.Config.Capture.MaxSelectionBytes)
 	}
 	if branch == "" && state.Config.Capture.IncludeBranch {
 		branch = state.Project.Branch
@@ -694,7 +702,7 @@ func appendCapture(state coreState, content string, global, selection bool, bran
 		inboxDir = filepath.Join(state.StateDir, "store", "global", "inbox")
 		lockPath = filepath.Join(state.StateDir, "locks", "global.lock")
 	}
-	return capture.Append(capture.Request{
+	return capture.Request{
 		InboxDir:    inboxDir,
 		LockPath:    lockPath,
 		MaxBytes:    state.Config.Capture.MaxSelectionBytes,
@@ -706,7 +714,7 @@ func appendCapture(state coreState, content string, global, selection bool, bran
 			SourceCWD: sourceCWD,
 			Selection: selection,
 		},
-	})
+	}, nil
 }
 
 func runNow(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
@@ -768,7 +776,7 @@ func runNow(args []string, getenv func(string) string, stdout, stderr io.Writer)
 // it displaced into the monthly inbox, so switching tasks builds a work journal
 // for free. It returns the task that was replaced.
 func setNowTask(state coreState, task string) (string, error) {
-	var previous, updated string
+	var previous string
 	err := storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
 		if err := storage.Initialize(state.Layout); err != nil {
 			return err
@@ -778,24 +786,23 @@ func setNowTask(state coreState, task string) (string, error) {
 			return readErr
 		}
 		previous = nowfile.CurrentTask(string(content))
-		var setErr error
-		updated, setErr = nowfile.SetCurrentTask(string(content), task)
-		return setErr
-	})
-	if err != nil {
-		return "", err
-	}
-	// ponytail: the archive runs before the overwrite and takes its own lock —
-	// capture.Append locks state.Layout.Lock itself and flock is per file
-	// descriptor, so nesting the two would deadlock. Archiving first means a
-	// failed overwrite duplicates a journal entry instead of losing one. Upgrade
-	// path if that ever matters: a lock-free capture.append the caller wraps.
-	if previous != "" {
-		if _, err := appendCapture(state, "Task done: "+previous, false, false, "", ""); err != nil {
-			return "", err
+		updated, setErr := nowfile.SetCurrentTask(string(content), task)
+		if setErr != nil {
+			return setErr
 		}
-	}
-	err = storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
+		// Read, archive, and overwrite form one critical section so a concurrent
+		// now.md change cannot be clobbered by a write computed from a stale
+		// read. The archive still runs before the overwrite: a failed overwrite
+		// duplicates a journal entry instead of losing one.
+		if previous != "" {
+			request, err := buildCaptureRequest(state, "Task done: "+previous, false, false, "", "")
+			if err != nil {
+				return err
+			}
+			if _, err := capture.AppendLocked(request); err != nil {
+				return err
+			}
+		}
 		return storage.AtomicWrite(state.Layout.Now, []byte(updated), 0o600)
 	})
 	if err != nil {
