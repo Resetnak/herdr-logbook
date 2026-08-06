@@ -8,7 +8,6 @@ import (
 	"github.com/Resetnak/herdr-logbook/internal/digest"
 	searchindex "github.com/Resetnak/herdr-logbook/internal/index"
 	md "github.com/Resetnak/herdr-logbook/internal/markdown"
-	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -16,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 const (
@@ -472,7 +472,7 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		case "e":
 			notes := m.visibleNotes()
 			if m.editFn != nil && len(notes) > 0 {
-				return m, m.editFn(notes[clamp(m.noteIndex, 0, len(notes)-1)])
+				return m, m.editFn(notes[max(0, min(m.noteIndex, len(notes)-1))])
 			}
 		case "r":
 			if m.reloadFn != nil {
@@ -1061,11 +1061,11 @@ func (m *HubModel) move(delta int) {
 		return
 	}
 	if m.panel == panelScopes {
-		m.scopeIndex = clamp(m.scopeIndex+delta, 0, len(m.scopes)-1)
+		m.scopeIndex = max(0, min(m.scopeIndex+delta, len(m.scopes)-1))
 		m.noteIndex = 0
 		return
 	}
-	m.noteIndex = clamp(m.noteIndex+delta, 0, len(m.visibleNotes())-1)
+	m.noteIndex = max(0, min(m.noteIndex+delta, len(m.visibleNotes())-1))
 }
 
 func (m *HubModel) moveTo(end bool) {
@@ -1095,7 +1095,7 @@ func (m *HubModel) refreshPreview() {
 		m.preview.SetContent("")
 		return
 	}
-	m.noteIndex = clamp(m.noteIndex, 0, len(notes)-1)
+	m.noteIndex = max(0, min(m.noteIndex, len(notes)-1))
 	width := max(20, m.width/2-4)
 	if m.width < 70 {
 		width = max(20, m.width-4)
@@ -1134,19 +1134,6 @@ func (m *HubModel) refreshPreview() {
 	m.preview.SetContent(m.previewCache)
 }
 
-func clamp(value, low, high int) int {
-	if high < low {
-		return low
-	}
-	if value < low {
-		return low
-	}
-	if value > high {
-		return high
-	}
-	return value
-}
-
 func (m HubModel) updateDigest(message tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := message.(type) {
 	case tea.WindowSizeMsg:
@@ -1162,13 +1149,11 @@ func (m HubModel) updateDigest(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "y":
 			if m.digestErr == "" {
-				md := digest.FormatMarkdown(m.digestReport)
-				if err := clipboard.WriteAll(md); err != nil {
-					m.digestErr = "Clipboard: " + err.Error()
-				} else {
-					m.digest = false
-					return m, m.flash("✓ Standup copied to clipboard")
-				}
+				// OSC 52 through the terminal instead of shelling out to
+				// pbcopy/xclip: works over SSH and needs no helper binary.
+				termenv.Copy(digest.FormatMarkdown(m.digestReport))
+				m.digest = false
+				return m, m.flash("✓ Standup copied to clipboard")
 			}
 			return m, nil
 		case "t":

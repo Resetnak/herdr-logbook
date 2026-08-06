@@ -864,20 +864,6 @@ func TestGoToFirstAndLastJumpsWithinTheFocusedPanel(t *testing.T) {
 	}
 }
 
-func TestClampKeepsValuesInsideTheRange(t *testing.T) {
-	cases := []struct{ value, low, high, want int }{
-		{5, 0, 3, 3},
-		{-2, 0, 3, 0},
-		{2, 0, 3, 2},
-		{7, 0, -1, 0}, // empty list: high < low collapses to low
-	}
-	for _, test := range cases {
-		if got := clamp(test.value, test.low, test.high); got != test.want {
-			t.Fatalf("clamp(%d, %d, %d) = %d, want %d", test.value, test.low, test.high, got, test.want)
-		}
-	}
-}
-
 // Search scans the body of every indexed note, which costs milliseconds per
 // keystroke and grows with the corpus. Running it on the event loop means the
 // cost is paid between the key and the character appearing, so it runs on a

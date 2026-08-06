@@ -29,7 +29,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/termenv"
 	"github.com/pelletier/go-toml/v2"
-	"golang.org/x/term"
 )
 
 var version = "dev"
@@ -210,19 +209,12 @@ func runIndex(args []string, getenv func(string) string, stdout, stderr io.Write
 		fmt.Fprintln(stderr, err)
 		return 4
 	}
-	registry, err := project.LoadRegistry(registryPath)
+	stores, cachePath, lockPath, err := indexStores(state)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		// Registry read failure is a storage problem, same as the lock below.
 		return 4
 	}
-	stores := make([]searchindex.Store, 0, len(registry.Projects)+1)
-	for _, record := range registry.Projects {
-		stores = append(stores, searchindex.Store{ProjectID: record.ID, ProjectName: record.Name, Root: record.StorePath})
-	}
-	stores = append(stores, searchindex.Store{ProjectID: "global", ProjectName: "Global", Root: filepath.Join(state.StateDir, "store", "global")})
-	cachePath := filepath.Join(state.StateDir, "cache", "index-v1.json")
-	lockPath := filepath.Join(state.StateDir, "locks", "index.lock")
 	var count int
 	err = storage.WithLock(lockPath, 5*time.Second, func() error {
 		entries, scanErr := searchindex.Refresh(stores, state.Config.Search.MaxIndexFileBytes, nil)
@@ -240,19 +232,31 @@ func runIndex(args []string, getenv func(string) string, stdout, stderr io.Write
 	return 0
 }
 
-func rebuildSearchIndex(state coreState) ([]searchindex.Entry, error) {
+// indexStores lists every registered store plus the global one, alongside the
+// index cache and lock paths shared by every index consumer.
+func indexStores(state coreState) (stores []searchindex.Store, cachePath, lockPath string, err error) {
 	registry, err := project.LoadRegistry(filepath.Join(state.StateDir, "registry", "projects.toml"))
 	if err != nil {
-		return nil, err
+		return nil, "", "", err
 	}
-	stores := make([]searchindex.Store, 0, len(registry.Projects)+1)
+	stores = make([]searchindex.Store, 0, len(registry.Projects)+1)
 	for _, record := range registry.Projects {
 		stores = append(stores, searchindex.Store{ProjectID: record.ID, ProjectName: record.Name, Root: record.StorePath})
 	}
 	stores = append(stores, searchindex.Store{ProjectID: "global", ProjectName: "Global", Root: filepath.Join(state.StateDir, "store", "global")})
-	cachePath := filepath.Join(state.StateDir, "cache", "index-v1.json")
+	return stores,
+		filepath.Join(state.StateDir, "cache", "index-v1.json"),
+		filepath.Join(state.StateDir, "locks", "index.lock"),
+		nil
+}
+
+func rebuildSearchIndex(state coreState) ([]searchindex.Entry, error) {
+	stores, cachePath, lockPath, err := indexStores(state)
+	if err != nil {
+		return nil, err
+	}
 	var entries []searchindex.Entry
-	err = storage.WithLock(filepath.Join(state.StateDir, "locks", "index.lock"), 5*time.Second, func() error {
+	err = storage.WithLock(lockPath, 5*time.Second, func() error {
 		// Reading the cache under the lock keeps this the only place the Hub
 		// touches it, and lets the rescan carry unchanged notes over instead of
 		// re-reading every note in every project for a one-file change.
@@ -469,7 +473,12 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 // TUI never blocks on it later. See HubModel.WithStyle.
 func detectGlamourStyle(stdout io.Writer) string {
 	f, ok := stdout.(*os.File)
-	if !ok || !term.IsTerminal(int(f.Fd())) {
+	if !ok {
+		return "notty"
+	}
+	// A character device is a terminal; a pipe or file is not. Stdlib-only
+	// stand-in for term.IsTerminal, which was the only use of golang.org/x/term.
+	if info, err := f.Stat(); err != nil || info.Mode()&os.ModeCharDevice == 0 {
 		return "notty"
 	}
 	if termenv.HasDarkBackground() {
@@ -610,24 +619,7 @@ func runCapture(args []string, getenv func(string) string, stdin io.Reader, stdo
 		fmt.Fprintf(stderr, "capture size exceeds limit of %d bytes\n", state.Config.Capture.MaxSelectionBytes)
 		return 2
 	}
-	if *branch == "" && state.Config.Capture.IncludeBranch {
-		*branch = state.Project.Branch
-	}
-	if *sourceCWD == "" && state.Config.Capture.IncludeSourceCWD {
-		*sourceCWD = herdr.ResolveWorkingDirectory(state.Context, state.Project.Root)
-	}
-	inboxDir, lockPath := state.Layout.Inbox, state.Layout.Lock
-	if *scope == "global" {
-		inboxDir = filepath.Join(state.StateDir, "store", "global", "inbox")
-		lockPath = filepath.Join(state.StateDir, "locks", "global.lock")
-	}
-	path, err := capture.Append(capture.Request{
-		InboxDir: inboxDir, LockPath: lockPath, MaxBytes: state.Config.Capture.MaxSelectionBytes,
-		LockTimeout: 2 * time.Second,
-		Entry: capture.Entry{
-			Time: time.Now(), Text: content, Branch: *branch, SourceCWD: *sourceCWD, Selection: *selected,
-		},
-	})
+	path, err := appendCapture(state, content, *scope == "global", *selected, *branch, *sourceCWD)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 4
@@ -850,7 +842,7 @@ func runDigest(args []string, getenv func(string) string, stdout, stderr io.Writ
 		return 1
 	}
 	if *jsonOutput {
-		if err := writeJSON(stdout, report, true); err != nil {
+		if err := writeJSON(stdout, report); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
@@ -875,7 +867,7 @@ func runCompatibility(args []string, getenv func(string) string, stdin io.Reader
 		PluginVersion: version, OS: runtime.GOOS, Architecture: runtime.GOARCH,
 		WorkingDirectory: herdr.ResolveWorkingDirectory(ctx, fallback), Context: ctx,
 	}
-	if err := writeJSON(stdout, result, true); err != nil {
+	if err := writeJSON(stdout, result); err != nil {
 		fmt.Fprintf(stderr, "write compatibility diagnostic: %v\n", err)
 		return 1
 	}
@@ -960,7 +952,7 @@ func runPaths(args []string, getenv func(string) string, stdout, stderr io.Write
 		Notes: state.Layout.Notes, Decisions: state.Layout.Decisions, Lock: state.Layout.Lock,
 	}
 	if *jsonOutput {
-		if err := writeJSON(stdout, report, true); err != nil {
+		if err := writeJSON(stdout, report); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
@@ -1013,7 +1005,7 @@ func runDoctor(args []string, getenv func(string) string, stdout, stderr io.Writ
 		report.Warnings = append(report.Warnings, err.Error())
 	}
 	if *jsonOutput {
-		if err := writeJSON(stdout, report, true); err != nil {
+		if err := writeJSON(stdout, report); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
@@ -1100,11 +1092,9 @@ func pathState(path string) string {
 	return "available"
 }
 
-func writeJSON(writer io.Writer, value any, indent bool) error {
+func writeJSON(writer io.Writer, value any) error {
 	encoder := json.NewEncoder(writer)
-	if indent {
-		encoder.SetIndent("", "  ")
-	}
+	encoder.SetIndent("", "  ")
 	return encoder.Encode(value)
 }
 
