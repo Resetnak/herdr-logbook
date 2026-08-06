@@ -77,7 +77,7 @@ func TestLoadNotesMarksOversizeNotesAndRejectsANonPositiveLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(notes) != 1 || !notes[0].TooLarge || notes[0].Content != "Note is too large to preview." {
+	if len(notes) != 1 || notes[0].Content != "Note is too large to preview." {
 		t.Fatalf("oversize note = %#v", notes)
 	}
 

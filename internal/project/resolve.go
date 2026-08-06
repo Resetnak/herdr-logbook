@@ -1,6 +1,7 @@
 package project
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -51,7 +52,7 @@ type overrideConfig struct {
 }
 
 func Resolve(options ResolveOptions) (Project, error) {
-	selected := firstNonEmpty(options.ExplicitRoot, options.WorktreePath, options.FocusedPaneCWD, options.WorkspaceCWD, options.CWD)
+	selected := cmp.Or(options.ExplicitRoot, options.WorktreePath, options.FocusedPaneCWD, options.WorkspaceCWD, options.CWD)
 	if selected == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -239,13 +240,4 @@ func containedDirectory(base, relative string) (string, error) {
 		return "", fmt.Errorf("project override root %q escapes repository boundary", relative)
 	}
 	return candidate, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

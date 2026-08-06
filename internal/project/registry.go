@@ -12,20 +12,20 @@ import (
 )
 
 type Registry struct {
-	Version  int             `toml:"version" json:"version"`
-	Projects []ProjectRecord `toml:"projects" json:"projects"`
+	Version  int             `toml:"version"`
+	Projects []ProjectRecord `toml:"projects"`
 }
 
 type ProjectRecord struct {
-	ID                string    `toml:"id" json:"id"`
-	Name              string    `toml:"name" json:"name"`
-	Storage           string    `toml:"storage" json:"storage"`
-	StorePath         string    `toml:"store_path" json:"store_path"`
-	FirstSeen         time.Time `toml:"first_seen" json:"first_seen"`
-	LastSeen          time.Time `toml:"last_seen" json:"last_seen"`
-	RemoteFingerprint string    `toml:"remote_fingerprint,omitempty" json:"remote_fingerprint,omitempty"`
-	DefaultRoot       string    `toml:"default_root" json:"default_root"`
-	Roots             []string  `toml:"roots" json:"roots"`
+	ID                string    `toml:"id"`
+	Name              string    `toml:"name"`
+	Storage           string    `toml:"storage"`
+	StorePath         string    `toml:"store_path"`
+	FirstSeen         time.Time `toml:"first_seen"`
+	LastSeen          time.Time `toml:"last_seen"`
+	RemoteFingerprint string    `toml:"remote_fingerprint,omitempty"`
+	DefaultRoot       string    `toml:"default_root"`
+	Roots             []string  `toml:"roots"`
 }
 
 func LoadRegistry(path string) (Registry, error) {

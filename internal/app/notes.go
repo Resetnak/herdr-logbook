@@ -31,7 +31,6 @@ type Note struct {
 	Content  string
 	Modified time.Time
 	Size     int64
-	TooLarge bool
 }
 
 func LoadNotes(projectRoot, globalRoot string, maxPreviewBytes int64) ([]Note, error) {
@@ -66,7 +65,6 @@ func LoadNotes(projectRoot, globalRoot string, maxPreviewBytes int64) ([]Note, e
 			note := Note{Path: path, Modified: info.ModTime(), Size: info.Size()}
 			if info.Size() > maxPreviewBytes {
 				note.Content = "Note is too large to preview."
-				note.TooLarge = true
 			} else {
 				data, err := os.ReadFile(path)
 				if err != nil {
