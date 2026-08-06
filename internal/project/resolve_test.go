@@ -66,6 +66,21 @@ func TestResolveGitRemoteAndBranch(t *testing.T) {
 	}
 }
 
+func TestResolveDetachedHeadLeavesBranchEmpty(t *testing.T) {
+	repo := newGitRepo(t, "repo")
+	runGit(t, repo, "checkout", "--detach")
+
+	got, err := Resolve(ResolveOptions{CWD: repo})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+	// rev-parse --abbrev-ref answers the literal "HEAD" when detached; storing
+	// that as branch metadata would tag captures with a branch that is not one.
+	if got.Branch != "" {
+		t.Fatalf("Resolve() branch = %q, want empty on detached HEAD", got.Branch)
+	}
+}
+
 func TestResolveWorktreesShareIdentityWithoutRemote(t *testing.T) {
 	repo := newGitRepo(t, "main")
 	worktree := filepath.Join(t.TempDir(), "worktree")

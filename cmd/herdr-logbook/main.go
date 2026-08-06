@@ -101,6 +101,9 @@ func run(args []string, getenv func(string) string, stdin io.Reader, stdout, std
 		return 2
 	}
 	switch args[0] {
+	case "help", "--help", "-h":
+		printUsage(stdout)
+		return 0
 	case "version":
 		if len(args) != 1 {
 			printUsage(stderr)
@@ -210,7 +213,8 @@ func runIndex(args []string, getenv func(string) string, stdout, stderr io.Write
 	registry, err := project.LoadRegistry(registryPath)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
-		return 1
+		// Registry read failure is a storage problem, same as the lock below.
+		return 4
 	}
 	stores := make([]searchindex.Store, 0, len(registry.Projects)+1)
 	for _, record := range registry.Projects {
@@ -430,7 +434,7 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		}
 		return tea.ExecProcess(command, func(runErr error) tea.Msg {
 			if runErr != nil {
-				return app.NotesReloadedMsg{Err: fmt.Errorf("editor exited with error: %w (the note file was saved to disk)", runErr), RefreshSearch: true}
+				return app.NotesReloadedMsg{Err: fmt.Errorf("editor exited with error: %w (check the note file on disk)", runErr), RefreshSearch: true}
 			}
 			notes, loadErr := reloadNotes()
 			return app.NotesReloadedMsg{Notes: notes, Err: loadErr, RefreshSearch: true}
@@ -489,7 +493,8 @@ func runDecision(args []string, getenv func(string) string, stdin io.Reader, std
 		line, err := bufio.NewReader(stdin).ReadString('\n')
 		if err != nil && !errors.Is(err, io.EOF) {
 			fmt.Fprintln(stderr, "read decision title")
-			return 1
+			// A broken stdin is bad input, same as capture --stdin.
+			return 2
 		}
 		*title = strings.TrimSpace(line)
 	}
@@ -520,6 +525,9 @@ func runDecision(args []string, getenv func(string) string, stdin io.Reader, std
 		fmt.Fprintln(stderr, err)
 		return 4
 	}
+	// The file already exists; print its path before the editor gets a chance
+	// to fail, so an exit 6 never hides where the decision landed.
+	fmt.Fprintln(stdout, path)
 	if !*noEdit {
 		resolved, err := editor.Resolve(state.Config.Editor.Command, getenv, runtime.GOOS, exec.LookPath)
 		if err != nil {
@@ -533,7 +541,6 @@ func runDecision(args []string, getenv func(string) string, stdin io.Reader, std
 			return 6
 		}
 	}
-	fmt.Fprintln(stdout, path)
 	return 0
 }
 
@@ -582,7 +589,8 @@ func runCapture(args []string, getenv func(string) string, stdin io.Reader, stdo
 		data, err := io.ReadAll(io.LimitReader(stdin, state.Config.Capture.MaxSelectionBytes+1))
 		if err != nil {
 			fmt.Fprintln(stderr, "read capture stdin")
-			return 1
+			// A broken stdin pipe is bad input, not an internal failure.
+			return 2
 		}
 		content = string(data)
 	}
@@ -740,7 +748,7 @@ func runNow(args []string, getenv func(string) string, stdout, stderr io.Writer)
 		}
 		current := nowfile.CurrentTask(string(content))
 		if current == "" {
-			fmt.Fprintln(stderr, "no current task set")
+			fmt.Fprintln(stdout, "no current task set")
 			return 0
 		}
 		fmt.Fprintln(stdout, current)
@@ -873,7 +881,7 @@ func runCompatibility(args []string, getenv func(string) string, stdin io.Reader
 	}
 	if len(args) == 1 {
 		fmt.Fprintln(stdout, "Diagnostics stay open for 30 seconds; press Enter to close afterward.")
-		waitForClose(stdin, 30*time.Second)
+		waitForClose(stdin, 30*time.Second, 10*time.Minute)
 	}
 	return 0
 }
@@ -1100,7 +1108,10 @@ func writeJSON(writer io.Writer, value any, indent bool) error {
 	return encoder.Encode(value)
 }
 
-func waitForClose(reader io.Reader, timeout time.Duration) {
+// waitForClose keeps the pane open for at least `timeout`, then closes on
+// Enter/EOF — or after `grace`, so a supervisor holding stdin open without
+// ever writing cannot park the process forever.
+func waitForClose(reader io.Reader, timeout, grace time.Duration) {
 	result := make(chan struct{}, 1)
 	go func() {
 		_, _ = bufio.NewReader(reader).ReadString('\n')
@@ -1112,7 +1123,12 @@ func waitForClose(reader io.Reader, timeout time.Duration) {
 	case <-result:
 		<-timer.C
 	case <-timer.C:
-		<-result
+		graceTimer := time.NewTimer(grace)
+		defer graceTimer.Stop()
+		select {
+		case <-result:
+		case <-graceTimer.C:
+		}
 	}
 }
 

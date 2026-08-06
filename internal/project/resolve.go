@@ -130,6 +130,10 @@ func Resolve(options ResolveOptions) (Project, error) {
 	project.ID = StableID(identity)
 	if gitRoot != "" {
 		project.Branch, _ = gitValue(runner, gitRoot, "rev-parse", "--abbrev-ref", "HEAD")
+		// A detached HEAD answers the literal "HEAD", which is not a branch.
+		if project.Branch == "HEAD" {
+			project.Branch = ""
+		}
 	}
 	return project, nil
 }
