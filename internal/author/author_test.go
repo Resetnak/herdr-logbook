@@ -27,6 +27,27 @@ func TestSlugHandlesUnicodeReservedNamesAndEmptyTitles(t *testing.T) {
 	}
 }
 
+func TestCreateNoteAndDecisionRejectUnsafeTitles(t *testing.T) {
+	root := t.TempDir()
+	unsafe := []struct{ name, title string }{
+		{"terminal escape", "title \x1b]52;c;payload\x07"},
+		{"NUL byte", "title\x00"},
+		{"invalid UTF-8", "title\xff"},
+		{"newline", "first\nsecond"},
+	}
+	for _, test := range unsafe {
+		if _, err := CreateNote(root, test.title); err == nil {
+			t.Errorf("CreateNote accepted a title with %s", test.name)
+		}
+		if _, err := CreateDecision(root, test.title, "proj", "main", time.Now()); err == nil {
+			t.Errorf("CreateDecision accepted a title with %s", test.name)
+		}
+	}
+	if entries, _ := os.ReadDir(filepath.Join(root, "notes")); len(entries) != 0 {
+		t.Fatalf("rejected titles still created %d note files", len(entries))
+	}
+}
+
 func TestCreateNoteWritesTitleAndDeduplicatesFilenames(t *testing.T) {
 	root := t.TempDir()
 	first, err := CreateNote(root, "  Token Rotation  ")
