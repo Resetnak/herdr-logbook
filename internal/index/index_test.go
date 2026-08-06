@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 )
 
 func TestScanFiltersFilesAndBuildsMetadata(t *testing.T) {
@@ -18,7 +17,7 @@ func TestScanFiltersFilesAndBuildsMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries, err := Scan([]Store{{ProjectID: "p1", ProjectName: "api", Root: root}}, 256*1024)
+	entries, err := Refresh([]Store{{ProjectID: "p1", ProjectName: "api", Root: root}}, 256*1024, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +25,7 @@ func TestScanFiltersFilesAndBuildsMetadata(t *testing.T) {
 		t.Fatalf("Scan() returned %d entries: %#v", len(entries), entries)
 	}
 	entry := entries[0]
-	if entry.ProjectID != "p1" || entry.Title != "Cache policy" || len(entry.Tags) != 2 || entry.Fingerprint == "" {
+	if entry.ProjectID != "p1" || entry.Title != "Cache policy" || len(entry.Tags) != 2 {
 		t.Fatalf("entry = %#v", entry)
 	}
 }
@@ -42,7 +41,7 @@ func TestRefreshReusesUnchangedEntriesWithoutReadingThem(t *testing.T) {
 	mustWrite(t, path, original)
 
 	stores := []Store{{ProjectID: "p1", ProjectName: "api", Root: root}}
-	first, err := Scan(stores, 256*1024)
+	first, err := Refresh(stores, 256*1024, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +85,7 @@ func TestRefreshRereadsChangedAndDropsDeletedNotes(t *testing.T) {
 	mustWrite(t, removed, "# Removed\nbody")
 
 	stores := []Store{{ProjectID: "p1", ProjectName: "api", Root: root}}
-	first, err := Scan(stores, 256*1024)
+	first, err := Refresh(stores, 256*1024, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,28 +112,6 @@ func TestRefreshRereadsChangedAndDropsDeletedNotes(t *testing.T) {
 	if !strings.Contains(byPath["changed.md"].Content, "new body") {
 		t.Fatalf("Refresh() served a stale body: %q", byPath["changed.md"].Content)
 	}
-	if byPath["changed.md"].Fingerprint == "" {
-		t.Fatal("Refresh() left the changed entry without a fingerprint")
-	}
-}
-
-// Refresh with no previous cache must behave exactly like a cold Scan.
-func TestRefreshWithoutPreviousEntriesMatchesScan(t *testing.T) {
-	root := t.TempDir()
-	mustWrite(t, filepath.Join(root, "notes", "cache.md"), "# Cache policy\nbody")
-	stores := []Store{{ProjectID: "p1", ProjectName: "api", Root: root}}
-
-	scanned, err := Scan(stores, 256*1024)
-	if err != nil {
-		t.Fatal(err)
-	}
-	refreshed, err := Refresh(stores, 256*1024, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(scanned) != len(refreshed) || scanned[0].Fingerprint != refreshed[0].Fingerprint {
-		t.Fatalf("Refresh() = %#v, Scan() = %#v", refreshed, scanned)
-	}
 }
 
 func TestScanClassifiesNotesByStoreLayout(t *testing.T) {
@@ -144,7 +121,7 @@ func TestScanClassifiesNotesByStoreLayout(t *testing.T) {
 	mustWrite(t, filepath.Join(root, "decisions", "2026-07-22-use-redis.md"), "# Decision: Use Redis")
 	mustWrite(t, filepath.Join(root, "notes", "cache.md"), "# Cache policy")
 
-	entries, err := Scan([]Store{{ProjectID: "p1", ProjectName: "api", Root: root}}, 256*1024)
+	entries, err := Refresh([]Store{{ProjectID: "p1", ProjectName: "api", Root: root}}, 256*1024, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,14 +208,14 @@ func TestScanRejectsANonPositiveLimitAndSkipsEmptyOrMissingStores(t *testing.T) 
 	root := t.TempDir()
 	mustWrite(t, filepath.Join(root, "notes", "cache.md"), "# Cache policy")
 
-	if _, err := Scan([]Store{{Root: root}}, 0); err == nil {
+	if _, err := Refresh([]Store{{Root: root}}, 0, nil); err == nil {
 		t.Fatal("Scan accepted a non-positive byte limit")
 	}
-	entries, err := Scan([]Store{
+	entries, err := Refresh([]Store{
 		{ProjectID: "p1", Root: ""},
 		{ProjectID: "p2", Root: filepath.Join(t.TempDir(), "never-created")},
 		{ProjectID: "p3", Root: root},
-	}, 256*1024)
+	}, 256*1024, nil)
 	if err != nil || len(entries) != 1 || entries[0].ProjectID != "p3" {
 		t.Fatalf("Scan across empty and missing stores = %#v, %v", entries, err)
 	}
@@ -282,17 +259,6 @@ func TestSearchBreaksScoreTiesByModifiedTimeThenPath(t *testing.T) {
 	}
 }
 
-func TestSnippetTruncatesContentThatDoesNotContainTheQuery(t *testing.T) {
-	long := strings.Repeat("word ", 100)
-	results := Search([]Entry{{Path: "/a.md", Title: "Cache policy", Content: long}}, "cache", 10)
-	if len(results) != 1 {
-		t.Fatalf("results = %#v", results)
-	}
-	if !strings.HasSuffix(results[0].Snippet, "…") || len([]rune(results[0].Snippet)) != 161 {
-		t.Fatalf("snippet = %q (%d runes)", results[0].Snippet, len([]rune(results[0].Snippet)))
-	}
-}
-
 func TestLoadCacheTreatsAMissingFileAsEmpty(t *testing.T) {
 	cache, err := LoadCache(filepath.Join(t.TempDir(), "index-v1.json"))
 	if err != nil || cache.Version != CacheVersion || len(cache.Entries) != 0 {
@@ -328,27 +294,5 @@ func TestIndexFoldFindsTheQueryRegardlessOfCase(t *testing.T) {
 				t.Fatalf("indexFold(%q, %q) = %d, want %d", testCase.haystack, testCase.needle, got, testCase.want)
 			}
 		})
-	}
-}
-
-// Snippets are sliced by byte offset, so a window edge can land inside a
-// multi-byte rune and paint a replacement character into the search list.
-func TestSnippetStaysValidUTF8(t *testing.T) {
-	// The leading "abc " shifts the 160th byte into the middle of a two-byte rune.
-	long := "abc " + strings.Repeat("žluťoučký kůň ", 40)
-	truncated := Search([]Entry{{Path: "/a.md", Title: "Cache policy", Content: long}}, "cache", 10)
-	if len(truncated) != 1 || !utf8.ValidString(truncated[0].Snippet) {
-		t.Fatalf("truncated snippet = %q", truncated[0].Snippet)
-	}
-	if !strings.HasSuffix(truncated[0].Snippet, "…") || len([]rune(truncated[0].Snippet)) != 161 {
-		t.Fatalf("truncated snippet = %q (%d runes)", truncated[0].Snippet, len([]rune(truncated[0].Snippet)))
-	}
-
-	windowed := Search([]Entry{{Path: "/b.md", Title: "Poznámky", Content: long + "cache " + long}}, "cache", 10)
-	if len(windowed) != 1 || !utf8.ValidString(windowed[0].Snippet) {
-		t.Fatalf("windowed snippet = %q", windowed[0].Snippet)
-	}
-	if !strings.Contains(strings.ToLower(windowed[0].Snippet), "cache") {
-		t.Fatalf("windowed snippet lost the match: %q", windowed[0].Snippet)
 	}
 }

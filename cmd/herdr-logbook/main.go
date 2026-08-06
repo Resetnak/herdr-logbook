@@ -225,7 +225,7 @@ func runIndex(args []string, getenv func(string) string, stdout, stderr io.Write
 	lockPath := filepath.Join(state.StateDir, "locks", "index.lock")
 	var count int
 	err = storage.WithLock(lockPath, 5*time.Second, func() error {
-		entries, scanErr := searchindex.Scan(stores, state.Config.Search.MaxIndexFileBytes)
+		entries, scanErr := searchindex.Refresh(stores, state.Config.Search.MaxIndexFileBytes, nil)
 		if scanErr != nil {
 			return scanErr
 		}
