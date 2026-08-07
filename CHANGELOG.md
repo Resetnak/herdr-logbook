@@ -2,7 +2,7 @@
 
 All notable changes will be documented here. The project has not published a stable release.
 
-## Unreleased
+## v0.0.8 — 2026-08-07
 
 An audit release: one escape-sequence gap in the new digest view is closed, task switching can no longer lose a concurrent edit, the CLI honors its documented exit-code contract, and about 170 lines of dead code and two direct dependencies are gone.
 

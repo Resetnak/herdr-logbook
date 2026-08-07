@@ -228,7 +228,7 @@ Herdr nemá příkaz `plugin update` — aktualizace se dělá opětovným spuš
 
 ```bash
 herdr plugin install Resetnak/herdr-logbook              # nejnovější main
-herdr plugin install Resetnak/herdr-logbook --ref v0.0.7 # konkrétní vydání
+herdr plugin install Resetnak/herdr-logbook --ref v0.0.8 # konkrétní vydání
 ```
 
 > ⚠️ Pokud jste instalovali Možností 4, tento příkaz skončí chybou `plugin herdr-logbook is already linked from a local path`. Lokální link má vždy přednost před GitHubem; nejdřív spusťte `herdr plugin unlink herdr-logbook`, nebo místo toho aktualizujte svůj checkout (viz níže).
