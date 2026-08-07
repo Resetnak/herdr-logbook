@@ -7,7 +7,7 @@ import (
 )
 
 func TestRenderHeatmap_Empty(t *testing.T) {
-	heatmapStr := RenderHeatmap(nil, 4)
+	heatmapStr := RenderHeatmapStaggered(nil, 4, 4)
 
 	if !strings.Contains(heatmapStr, "·") {
 		t.Error("Expected empty heatmap to contain '·' characters")
@@ -24,7 +24,7 @@ func TestRenderHeatmap_WithData(t *testing.T) {
 		{Date: today.Format("2006-01-02"), Count: 0},
 	}
 
-	heatmapStr := RenderHeatmap(data, 4)
+	heatmapStr := RenderHeatmapStaggered(data, 4, 4)
 
 	// Ensure we have different activity characters
 	if !strings.Contains(heatmapStr, "·") {
@@ -45,7 +45,7 @@ func TestRenderHeatmap_WithData(t *testing.T) {
 }
 
 func TestRenderHeatmap_Legend(t *testing.T) {
-	heatmapStr := RenderHeatmap(nil, 4)
+	heatmapStr := RenderHeatmapStaggered(nil, 4, 4)
 
 	if !strings.Contains(heatmapStr, "Less") {
 		t.Error("Expected heatmap to contain 'Less' legend text")
@@ -64,7 +64,7 @@ func TestRenderHeatmap_AllWeekdaysRendered(t *testing.T) {
 		data = append(data, DayActivity{Date: today.AddDate(0, 0, -i).Format("2006-01-02"), Count: 1})
 	}
 
-	heatmapStr := RenderHeatmap(data, 4)
+	heatmapStr := RenderHeatmapStaggered(data, 4, 4)
 	grid, _, _ := strings.Cut(heatmapStr, "\nLess")
 
 	if got := strings.Count(grid, "░"); got != 7 {
@@ -76,13 +76,13 @@ func TestRenderHeatmap_AllWeekdaysRendered(t *testing.T) {
 }
 
 func TestRenderHeatmap_WeeksDefaultsToFour(t *testing.T) {
-	if got, want := RenderHeatmap(nil, 0), RenderHeatmap(nil, 4); got != want {
+	if got, want := RenderHeatmapStaggered(nil, 0, 0), RenderHeatmapStaggered(nil, 4, 4); got != want {
 		t.Errorf("Expected a non-positive week count to render four weeks, got:\n%s", got)
 	}
 }
 
 func TestRenderHeatmap_LegendCoversEveryLevel(t *testing.T) {
-	_, legend, found := strings.Cut(RenderHeatmap(nil, 4), "\nLess")
+	_, legend, found := strings.Cut(RenderHeatmapStaggered(nil, 4, 4), "\nLess")
 	if !found {
 		t.Fatal("Expected a legend")
 	}
@@ -114,12 +114,5 @@ func TestRenderHeatmapStaggeredRevealsOneColumnAtATime(t *testing.T) {
 	full := RenderHeatmapStaggered(data, 4, 4)
 	if partial := RenderHeatmapStaggered(data, 4, 1); strings.Count(partial, "·") != strings.Count(full, "·") {
 		t.Errorf("undrawn columns use the empty-day glyph:\n%s", partial)
-	}
-}
-
-func TestRenderHeatmapIsTheFullyRevealedGrid(t *testing.T) {
-	data := []DayActivity{{Date: time.Now().Format("2006-01-02"), Count: 4}}
-	if RenderHeatmap(data, 4) != RenderHeatmapStaggered(data, 4, 4) {
-		t.Error("RenderHeatmap no longer matches a fully revealed grid")
 	}
 }

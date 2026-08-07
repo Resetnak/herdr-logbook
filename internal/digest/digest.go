@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	md "github.com/Resetnak/herdr-logbook/internal/markdown"
 )
 
 // heatmapDays is the window the activity grid covers: four full weeks.
@@ -219,7 +221,9 @@ func parseInboxFile(path, projectName string) []ActivityItem {
 		if body == "" || strings.HasPrefix(body, "- Branch:") || strings.HasPrefix(body, "- Source:") || strings.HasPrefix(body, "``") {
 			continue
 		}
-		body = strings.TrimPrefix(body, "- ")
+		// External editors bypass capture's control-character check; never let
+		// a stored escape reach the terminal through the digest.
+		body = md.StripTerminalControl(strings.TrimPrefix(body, "- "))
 		if task, ok := strings.CutPrefix(body, "Task done: "); ok {
 			current.Kind = "task"
 			current.Summary = task
@@ -240,7 +244,7 @@ func parseDecisionFile(path, projectName string) (ActivityItem, bool) {
 	var title, dateStr string
 	for _, line := range strings.Split(string(data), "\n") {
 		if strings.HasPrefix(line, "# Decision: ") {
-			title = strings.TrimPrefix(line, "# Decision: ")
+			title = md.StripTerminalControl(strings.TrimPrefix(line, "# Decision: "))
 		} else if strings.HasPrefix(line, "- Date: ") {
 			dateStr = strings.TrimSpace(strings.TrimPrefix(line, "- Date: "))
 		}
@@ -278,5 +282,5 @@ func parseNowFile(path string) string {
 			taskBody = append(taskBody, line)
 		}
 	}
-	return strings.TrimSpace(strings.Join(taskBody, "\n"))
+	return md.StripTerminalControl(strings.TrimSpace(strings.Join(taskBody, "\n")))
 }

@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Resetnak/herdr-logbook/internal/storage"
 )
 
 func TestAppendWritesMonthlyInbox(t *testing.T) {
@@ -29,6 +31,28 @@ func TestAppendWritesMonthlyInbox(t *testing.T) {
 	}
 	if !strings.HasPrefix(string(data), "# Inbox — 2026-07\n\n") || !strings.Contains(string(data), "First note") {
 		t.Fatalf("Append() data = %q", data)
+	}
+}
+
+func TestAppendLockedAppendsWhileTheStoreLockIsHeld(t *testing.T) {
+	dir := t.TempDir()
+	lockPath := filepath.Join(t.TempDir(), "capture.lock")
+	when := time.Date(2026, 7, 22, 14, 32, 0, 0, time.UTC)
+	// Append would try to take lockPath itself and time out; AppendLocked is
+	// the variant a caller uses inside its own critical section.
+	err := storage.WithLock(lockPath, time.Second, func() error {
+		_, err := AppendLocked(Request{
+			InboxDir: dir, LockPath: lockPath,
+			Entry: Entry{Time: when, Text: "Archived task"}, MaxBytes: 1024, LockTimeout: 10 * time.Millisecond,
+		})
+		return err
+	})
+	if err != nil {
+		t.Fatalf("AppendLocked() under held lock error = %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "2026-07.md"))
+	if err != nil || !strings.Contains(string(data), "Archived task") {
+		t.Fatalf("AppendLocked() data = %q, %v", data, err)
 	}
 }
 

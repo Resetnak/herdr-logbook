@@ -33,9 +33,6 @@ func TestReadContextSummarizesHerdrEnvironmentWithoutSensitiveContent(t *testing
 	if !reflect.DeepEqual(got.ContextKeys, wantKeys) {
 		t.Fatalf("ReadContext() keys = %#v, want %#v", got.ContextKeys, wantKeys)
 	}
-	if got.SelectedText != "" || got.ClickedURLs != nil {
-		t.Fatalf("ReadContext() retained sensitive context: %#v", got)
-	}
 }
 
 func TestReadContextRejectsMalformedJSON(t *testing.T) {

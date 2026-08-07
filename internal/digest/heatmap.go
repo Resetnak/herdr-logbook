@@ -5,13 +5,6 @@ import (
 	"time"
 )
 
-// RenderHeatmap draws a GitHub-style contribution grid: one column per week,
-// one row per weekday, oldest week on the left. data holds daily counts ending
-// today; days past today stay blank.
-func RenderHeatmap(data []DayActivity, weeks int) string {
-	return RenderHeatmapStaggered(data, weeks, weeks)
-}
-
 // RenderHeatmapStaggered draws a GitHub-style contribution grid: one column per week,
 // one row per weekday, oldest week on the left. data holds daily counts ending
 // today; days past today stay blank. visibleWeeks caps how many columns from the left

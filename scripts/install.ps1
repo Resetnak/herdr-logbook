@@ -8,11 +8,19 @@ if ($ManifestPath -and (Test-Path -LiteralPath $ManifestPath)) {
     $Bin = Join-Path $PluginRoot 'bin'
 } else {
     # Standalone install (irm | iex): no plugin checkout around the script.
-    $Manifest = (Invoke-WebRequest -UseBasicParsing -Uri 'https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/herdr-plugin.toml').Content
+    # Resolve the newest published release instead of the manifest on main —
+    # a version bump landing before its tag exists is not downloadable yet.
+    $Manifest = $null
+    $Tag = (Invoke-RestMethod -Uri 'https://api.github.com/repos/Resetnak/herdr-logbook/releases/latest').tag_name
     $Bin = Join-Path $env:USERPROFILE '.local\bin'
 }
-if ($Manifest -notmatch '(?m)^version\s*=\s*"([^"]+)"') { throw 'Plugin version is missing from herdr-plugin.toml' }
-$Version = $Matches[1]
+if ($Manifest) {
+    if ($Manifest -notmatch '(?m)^version\s*=\s*"([^"]+)"') { throw 'Plugin version is missing from herdr-plugin.toml' }
+    $Version = $Matches[1]
+} else {
+    if (-not $Tag) { throw 'Could not resolve the latest herdr-logbook release' }
+    $Version = $Tag -replace '^v', ''
+}
 $Architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 switch ($Architecture) {
     'x64' { $Arch = 'amd64' }

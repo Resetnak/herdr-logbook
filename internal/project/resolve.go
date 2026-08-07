@@ -1,6 +1,7 @@
 package project
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,8 +15,12 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+// CommandRunner executes git in a directory; tests inject a fake to resolve
+// projects without a git binary.
 type CommandRunner func(context.Context, string, ...string) (string, error)
 
+// ResolveOptions carries the location candidates in priority order: explicit
+// --project-root, Herdr worktree, focused pane cwd, workspace cwd, then CWD.
 type ResolveOptions struct {
 	ExplicitRoot   string
 	WorktreePath   string
@@ -25,6 +30,8 @@ type ResolveOptions struct {
 	Runner         CommandRunner
 }
 
+// Project is a resolved identity: a stable ID derived from the credential-free
+// remote fingerprint (or git common dir, or path), plus display metadata.
 type Project struct {
 	ID          string   `toml:"id" json:"id"`
 	Name        string   `toml:"name" json:"name"`
@@ -50,8 +57,11 @@ type overrideConfig struct {
 	Root        string `toml:"root"`
 }
 
+// Resolve picks the project the current invocation belongs to. Git worktrees
+// of one repository share identity; a repository's .herdr-logbook.toml may
+// adjust name and root but never where notes are stored.
 func Resolve(options ResolveOptions) (Project, error) {
-	selected := firstNonEmpty(options.ExplicitRoot, options.WorktreePath, options.FocusedPaneCWD, options.WorkspaceCWD, options.CWD)
+	selected := cmp.Or(options.ExplicitRoot, options.WorktreePath, options.FocusedPaneCWD, options.WorkspaceCWD, options.CWD)
 	if selected == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -130,6 +140,10 @@ func Resolve(options ResolveOptions) (Project, error) {
 	project.ID = StableID(identity)
 	if gitRoot != "" {
 		project.Branch, _ = gitValue(runner, gitRoot, "rev-parse", "--abbrev-ref", "HEAD")
+		// A detached HEAD answers the literal "HEAD", which is not a branch.
+		if project.Branch == "HEAD" {
+			project.Branch = ""
+		}
 	}
 	return project, nil
 }
@@ -235,13 +249,4 @@ func containedDirectory(base, relative string) (string, error) {
 		return "", fmt.Errorf("project override root %q escapes repository boundary", relative)
 	}
 	return candidate, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

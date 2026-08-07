@@ -1,8 +1,6 @@
 package index
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,12 +20,16 @@ import (
 
 const CacheVersion = 1
 
+// Store names one directory tree of notes to index, with the project identity
+// its entries should carry.
 type Store struct {
 	ProjectID   string
 	ProjectName string
 	Root        string
 }
 
+// Entry is one indexed note. The Markdown on disk stays canonical; entries
+// only exist to make search cheap and are rebuilt whenever they look stale.
 type Entry struct {
 	Path        string    `json:"path"`
 	ProjectID   string    `json:"project_id"`
@@ -38,24 +40,20 @@ type Entry struct {
 	Modified    time.Time `json:"modified"`
 	Size        int64     `json:"size"`
 	Content     string    `json:"content"`
-	Fingerprint string    `json:"content_fingerprint"`
 }
 
+// Cache is the disposable JSON file the index round-trips through; a version
+// mismatch or corruption simply means an empty cache and a rescan.
 type Cache struct {
 	Version   int       `json:"version"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Entries   []Entry   `json:"entries"`
 }
 
+// Result is one search hit; higher Score sorts first.
 type Result struct {
-	Entry   Entry
-	Score   int
-	Snippet string
-}
-
-// Scan reads every note in every store from disk.
-func Scan(stores []Store, maxFileBytes int64) ([]Entry, error) {
-	return Refresh(stores, maxFileBytes, nil)
+	Entry Entry
+	Score int
 }
 
 // Refresh rebuilds the index, carrying over any entry from previous whose file
@@ -119,12 +117,10 @@ func Refresh(stores []Store, maxFileBytes int64, previous []Entry) ([]Entry, err
 			if err != nil {
 				return err
 			}
-			hash := sha256.Sum256(data)
 			entries = append(entries, Entry{
 				Path: path, ProjectID: store.ProjectID, ProjectName: store.ProjectName,
 				NoteType: noteType(filepath.ToSlash(relative)), Title: md.Title(content, dirEntry.Name()),
 				Tags: md.Tags(content), Modified: info.ModTime(), Size: info.Size(), Content: content,
-				Fingerprint: hex.EncodeToString(hash[:]),
 			})
 			return nil
 		})
@@ -136,6 +132,9 @@ func Refresh(stores []Store, maxFileBytes int64, previous []Entry) ([]Entry, err
 	return entries, nil
 }
 
+// Search ranks entries against query: exact title, then title prefix, then
+// fuzzy title/path, then tag, then body containment. Ties break by recency,
+// then path, so results are stable across runs.
 func Search(entries []Entry, query string, limit int) []Result {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" || limit <= 0 {
@@ -176,14 +175,11 @@ func Search(entries []Entry, query string, limit int) []Result {
 	if len(results) > limit {
 		results = results[:limit]
 	}
-	// Snippets flatten and slice the whole document, so build them only for the
-	// results that survived the limit.
-	for i := range results {
-		results[i].Snippet = snippet(results[i].Entry.Content, query)
-	}
 	return results
 }
 
+// LoadCache reads the cache at path; a missing, corrupt, or wrong-version file
+// yields an empty cache rather than an error, because a rescan self-heals it.
 func LoadCache(path string) (Cache, error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -199,6 +195,8 @@ func LoadCache(path string) (Cache, error) {
 	return cache, nil
 }
 
+// SaveCache stamps the cache with the current version and time and writes it
+// atomically.
 func SaveCache(path string, cache Cache) error {
 	cache.Version = CacheVersion
 	cache.UpdatedAt = time.Now().UTC()
@@ -259,30 +257,6 @@ func containsTag(tags []string, query string) bool {
 		}
 	}
 	return false
-}
-
-func snippet(content, query string) string {
-	flat := strings.Join(strings.Fields(content), " ")
-	position := indexFold(flat, query)
-	if position < 0 {
-		runes := []rune(flat)
-		if len(runes) > 160 {
-			return string(runes[:160]) + "…"
-		}
-		return flat
-	}
-	// A byte offset around the match can land inside a multi-byte rune, and the
-	// TUI would paint the leftover bytes as replacement characters. Widen the
-	// window to the enclosing runes.
-	start := max(0, position-60)
-	for start > 0 && !utf8.RuneStart(flat[start]) {
-		start--
-	}
-	end := min(len(flat), position+len(query)+100)
-	for end < len(flat) && !utf8.RuneStart(flat[end]) {
-		end++
-	}
-	return flat[start:end]
 }
 
 func noteType(relative string) string {

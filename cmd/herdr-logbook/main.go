@@ -29,7 +29,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/termenv"
 	"github.com/pelletier/go-toml/v2"
-	"golang.org/x/term"
 )
 
 var version = "dev"
@@ -101,6 +100,9 @@ func run(args []string, getenv func(string) string, stdin io.Reader, stdout, std
 		return 2
 	}
 	switch args[0] {
+	case "help", "--help", "-h":
+		printUsage(stdout)
+		return 0
 	case "version":
 		if len(args) != 1 {
 			printUsage(stderr)
@@ -207,21 +209,15 @@ func runIndex(args []string, getenv func(string) string, stdout, stderr io.Write
 		fmt.Fprintln(stderr, err)
 		return 4
 	}
-	registry, err := project.LoadRegistry(registryPath)
+	stores, cachePath, lockPath, err := indexStores(state)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
-		return 1
+		// Registry read failure is a storage problem, same as the lock below.
+		return 4
 	}
-	stores := make([]searchindex.Store, 0, len(registry.Projects)+1)
-	for _, record := range registry.Projects {
-		stores = append(stores, searchindex.Store{ProjectID: record.ID, ProjectName: record.Name, Root: record.StorePath})
-	}
-	stores = append(stores, searchindex.Store{ProjectID: "global", ProjectName: "Global", Root: filepath.Join(state.StateDir, "store", "global")})
-	cachePath := filepath.Join(state.StateDir, "cache", "index-v1.json")
-	lockPath := filepath.Join(state.StateDir, "locks", "index.lock")
 	var count int
 	err = storage.WithLock(lockPath, 5*time.Second, func() error {
-		entries, scanErr := searchindex.Scan(stores, state.Config.Search.MaxIndexFileBytes)
+		entries, scanErr := searchindex.Refresh(stores, state.Config.Search.MaxIndexFileBytes, nil)
 		if scanErr != nil {
 			return scanErr
 		}
@@ -236,19 +232,31 @@ func runIndex(args []string, getenv func(string) string, stdout, stderr io.Write
 	return 0
 }
 
-func rebuildSearchIndex(state coreState) ([]searchindex.Entry, error) {
+// indexStores lists every registered store plus the global one, alongside the
+// index cache and lock paths shared by every index consumer.
+func indexStores(state coreState) (stores []searchindex.Store, cachePath, lockPath string, err error) {
 	registry, err := project.LoadRegistry(filepath.Join(state.StateDir, "registry", "projects.toml"))
 	if err != nil {
-		return nil, err
+		return nil, "", "", err
 	}
-	stores := make([]searchindex.Store, 0, len(registry.Projects)+1)
+	stores = make([]searchindex.Store, 0, len(registry.Projects)+1)
 	for _, record := range registry.Projects {
 		stores = append(stores, searchindex.Store{ProjectID: record.ID, ProjectName: record.Name, Root: record.StorePath})
 	}
 	stores = append(stores, searchindex.Store{ProjectID: "global", ProjectName: "Global", Root: filepath.Join(state.StateDir, "store", "global")})
-	cachePath := filepath.Join(state.StateDir, "cache", "index-v1.json")
+	return stores,
+		filepath.Join(state.StateDir, "cache", "index-v1.json"),
+		filepath.Join(state.StateDir, "locks", "index.lock"),
+		nil
+}
+
+func rebuildSearchIndex(state coreState) ([]searchindex.Entry, error) {
+	stores, cachePath, lockPath, err := indexStores(state)
+	if err != nil {
+		return nil, err
+	}
 	var entries []searchindex.Entry
-	err = storage.WithLock(filepath.Join(state.StateDir, "locks", "index.lock"), 5*time.Second, func() error {
+	err = storage.WithLock(lockPath, 5*time.Second, func() error {
 		// Reading the cache under the lock keeps this the only place the Hub
 		// touches it, and lets the rescan carry unchanged notes over instead of
 		// re-reading every note in every project for a one-file change.
@@ -430,7 +438,7 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		}
 		return tea.ExecProcess(command, func(runErr error) tea.Msg {
 			if runErr != nil {
-				return app.NotesReloadedMsg{Err: fmt.Errorf("editor exited with error: %w (the note file was saved to disk)", runErr), RefreshSearch: true}
+				return app.NotesReloadedMsg{Err: fmt.Errorf("editor exited with error: %w (check the note file on disk)", runErr), RefreshSearch: true}
 			}
 			notes, loadErr := reloadNotes()
 			return app.NotesReloadedMsg{Notes: notes, Err: loadErr, RefreshSearch: true}
@@ -465,7 +473,12 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 // TUI never blocks on it later. See HubModel.WithStyle.
 func detectGlamourStyle(stdout io.Writer) string {
 	f, ok := stdout.(*os.File)
-	if !ok || !term.IsTerminal(int(f.Fd())) {
+	if !ok {
+		return "notty"
+	}
+	// A character device is a terminal; a pipe or file is not. Stdlib-only
+	// stand-in for term.IsTerminal, which was the only use of golang.org/x/term.
+	if info, err := f.Stat(); err != nil || info.Mode()&os.ModeCharDevice == 0 {
 		return "notty"
 	}
 	if termenv.HasDarkBackground() {
@@ -489,7 +502,8 @@ func runDecision(args []string, getenv func(string) string, stdin io.Reader, std
 		line, err := bufio.NewReader(stdin).ReadString('\n')
 		if err != nil && !errors.Is(err, io.EOF) {
 			fmt.Fprintln(stderr, "read decision title")
-			return 1
+			// A broken stdin is bad input, same as capture --stdin.
+			return 2
 		}
 		*title = strings.TrimSpace(line)
 	}
@@ -520,6 +534,9 @@ func runDecision(args []string, getenv func(string) string, stdin io.Reader, std
 		fmt.Fprintln(stderr, err)
 		return 4
 	}
+	// The file already exists; print its path before the editor gets a chance
+	// to fail, so an exit 6 never hides where the decision landed.
+	fmt.Fprintln(stdout, path)
 	if !*noEdit {
 		resolved, err := editor.Resolve(state.Config.Editor.Command, getenv, runtime.GOOS, exec.LookPath)
 		if err != nil {
@@ -533,7 +550,6 @@ func runDecision(args []string, getenv func(string) string, stdin io.Reader, std
 			return 6
 		}
 	}
-	fmt.Fprintln(stdout, path)
 	return 0
 }
 
@@ -582,7 +598,8 @@ func runCapture(args []string, getenv func(string) string, stdin io.Reader, stdo
 		data, err := io.ReadAll(io.LimitReader(stdin, state.Config.Capture.MaxSelectionBytes+1))
 		if err != nil {
 			fmt.Fprintln(stderr, "read capture stdin")
-			return 1
+			// A broken stdin pipe is bad input, not an internal failure.
+			return 2
 		}
 		content = string(data)
 	}
@@ -602,24 +619,7 @@ func runCapture(args []string, getenv func(string) string, stdin io.Reader, stdo
 		fmt.Fprintf(stderr, "capture size exceeds limit of %d bytes\n", state.Config.Capture.MaxSelectionBytes)
 		return 2
 	}
-	if *branch == "" && state.Config.Capture.IncludeBranch {
-		*branch = state.Project.Branch
-	}
-	if *sourceCWD == "" && state.Config.Capture.IncludeSourceCWD {
-		*sourceCWD = herdr.ResolveWorkingDirectory(state.Context, state.Project.Root)
-	}
-	inboxDir, lockPath := state.Layout.Inbox, state.Layout.Lock
-	if *scope == "global" {
-		inboxDir = filepath.Join(state.StateDir, "store", "global", "inbox")
-		lockPath = filepath.Join(state.StateDir, "locks", "global.lock")
-	}
-	path, err := capture.Append(capture.Request{
-		InboxDir: inboxDir, LockPath: lockPath, MaxBytes: state.Config.Capture.MaxSelectionBytes,
-		LockTimeout: 2 * time.Second,
-		Entry: capture.Entry{
-			Time: time.Now(), Text: content, Branch: *branch, SourceCWD: *sourceCWD, Selection: *selected,
-		},
-	})
+	path, err := appendCapture(state, content, *scope == "global", *selected, *branch, *sourceCWD)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 4
@@ -676,11 +676,19 @@ func runCaptureTUI(state coreState, global bool, stdin io.Reader, stdout, stderr
 }
 
 func appendCapture(state coreState, content string, global, selection bool, branch, sourceCWD string) (string, error) {
+	request, err := buildCaptureRequest(state, content, global, selection, branch, sourceCWD)
+	if err != nil {
+		return "", err
+	}
+	return capture.Append(request)
+}
+
+func buildCaptureRequest(state coreState, content string, global, selection bool, branch, sourceCWD string) (capture.Request, error) {
 	if strings.TrimSpace(content) == "" {
-		return "", fmt.Errorf("capture text is empty")
+		return capture.Request{}, fmt.Errorf("capture text is empty")
 	}
 	if int64(len(content)) > state.Config.Capture.MaxSelectionBytes {
-		return "", fmt.Errorf("capture size exceeds limit of %d bytes", state.Config.Capture.MaxSelectionBytes)
+		return capture.Request{}, fmt.Errorf("capture size exceeds limit of %d bytes", state.Config.Capture.MaxSelectionBytes)
 	}
 	if branch == "" && state.Config.Capture.IncludeBranch {
 		branch = state.Project.Branch
@@ -694,7 +702,7 @@ func appendCapture(state coreState, content string, global, selection bool, bran
 		inboxDir = filepath.Join(state.StateDir, "store", "global", "inbox")
 		lockPath = filepath.Join(state.StateDir, "locks", "global.lock")
 	}
-	return capture.Append(capture.Request{
+	return capture.Request{
 		InboxDir:    inboxDir,
 		LockPath:    lockPath,
 		MaxBytes:    state.Config.Capture.MaxSelectionBytes,
@@ -706,7 +714,7 @@ func appendCapture(state coreState, content string, global, selection bool, bran
 			SourceCWD: sourceCWD,
 			Selection: selection,
 		},
-	})
+	}, nil
 }
 
 func runNow(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
@@ -732,7 +740,7 @@ func runNow(args []string, getenv func(string) string, stdout, stderr io.Writer)
 		}
 		current := nowfile.CurrentTask(string(content))
 		if current == "" {
-			fmt.Fprintln(stderr, "no current task set")
+			fmt.Fprintln(stdout, "no current task set")
 			return 0
 		}
 		fmt.Fprintln(stdout, current)
@@ -768,7 +776,7 @@ func runNow(args []string, getenv func(string) string, stdout, stderr io.Writer)
 // it displaced into the monthly inbox, so switching tasks builds a work journal
 // for free. It returns the task that was replaced.
 func setNowTask(state coreState, task string) (string, error) {
-	var previous, updated string
+	var previous string
 	err := storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
 		if err := storage.Initialize(state.Layout); err != nil {
 			return err
@@ -778,24 +786,23 @@ func setNowTask(state coreState, task string) (string, error) {
 			return readErr
 		}
 		previous = nowfile.CurrentTask(string(content))
-		var setErr error
-		updated, setErr = nowfile.SetCurrentTask(string(content), task)
-		return setErr
-	})
-	if err != nil {
-		return "", err
-	}
-	// ponytail: the archive runs before the overwrite and takes its own lock —
-	// capture.Append locks state.Layout.Lock itself and flock is per file
-	// descriptor, so nesting the two would deadlock. Archiving first means a
-	// failed overwrite duplicates a journal entry instead of losing one. Upgrade
-	// path if that ever matters: a lock-free capture.append the caller wraps.
-	if previous != "" {
-		if _, err := appendCapture(state, "Task done: "+previous, false, false, "", ""); err != nil {
-			return "", err
+		updated, setErr := nowfile.SetCurrentTask(string(content), task)
+		if setErr != nil {
+			return setErr
 		}
-	}
-	err = storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
+		// Read, archive, and overwrite form one critical section so a concurrent
+		// now.md change cannot be clobbered by a write computed from a stale
+		// read. The archive still runs before the overwrite: a failed overwrite
+		// duplicates a journal entry instead of losing one.
+		if previous != "" {
+			request, err := buildCaptureRequest(state, "Task done: "+previous, false, false, "", "")
+			if err != nil {
+				return err
+			}
+			if _, err := capture.AppendLocked(request); err != nil {
+				return err
+			}
+		}
 		return storage.AtomicWrite(state.Layout.Now, []byte(updated), 0o600)
 	})
 	if err != nil {
@@ -835,7 +842,7 @@ func runDigest(args []string, getenv func(string) string, stdout, stderr io.Writ
 		return 1
 	}
 	if *jsonOutput {
-		if err := writeJSON(stdout, report, true); err != nil {
+		if err := writeJSON(stdout, report); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
@@ -860,13 +867,13 @@ func runCompatibility(args []string, getenv func(string) string, stdin io.Reader
 		PluginVersion: version, OS: runtime.GOOS, Architecture: runtime.GOARCH,
 		WorkingDirectory: herdr.ResolveWorkingDirectory(ctx, fallback), Context: ctx,
 	}
-	if err := writeJSON(stdout, result, true); err != nil {
+	if err := writeJSON(stdout, result); err != nil {
 		fmt.Fprintf(stderr, "write compatibility diagnostic: %v\n", err)
 		return 1
 	}
 	if len(args) == 1 {
 		fmt.Fprintln(stdout, "Diagnostics stay open for 30 seconds; press Enter to close afterward.")
-		waitForClose(stdin, 30*time.Second)
+		waitForClose(stdin, 30*time.Second, 10*time.Minute)
 	}
 	return 0
 }
@@ -945,7 +952,7 @@ func runPaths(args []string, getenv func(string) string, stdout, stderr io.Write
 		Notes: state.Layout.Notes, Decisions: state.Layout.Decisions, Lock: state.Layout.Lock,
 	}
 	if *jsonOutput {
-		if err := writeJSON(stdout, report, true); err != nil {
+		if err := writeJSON(stdout, report); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
@@ -998,7 +1005,7 @@ func runDoctor(args []string, getenv func(string) string, stdout, stderr io.Writ
 		report.Warnings = append(report.Warnings, err.Error())
 	}
 	if *jsonOutput {
-		if err := writeJSON(stdout, report, true); err != nil {
+		if err := writeJSON(stdout, report); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
@@ -1085,15 +1092,16 @@ func pathState(path string) string {
 	return "available"
 }
 
-func writeJSON(writer io.Writer, value any, indent bool) error {
+func writeJSON(writer io.Writer, value any) error {
 	encoder := json.NewEncoder(writer)
-	if indent {
-		encoder.SetIndent("", "  ")
-	}
+	encoder.SetIndent("", "  ")
 	return encoder.Encode(value)
 }
 
-func waitForClose(reader io.Reader, timeout time.Duration) {
+// waitForClose keeps the pane open for at least `timeout`, then closes on
+// Enter/EOF — or after `grace`, so a supervisor holding stdin open without
+// ever writing cannot park the process forever.
+func waitForClose(reader io.Reader, timeout, grace time.Duration) {
 	result := make(chan struct{}, 1)
 	go func() {
 		_, _ = bufio.NewReader(reader).ReadString('\n')
@@ -1105,7 +1113,12 @@ func waitForClose(reader io.Reader, timeout time.Duration) {
 	case <-result:
 		<-timer.C
 	case <-timer.C:
-		<-result
+		graceTimer := time.NewTimer(grace)
+		defer graceTimer.Stop()
+		select {
+		case <-result:
+		case <-graceTimer.C:
+		}
 	}
 }
 

@@ -2,6 +2,42 @@
 
 All notable changes will be documented here. The project has not published a stable release.
 
+## Unreleased
+
+An audit release: one escape-sequence gap in the new digest view is closed, task switching can no longer lose a concurrent edit, the CLI honors its documented exit-code contract, and about 170 lines of dead code and two direct dependencies are gone.
+
+- **Security:** the digest view no longer paints stored terminal escapes. Inbox
+  summaries, decision titles, and the current task are stripped of control
+  characters the same way the preview and note titles already were, so a note
+  edited in an external editor cannot rewrite the clipboard or retitle the
+  window when `s` opens the digest.
+- **Security:** note and decision titles are validated like every other write
+  path: a single line of valid UTF-8, no NUL bytes, no terminal control
+  characters. `decision --title` with an embedded escape is now rejected
+  instead of stored.
+- Fixed a lost-update race when switching tasks: reading `now.md`, archiving
+  the displaced task, and writing the new one now happen in one critical
+  section, so a concurrent `now.md` change in another pane or editor is no
+  longer overwritten from a stale read.
+- The CLI keeps its exit-code and output contract: `--help`/`-h`/`help` print
+  usage on stdout and exit 0; `index rebuild` registry failures exit 4 and
+  broken stdin reads exit 2 instead of 1; `decision` prints the created file's
+  path before launching the editor, so an editor failure no longer hides it;
+  `now` answers "no current task set" on stdout; `compatibility --wait` closes
+  after a grace period when stdin never delivers; a detached HEAD is recorded
+  as no branch rather than the literal `HEAD`.
+- The standalone installers resolve the newest published release instead of
+  reading the version from `main`, so a version-bump commit landing before its
+  tag no longer breaks `curl | bash` / `irm | iex` with a 404.
+- The standup copy (`y` in the digest view) emits OSC 52 through the terminal
+  instead of shelling out to pbcopy/xclip, which works over SSH; it requires a
+  terminal that accepts OSC 52. The `atotto/clipboard` and `golang.org/x/term`
+  direct dependencies are gone.
+- Removed dead code the next contributor would have had to reason about:
+  per-result search snippets nothing displayed, per-entry sha256 fingerprints
+  nothing compared, delegating wrappers, and never-read fields. The exported
+  API of `storage`, `config`, `index`, `app`, and `project` is now documented.
+
 ## v0.0.7 — 2026-07-31
 
 A security and performance release. Three fixes close ways a cloned repository or a piped note could act on the machine reading it, and saving a note no longer re-reads every note you own. Pre-release. macOS arm64 remains the only host verified against the checklist in [docs/herdr-compatibility.md](docs/herdr-compatibility.md), with WSL 2 (`linux/amd64`) reported working; not a stable release or a v0.1.0 platform-support claim.

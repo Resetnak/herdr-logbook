@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"maps"
 	"os"
 	"os/exec"
@@ -218,7 +219,7 @@ func gitCommand(t *testing.T, dir string, args ...string) {
 
 func TestWaitForCloseKeepsPaneAliveWhenStdinIsEOF(t *testing.T) {
 	started := time.Now()
-	waitForClose(strings.NewReader(""), 20*time.Millisecond)
+	waitForClose(strings.NewReader(""), 20*time.Millisecond, time.Second)
 	if elapsed := time.Since(started); elapsed < 15*time.Millisecond {
 		t.Fatalf("waitForClose() returned after %s on EOF", elapsed)
 	}
@@ -226,7 +227,7 @@ func TestWaitForCloseKeepsPaneAliveWhenStdinIsEOF(t *testing.T) {
 
 func TestWaitForCloseHonorsMinimumWhenInputArrivesImmediately(t *testing.T) {
 	started := time.Now()
-	waitForClose(strings.NewReader("\n"), 20*time.Millisecond)
+	waitForClose(strings.NewReader("\n"), 20*time.Millisecond, time.Second)
 	if elapsed := time.Since(started); elapsed < 15*time.Millisecond {
 		t.Fatalf("waitForClose() returned after %s on early input", elapsed)
 	}
@@ -264,9 +265,11 @@ func TestRunNowSetsTaskAndArchivesThePreviousOne(t *testing.T) {
 		return code, stdout.String(), stderr.String()
 	}
 
-	code, _, stderr := logbook("now", "--project-root", repo)
-	if code != 0 || !strings.Contains(stderr, "no current task set") {
-		t.Fatalf("empty now code = %d, stderr = %q", code, stderr)
+	// A successful query answers on stdout; scripts capturing it should not
+	// have to look at stderr for the answer.
+	code, out, stderr := logbook("now", "--project-root", repo)
+	if code != 0 || !strings.Contains(out, "no current task set") {
+		t.Fatalf("empty now code = %d, stdout = %q, stderr = %q", code, out, stderr)
 	}
 
 	code, stdout, stderr := logbook("now", "--project-root", repo, "Rotate the signing tokens")
@@ -518,6 +521,24 @@ func TestRunDecisionPromptsForATitleAndReportsEditorFailures(t *testing.T) {
 	if code != 6 {
 		t.Fatalf("missing editor code = %d, stderr = %q", code, stderr.String())
 	}
+	// The decision exists by the time the editor runs; a failing editor must
+	// not swallow the path the user needs to find the file.
+	if data, err := os.ReadFile(strings.TrimSpace(stdout.String())); err != nil || !strings.Contains(string(data), "# Decision: Use Redis") {
+		t.Fatalf("missing editor hid the decision path: stdout = %q, %v", stdout.String(), err)
+	}
+
+	if runtime.GOOS != "windows" {
+		stdout.Reset()
+		stderr.Reset()
+		code = run([]string{"decision", "--title", "Use Redis", "--project-root", t.TempDir()},
+			newEnv(map[string]string{"EDITOR": "false"}), strings.NewReader(""), &stdout, &stderr)
+		if code != 6 {
+			t.Fatalf("failing editor code = %d, stderr = %q", code, stderr.String())
+		}
+		if data, err := os.ReadFile(strings.TrimSpace(stdout.String())); err != nil || !strings.Contains(string(data), "# Decision: Use Redis") {
+			t.Fatalf("failing editor hid the decision path: stdout = %q, %v", stdout.String(), err)
+		}
+	}
 
 	if runtime.GOOS != "windows" {
 		stdout.Reset()
@@ -715,6 +736,36 @@ func readAll(t *testing.T, paths []string) string {
 	return combined.String()
 }
 
+// A pipe that never delivers a newline or EOF (a supervisor holding stdin
+// open) must not park `compatibility --wait` forever after the display timer.
+func TestWaitForCloseReturnsWhenStdinNeverDelivers(t *testing.T) {
+	blocked, _ := io.Pipe()
+	done := make(chan struct{})
+	go func() {
+		waitForClose(blocked, 10*time.Millisecond, 50*time.Millisecond)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("waitForClose did not return after the grace period")
+	}
+}
+
+// Asking for help is not an error: the usage goes to stdout and exits 0,
+// unlike a bad invocation, which reports usage on stderr and exits 2.
+func TestRunHelpPrintsUsageToStdoutAndExitsZero(t *testing.T) {
+	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, func(string) string { return "" }, strings.NewReader(""), &stdout, &stderr); code != 0 {
+			t.Fatalf("run(%q) = %d, want 0 (stderr %q)", args, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), "usage:") {
+			t.Fatalf("run(%q) stdout does not show usage: %q", args, stdout.String())
+		}
+	}
+}
+
 // Exit codes are part of the contract Herdr reads: 2 usage, 3 state resolution,
 // 5 Herdr context.
 func TestRunRejectsBadInvocationsWithTheDocumentedExitCodes(t *testing.T) {
@@ -851,12 +902,12 @@ func TestRunPathsAndDoctorRenderPlainTextReports(t *testing.T) {
 
 func TestWaitForCloseReturnsAfterTheTimeout(t *testing.T) {
 	start := time.Now()
-	waitForClose(strings.NewReader("\n"), 20*time.Millisecond)
+	waitForClose(strings.NewReader("\n"), 20*time.Millisecond, time.Second)
 	if elapsed := time.Since(start); elapsed < 20*time.Millisecond {
 		t.Fatalf("waitForClose returned after %v, want at least the full timeout", elapsed)
 	}
 	// A reader that never delivers a line must still be released by the timer.
-	waitForClose(strings.NewReader(""), 20*time.Millisecond)
+	waitForClose(strings.NewReader(""), 20*time.Millisecond, time.Second)
 }
 
 // firstLine shortens a multi-line task for the "archived: …" confirmation, marking

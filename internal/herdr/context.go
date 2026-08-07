@@ -26,9 +26,6 @@ type Context struct {
 	InvocationSource    string   `json:"invocation_source,omitempty"`
 	ContextKeys         []string `json:"context_keys,omitempty"`
 	SelectedTextPresent bool     `json:"selected_text_present"`
-
-	SelectedText string   `json:"-"`
-	ClickedURLs  []string `json:"-"`
 }
 
 // ReadContext reads Herdr's environment without retaining selected text or clicked URLs.

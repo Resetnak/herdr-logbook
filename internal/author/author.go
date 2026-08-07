@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
+	md "github.com/Resetnak/herdr-logbook/internal/markdown"
 	"github.com/Resetnak/herdr-logbook/internal/storage"
 )
 
@@ -43,7 +45,26 @@ func Slug(title string) (string, error) {
 	return value, nil
 }
 
+// validateTitle mirrors capture.Append and nowfile.ValidateTask: the raw title
+// lands verbatim in a heading that is later painted to the terminal, so it must
+// be a single line of valid UTF-8 with no NUL or terminal control characters.
+func validateTitle(title string) error {
+	if !utf8.ValidString(title) || strings.ContainsRune(title, '\x00') {
+		return fmt.Errorf("title must be valid UTF-8 without NUL bytes")
+	}
+	if strings.ContainsAny(title, "\n\r") {
+		return fmt.Errorf("title must be a single line")
+	}
+	if strings.ContainsFunc(title, md.IsTerminalControl) {
+		return fmt.Errorf("title must not contain terminal control characters")
+	}
+	return nil
+}
+
 func CreateNote(storeRoot, title string) (string, error) {
+	if err := validateTitle(title); err != nil {
+		return "", err
+	}
 	slug, err := Slug(title)
 	if err != nil {
 		return "", err
@@ -56,6 +77,9 @@ func CreateNote(storeRoot, title string) (string, error) {
 }
 
 func CreateDecision(storeRoot, title, projectName, branch string, now time.Time) (string, error) {
+	if err := validateTitle(title); err != nil {
+		return "", err
+	}
 	slug, err := Slug(title)
 	if err != nil {
 		return "", err

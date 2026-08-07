@@ -67,6 +67,50 @@ Task done: Implement token rotation
 	}
 }
 
+func TestCollect_StripsTerminalControl(t *testing.T) {
+	tempDir := t.TempDir()
+	for _, dir := range []string{"inbox", "decisions"} {
+		if err := os.MkdirAll(filepath.Join(tempDir, dir), 0755); err != nil {
+			t.Fatalf("Failed to create %s dir: %v", dir, err)
+		}
+	}
+
+	// Notes written by an external editor never pass capture's control-character
+	// check; the digest paints them to the terminal and must strip escapes.
+	osc52 := "\x1b]52;c;payload\x07"
+	day := time.Now().Format("2006-01-02")
+	inbox := "## " + day + " 14:20\n\nnote " + osc52 + "text\n"
+	if err := os.WriteFile(filepath.Join(tempDir, "inbox", time.Now().Format("2006-01")+".md"), []byte(inbox), 0644); err != nil {
+		t.Fatalf("Failed to write inbox file: %v", err)
+	}
+	decision := "# Decision: title " + osc52 + "here\n\n- Date: " + day + "\n"
+	if err := os.WriteFile(filepath.Join(tempDir, "decisions", "d.md"), []byte(decision), 0644); err != nil {
+		t.Fatalf("Failed to write decision file: %v", err)
+	}
+	now := "# Now\n\n## Current task\n\ntask " + osc52 + "body\n"
+	if err := os.WriteFile(filepath.Join(tempDir, "now.md"), []byte(now), 0644); err != nil {
+		t.Fatalf("Failed to write now.md: %v", err)
+	}
+
+	report, err := Collect(tempDir, "test-project", "main", 1)
+	if err != nil {
+		t.Fatalf("Collect returned error: %v", err)
+	}
+	if len(report.Items) != 2 {
+		t.Fatalf("Expected 2 items, got %d", len(report.Items))
+	}
+	for _, item := range report.Items {
+		if strings.ContainsRune(item.Summary, 0x1b) {
+			t.Errorf("Summary kept a terminal escape: %q", item.Summary)
+		}
+	}
+	// Matching StripTerminalControl elsewhere: control characters go, the
+	// now-inert printable payload may stay.
+	if strings.ContainsRune(report.CurrentTask, 0x1b) || strings.ContainsRune(report.CurrentTask, 0x07) {
+		t.Errorf("CurrentTask kept a terminal escape: %q", report.CurrentTask)
+	}
+}
+
 func TestCollect_InboxMetadataSuffix(t *testing.T) {
 	tempDir := t.TempDir()
 	inboxDir := filepath.Join(tempDir, "inbox")

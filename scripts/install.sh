@@ -8,10 +8,15 @@ if [ -f "$manifest" ]; then
   install_dir="$plugin_root/bin"
 else
   # Standalone install (curl | bash): there is no plugin checkout around the
-  # script, so read the released version from the manifest on main and drop
-  # the binary into a PATH-friendly directory instead of a plugin root.
-  version="$(curl --fail --location --silent --show-error     https://raw.githubusercontent.com/Resetnak/herdr-logbook/main/herdr-plugin.toml |
-    awk -F '"' '/^version = / { print $2; exit }')"
+  # script, so resolve the newest published release and drop the binary into a
+  # PATH-friendly directory instead of a plugin root. The manifest on main is
+  # not used here: a version bump that has landed before its tag and assets
+  # exist would point at a release that is not downloadable yet.
+  latest="$(curl --fail --location --silent --show-error --output /dev/null \
+    --write-out '%{url_effective}' \
+    https://github.com/Resetnak/herdr-logbook/releases/latest)"
+  version="${latest##*/}"
+  version="${version#v}"
   install_dir="${HERDR_LOGBOOK_BIN_DIR:-$HOME/.local/bin}"
 fi
 if [ -z "$version" ]; then
