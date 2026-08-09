@@ -6,6 +6,7 @@ package nowfile
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	md "github.com/Resetnak/herdr-logbook/internal/markdown"
@@ -17,6 +18,11 @@ const (
 	// means "no task set", so reading it back reports an empty task rather than
 	// archiving the template text as work that was done.
 	placeholder = "Describe the task currently in progress."
+	// startedPrefix and startedSuffix delimit the marker SetCurrentTask leaves
+	// under the task. An HTML comment stays invisible in rendered Markdown, and
+	// CurrentTask strips it so plain readers of the section body never see it.
+	startedPrefix = "<!-- herdr-logbook: started "
+	startedSuffix = " -->"
 )
 
 // CurrentTask returns the body of the "## Current task" section, or an empty
@@ -27,16 +33,47 @@ func CurrentTask(content string) string {
 	if !found {
 		return ""
 	}
-	task := strings.TrimSpace(strings.Join(lines[start:end], "\n"))
+	body := make([]string, 0, end-start)
+	for _, line := range lines[start:end] {
+		if strings.HasPrefix(strings.TrimSpace(line), startedPrefix) {
+			continue
+		}
+		body = append(body, line)
+	}
+	task := strings.TrimSpace(strings.Join(body, "\n"))
 	if task == placeholder {
 		return ""
 	}
 	return task
 }
 
+// StartedAt returns when the current task was set, read from the marker
+// SetCurrentTask stores in the "## Current task" section. It reports false for
+// files written before the marker existed or edited by hand.
+func StartedAt(content string) (time.Time, bool) {
+	lines := splitLines(content)
+	start, end, found := section(lines)
+	if !found {
+		return time.Time{}, false
+	}
+	for _, line := range lines[start:end] {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, startedPrefix) || !strings.HasSuffix(trimmed, startedSuffix) {
+			continue
+		}
+		stamp := strings.TrimSuffix(strings.TrimPrefix(trimmed, startedPrefix), startedSuffix)
+		if at, err := time.Parse(time.RFC3339, stamp); err == nil {
+			return at, true
+		}
+	}
+	return time.Time{}, false
+}
+
 // SetCurrentTask returns content with the "## Current task" body replaced by
-// task. A missing section is inserted after the document title.
-func SetCurrentTask(content, task string) (string, error) {
+// task. A missing section is inserted after the document title. A non-zero
+// startedAt is stored under the task as an invisible marker so the next switch
+// can record how long the task took.
+func SetCurrentTask(content, task string, startedAt time.Time) (string, error) {
 	if err := ValidateTask(task); err != nil {
 		return "", err
 	}
@@ -53,9 +90,12 @@ func SetCurrentTask(content, task string) (string, error) {
 		start, end = at+1, at+1
 	}
 
-	updated := make([]string, 0, len(lines)+3)
+	updated := make([]string, 0, len(lines)+5)
 	updated = append(updated, lines[:start]...)
 	updated = append(updated, "", task, "")
+	if !startedAt.IsZero() {
+		updated = append(updated, startedPrefix+startedAt.Format(time.RFC3339)+startedSuffix, "")
+	}
 	updated = append(updated, lines[end:]...)
 	for len(updated) > 0 && strings.TrimSpace(updated[len(updated)-1]) == "" {
 		updated = updated[:len(updated)-1]

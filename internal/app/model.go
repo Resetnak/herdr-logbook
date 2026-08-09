@@ -1251,6 +1251,9 @@ func (m *HubModel) refreshDigestViewport() {
 			if item.Project != "" {
 				content.WriteString(faintStyle.Render(" (" + item.Project + ")"))
 			}
+			if label := digest.FormatTook(item.TookMinutes); label != "" {
+				content.WriteString(faintStyle.Render(" · " + label))
+			}
 			content.WriteString("\n")
 		}
 		for _, item := range captures {
@@ -1259,6 +1262,9 @@ func (m *HubModel) refreshDigestViewport() {
 				content.WriteString(faintStyle.Render(" (" + item.Project + ")"))
 			}
 			content.WriteString("\n")
+		}
+		if total := digest.TrackedMinutes(m.digestReport.Items); total > 0 {
+			content.WriteString(faintStyle.Render("  ⏱ Tracked: "+digest.FormatTook(total)) + "\n")
 		}
 		content.WriteString("\n")
 	}

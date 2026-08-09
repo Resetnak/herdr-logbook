@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Resetnak/herdr-logbook/internal/nowfile"
 	"github.com/Resetnak/herdr-logbook/internal/project"
 	"github.com/Resetnak/herdr-logbook/internal/storage"
 )
@@ -312,6 +313,63 @@ func TestRunNowSetsTaskAndArchivesThePreviousOne(t *testing.T) {
 	}
 	if !strings.Contains(string(journal), "Task done: Rotate the signing tokens") {
 		t.Fatalf("work journal = %q", journal)
+	}
+}
+
+func TestRunNowRecordsTaskDuration(t *testing.T) {
+	repo := t.TempDir()
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	logbook := func(args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(args, getenv, strings.NewReader(""), &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+
+	code, stdout, stderr := logbook("now", "--project-root", repo, "Rotate the signing tokens")
+	if code != 0 {
+		t.Fatalf("set now code = %d, stderr = %q", code, stderr)
+	}
+	nowPath := strings.TrimSpace(stdout)
+
+	// Backdate the started-at marker so the switch records a real duration.
+	content, err := os.ReadFile(nowPath)
+	if err != nil {
+		t.Fatalf("read now.md: %v", err)
+	}
+	started, ok := nowfile.StartedAt(string(content))
+	if !ok {
+		t.Fatalf("now.md is missing the started-at marker:\n%s", content)
+	}
+	backdated := strings.Replace(string(content),
+		started.Format(time.RFC3339),
+		started.Add(-135*time.Minute).Format(time.RFC3339), 1)
+	if err := os.WriteFile(nowPath, []byte(backdated), 0o600); err != nil {
+		t.Fatalf("backdate now.md: %v", err)
+	}
+
+	if code, _, stderr := logbook("now", "--project-root", repo, "Write the release notes"); code != 0 {
+		t.Fatalf("switch now code = %d, stderr = %q", code, stderr)
+	}
+
+	inbox := filepath.Join(filepath.Dir(nowPath), "inbox", time.Now().Format("2006-01")+".md")
+	journal, err := os.ReadFile(inbox)
+	if err != nil {
+		t.Fatalf("read work journal: %v", err)
+	}
+	if !strings.Contains(string(journal), " — Took: 2h15m") {
+		t.Fatalf("work journal is missing the duration:\n%s", journal)
+	}
+
+	code, stdout, stderr = logbook("digest", "--project-root", repo)
+	if code != 0 {
+		t.Fatalf("digest code = %d, stderr = %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "Task done: Rotate the signing tokens — 2h 15m") {
+		t.Fatalf("digest is missing the per-task duration:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "⏱ Tracked: 2h 15m") {
+		t.Fatalf("digest is missing the tracked total:\n%s", stdout)
 	}
 }
 

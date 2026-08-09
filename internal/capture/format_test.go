@@ -32,6 +32,44 @@ func TestFormatOmitsEmptyMetadata(t *testing.T) {
 	}
 }
 
+func TestFormatDurationRendering(t *testing.T) {
+	cases := map[time.Duration]string{
+		20 * time.Second:                "1m", // sub-minute rounds up instead of vanishing
+		45 * time.Minute:                "45m",
+		2*time.Hour + 15*time.Minute:    "2h15m",
+		26*time.Hour + 90*time.Second:   "26h2m",
+		59*time.Minute + 40*time.Second: "1h0m",
+	}
+	for d, want := range cases {
+		if got := FormatDuration(d); got != want {
+			t.Errorf("FormatDuration(%v) = %q, want %q", d, got, want)
+		}
+	}
+}
+
+func TestFormatIncludesDurationInHeading(t *testing.T) {
+	entry := Entry{
+		Time: time.Date(2026, 8, 9, 14, 20, 0, 0, time.UTC), Text: "Task done: Rotate tokens",
+		Branch: "main", Duration: 2*time.Hour + 15*time.Minute,
+	}
+	got, err := Format(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "## 2026-08-09 14:20 — Branch: `main` — Took: 2h15m\n") {
+		t.Fatalf("Format() = %q, want the Took heading suffix", got)
+	}
+	// Zero duration must leave the heading untouched.
+	entry.Duration = 0
+	got, err = Format(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got, "Took:") {
+		t.Fatalf("Format() included Took for zero duration: %q", got)
+	}
+}
+
 func TestFormatMultilineSelectionUsesSafeFence(t *testing.T) {
 	text := "first\n```\ninside\n````\nlast"
 	got, err := Format(Entry{Time: time.Date(2026, 7, 22, 14, 35, 0, 0, time.UTC), Text: text, Selection: true})

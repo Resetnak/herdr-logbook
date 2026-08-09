@@ -67,6 +67,63 @@ Task done: Implement token rotation
 	}
 }
 
+func TestCollect_TookMetadata(t *testing.T) {
+	tempDir := t.TempDir()
+	inboxDir := filepath.Join(tempDir, "inbox")
+	if err := os.MkdirAll(inboxDir, 0755); err != nil {
+		t.Fatalf("Failed to create inbox dir: %v", err)
+	}
+
+	day := time.Now().Format("2006-01-02")
+	content := "# Inbox — " + time.Now().Format("2006-01") + `
+
+## ` + day + ` 14:20 — Branch: ` + "`main`" + ` — Took: 2h15m
+
+Task done: Rotate tokens
+
+## ` + day + ` 10:15 — Took: garbage
+
+Task done: No parseable duration
+`
+	if err := os.WriteFile(filepath.Join(inboxDir, time.Now().Format("2006-01")+".md"), []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write inbox file: %v", err)
+	}
+
+	report, err := Collect(tempDir, "test-project", "main", 1)
+	if err != nil {
+		t.Fatalf("Collect returned error: %v", err)
+	}
+	if len(report.Items) != 2 {
+		t.Fatalf("Expected 2 items, got %d", len(report.Items))
+	}
+	if report.Items[0].TookMinutes != 135 {
+		t.Errorf("Expected 135 tracked minutes, got %d", report.Items[0].TookMinutes)
+	}
+	if report.Items[1].TookMinutes != 0 {
+		t.Errorf("Expected unparseable Took to read as 0, got %d", report.Items[1].TookMinutes)
+	}
+	if total := TrackedMinutes(report.Items); total != 135 {
+		t.Errorf("TrackedMinutes = %d, want 135", total)
+	}
+
+	md := FormatMarkdown(report)
+	if !strings.Contains(md, "- Task done: Rotate tokens — 2h 15m") {
+		t.Errorf("Missing per-task duration in markdown:\n%s", md)
+	}
+	if !strings.Contains(md, "⏱ Tracked: 2h 15m") {
+		t.Errorf("Missing tracked total in markdown:\n%s", md)
+	}
+}
+
+func TestFormatTook(t *testing.T) {
+	cases := map[int]string{0: "", 45: "45m", 135: "2h 15m", 60: "1h 0m"}
+	for minutes, want := range cases {
+		if got := FormatTook(minutes); got != want {
+			t.Errorf("FormatTook(%d) = %q, want %q", minutes, got, want)
+		}
+	}
+}
+
 func TestCollect_StripsTerminalControl(t *testing.T) {
 	tempDir := t.TempDir()
 	for _, dir := range []string{"inbox", "decisions"} {

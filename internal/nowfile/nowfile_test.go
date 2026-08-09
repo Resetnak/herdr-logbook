@@ -3,6 +3,7 @@ package nowfile
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 const template = `# Now
@@ -53,7 +54,7 @@ func TestCurrentTaskIgnoresHeadingInsideFence(t *testing.T) {
 }
 
 func TestSetCurrentTaskPreservesOtherSections(t *testing.T) {
-	updated, err := SetCurrentTask(template, "  Rotate the signing tokens  ")
+	updated, err := SetCurrentTask(template, "  Rotate the signing tokens  ", time.Time{})
 	if err != nil {
 		t.Fatalf("SetCurrentTask: %v", err)
 	}
@@ -71,7 +72,7 @@ func TestSetCurrentTaskPreservesOtherSections(t *testing.T) {
 }
 
 func TestSetCurrentTaskCreatesMissingSection(t *testing.T) {
-	updated, err := SetCurrentTask("# Now\n\n## Blockers\n\n- None.\n", "Ship the release")
+	updated, err := SetCurrentTask("# Now\n\n## Blockers\n\n- None.\n", "Ship the release", time.Time{})
 	if err != nil {
 		t.Fatalf("SetCurrentTask: %v", err)
 	}
@@ -84,7 +85,7 @@ func TestSetCurrentTaskCreatesMissingSection(t *testing.T) {
 }
 
 func TestSetCurrentTaskOnEmptyContent(t *testing.T) {
-	updated, err := SetCurrentTask("", "Ship the release")
+	updated, err := SetCurrentTask("", "Ship the release", time.Time{})
 	if err != nil {
 		t.Fatalf("SetCurrentTask: %v", err)
 	}
@@ -94,11 +95,11 @@ func TestSetCurrentTaskOnEmptyContent(t *testing.T) {
 }
 
 func TestSetCurrentTaskIsIdempotentlyRepeatable(t *testing.T) {
-	first, err := SetCurrentTask(template, "First task")
+	first, err := SetCurrentTask(template, "First task", time.Time{})
 	if err != nil {
 		t.Fatalf("SetCurrentTask: %v", err)
 	}
-	second, err := SetCurrentTask(first, "Second task")
+	second, err := SetCurrentTask(first, "Second task", time.Time{})
 	if err != nil {
 		t.Fatalf("SetCurrentTask: %v", err)
 	}
@@ -107,6 +108,58 @@ func TestSetCurrentTaskIsIdempotentlyRepeatable(t *testing.T) {
 	}
 	if strings.Contains(second, "First task") {
 		t.Fatalf("previous task was left behind:\n%s", second)
+	}
+}
+
+func TestStartedAtRoundTrip(t *testing.T) {
+	started := time.Date(2026, 8, 9, 14, 20, 0, 0, time.FixedZone("CEST", 2*3600))
+	updated, err := SetCurrentTask(template, "Rotate the signing tokens", started)
+	if err != nil {
+		t.Fatalf("SetCurrentTask: %v", err)
+	}
+	at, ok := StartedAt(updated)
+	if !ok || !at.Equal(started) {
+		t.Fatalf("StartedAt = %v, %v; want %v, true", at, ok, started)
+	}
+	// The marker must never leak into the task body.
+	if task := CurrentTask(updated); task != "Rotate the signing tokens" {
+		t.Fatalf("marker leaked into the task: %q", task)
+	}
+	// A later switch replaces the marker instead of accumulating them.
+	next := started.Add(2 * time.Hour)
+	second, err := SetCurrentTask(updated, "Ship the release", next)
+	if err != nil {
+		t.Fatalf("SetCurrentTask: %v", err)
+	}
+	if strings.Count(second, startedPrefix) != 1 {
+		t.Fatalf("expected exactly one marker:\n%s", second)
+	}
+	if at, ok := StartedAt(second); !ok || !at.Equal(next) {
+		t.Fatalf("StartedAt after switch = %v, %v; want %v, true", at, ok, next)
+	}
+}
+
+func TestStartedAtMissingOrHandEdited(t *testing.T) {
+	if _, ok := StartedAt(template); ok {
+		t.Fatal("expected no started-at in a fresh now.md")
+	}
+	// A hand-edited or truncated marker reads as unknown, never as an error.
+	content := "# Now\n\n## Current task\n\nOld task\n\n<!-- herdr-logbook: started not-a-time -->\n"
+	if _, ok := StartedAt(content); ok {
+		t.Fatal("expected an unparseable marker to read as unknown")
+	}
+	if task := CurrentTask(content); task != "Old task" {
+		t.Fatalf("broken marker leaked into the task: %q", task)
+	}
+}
+
+func TestSetCurrentTaskZeroTimeWritesNoMarker(t *testing.T) {
+	updated, err := SetCurrentTask(template, "Rotate the signing tokens", time.Time{})
+	if err != nil {
+		t.Fatalf("SetCurrentTask: %v", err)
+	}
+	if strings.Contains(updated, startedPrefix) {
+		t.Fatalf("zero time produced a marker:\n%s", updated)
 	}
 }
 
@@ -137,7 +190,7 @@ func TestValidateTaskRejectsBadInput(t *testing.T) {
 }
 
 func TestSetCurrentTaskNormalizesCRLF(t *testing.T) {
-	updated, err := SetCurrentTask("# Now\r\n\r\n## Current task\r\n\r\nOld\r\n", "New")
+	updated, err := SetCurrentTask("# Now\r\n\r\n## Current task\r\n\r\nOld\r\n", "New", time.Time{})
 	if err != nil {
 		t.Fatalf("SetCurrentTask: %v", err)
 	}

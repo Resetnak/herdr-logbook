@@ -786,7 +786,8 @@ func setNowTask(state coreState, task string) (string, error) {
 			return readErr
 		}
 		previous = nowfile.CurrentTask(string(content))
-		updated, setErr := nowfile.SetCurrentTask(string(content), task)
+		now := time.Now()
+		updated, setErr := nowfile.SetCurrentTask(string(content), task, now)
 		if setErr != nil {
 			return setErr
 		}
@@ -798,6 +799,12 @@ func setNowTask(state coreState, task string) (string, error) {
 			request, err := buildCaptureRequest(state, "Task done: "+previous, false, false, "", "")
 			if err != nil {
 				return err
+			}
+			// Wall-clock time since the task was set, deliberately uncapped: the
+			// journal records what happened, and Markdown stays editable if a
+			// task was left open overnight.
+			if startedAt, ok := nowfile.StartedAt(string(content)); ok && now.After(startedAt) {
+				request.Entry.Duration = now.Sub(startedAt)
 			}
 			if _, err := capture.AppendLocked(request); err != nil {
 				return err

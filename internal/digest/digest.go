@@ -19,6 +19,32 @@ type ActivityItem struct {
 	Summary string
 	Project string
 	Kind    string
+	// TookMinutes is how long a "task" item was active, parsed from the inbox
+	// heading's "Took:" metadata; 0 means the duration was not recorded.
+	TookMinutes int
+}
+
+// FormatTook renders minutes for display ("45m", "2h 15m"); empty when unknown.
+func FormatTook(minutes int) string {
+	switch {
+	case minutes < 1:
+		return ""
+	case minutes < 60:
+		return fmt.Sprintf("%dm", minutes)
+	default:
+		return fmt.Sprintf("%dh %dm", minutes/60, minutes%60)
+	}
+}
+
+// TrackedMinutes sums the recorded durations of the report's task items.
+func TrackedMinutes(items []ActivityItem) int {
+	total := 0
+	for _, item := range items {
+		if item.Kind == "task" {
+			total += item.TookMinutes
+		}
+	}
+	return total
 }
 
 type DayActivity struct {
@@ -109,10 +135,17 @@ func FormatMarkdown(report DigestReport) string {
 				proj = fmt.Sprintf(" (%s)", item.Project)
 			}
 			if item.Kind == "task" {
-				sb.WriteString(fmt.Sprintf("- Task done: %s%s\n", item.Summary, proj))
+				took := ""
+				if label := FormatTook(item.TookMinutes); label != "" {
+					took = " — " + label
+				}
+				sb.WriteString(fmt.Sprintf("- Task done: %s%s%s\n", item.Summary, proj, took))
 			} else {
 				sb.WriteString(fmt.Sprintf("- %s%s\n", item.Summary, proj))
 			}
+		}
+		if total := TrackedMinutes(report.Items); total > 0 {
+			sb.WriteString(fmt.Sprintf("\n⏱ Tracked: %s\n", FormatTook(total)))
 		}
 		sb.WriteString("\n")
 	}
@@ -200,7 +233,14 @@ func parseInboxFile(path, projectName string) []ActivityItem {
 	for _, line := range strings.Split(string(data), "\n") {
 		if heading, ok := strings.CutPrefix(line, "## "); ok {
 			flush()
-			// "## 2026-07-30 14:20 — Branch: `main`" — drop the metadata suffix.
+			// "## 2026-07-30 14:20 — Branch: `main` — Took: 2h15m" — read the
+			// duration, then drop the metadata suffix.
+			took := 0
+			if _, value, ok := strings.Cut(heading, " — Took: "); ok {
+				if d, err := time.ParseDuration(strings.TrimSpace(value)); err == nil && d > 0 {
+					took = int(d / time.Minute)
+				}
+			}
 			if idx := strings.Index(heading, " —"); idx >= 0 {
 				heading = heading[:idx]
 			}
@@ -208,7 +248,7 @@ func parseInboxFile(path, projectName string) []ActivityItem {
 			if err != nil {
 				continue
 			}
-			current = &ActivityItem{Time: parsed, Project: projectName, Kind: "capture"}
+			current = &ActivityItem{Time: parsed, Project: projectName, Kind: "capture", TookMinutes: took}
 			continue
 		}
 		// The summary is the first real line of the body; everything after it
@@ -279,6 +319,10 @@ func parseNowFile(path string) string {
 			break
 		}
 		if inTask {
+			// Skip the invisible started-at marker nowfile stores under the task.
+			if strings.HasPrefix(strings.TrimSpace(line), "<!--") {
+				continue
+			}
 			taskBody = append(taskBody, line)
 		}
 	}

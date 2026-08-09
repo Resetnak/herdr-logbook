@@ -12,6 +12,20 @@ type Entry struct {
 	Branch    string
 	SourceCWD string
 	Selection bool
+	// Duration is how long the archived task was active; zero means unknown
+	// (task predates tracking or now.md was edited by hand) and is omitted.
+	Duration time.Duration
+}
+
+// FormatDuration renders a task duration for the inbox heading in Go's
+// duration syntax ("45m", "2h15m"), so time.ParseDuration reads it back.
+// Sub-minute durations round up to 1m rather than vanishing.
+func FormatDuration(d time.Duration) string {
+	minutes := max(1, int(d.Round(time.Minute)/time.Minute))
+	if minutes < 60 {
+		return fmt.Sprintf("%dm", minutes)
+	}
+	return fmt.Sprintf("%dh%dm", minutes/60, minutes%60)
 }
 
 func Format(entry Entry) (string, error) {
@@ -31,6 +45,10 @@ func Format(entry Entry) (string, error) {
 			output.WriteString(" — Source: ")
 			output.WriteString(inlineCode(entry.SourceCWD))
 		}
+	}
+	if entry.Duration > 0 {
+		output.WriteString(" — Took: ")
+		output.WriteString(FormatDuration(entry.Duration))
 	}
 	output.WriteString("\n\n")
 
