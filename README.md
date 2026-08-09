@@ -72,6 +72,7 @@ The notes around a coding task should outlive the tool that captured them. **Her
 - **🌿 Git & Repository Aware**: Automatically scopes notes by workspace, Git worktree, or current folder.
 - **⚡ Responsive Terminal UI**: Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea). Adapts from 3 panes to a single pane on narrow terminals (<70 cols).
 - **🎯 Active Task & Free Work Journal**: `t` (or `herdr-logbook now "…"`) sets the current task in `now.md`. Every switch files the task you just left into the monthly inbox, so your journal writes itself.
+- **⏱ Zero-Effort Time Tracking**: Switching tasks records how long the finished one took (`Task done: … — Took: 2h15m`), and the digest sums the tracked time per day or week. No timers to start or stop — the journal you already keep does it.
 - **⚖️ Architectural Decisions (ADR)**: Built-in templates for logging technical choices and consequences (`d`).
 - **🔍 Instant Fuzzy Search**: Real-time cross-project search (`/`) or project-filtered search (`p`).
 - **📊 Activity Digest & Standup**: One-keystroke (`s`) activity heatmap and standup report generator — copy to clipboard with `y`.
@@ -303,7 +304,7 @@ herdr-logbook now "Rotate the signing tokens" # set it
 herdr-logbook now --project-root ~/src/api "Fix the flaky login test"
 ```
 
-Switching tasks appends the one you just left to this month's inbox file as `Task done: …`, timestamped and tagged with the branch. Nothing else in `now.md` is touched — your `## Next steps`, `## Blockers`, and `## Context` sections stay exactly as you wrote them.
+Switching tasks appends the one you just left to this month's inbox file as `Task done: …`, timestamped, tagged with the branch, and — when the task was set through Logbook — annotated with how long it took (`— Took: 2h15m`). The duration is honest wall-clock time between switches; a task left open overnight records overnight, and since the journal is plain Markdown you can always edit the entry. Nothing else in `now.md` is touched — your `## Next steps`, `## Blockers`, and `## Context` sections stay exactly as you wrote them.
 
 > Flags must come before the task text (`now --project-root PATH "task"`), and the task itself cannot contain Markdown headings — they would cut the section short.
 
@@ -311,7 +312,7 @@ Switching tasks appends the one you just left to this month's inbox file as `Tas
 
 ## 📊 Activity Digest (`digest`)
 
-Generate a standup report from your logged activity — tasks, captures, and decisions:
+Generate a standup report from your logged activity — tasks (with how long each took and a tracked-time total), captures, and decisions:
 
 ```bash
 herdr-logbook digest                     # today's standup (Markdown)

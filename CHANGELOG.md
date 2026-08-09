@@ -2,6 +2,18 @@
 
 All notable changes will be documented here. The project has not published a stable release.
 
+## Unreleased
+
+- Added zero-effort time tracking: setting a task stores an invisible
+  started-at marker in `now.md` (an HTML comment under `## Current task`), and
+  the next switch records how long the task took in the inbox heading
+  (`— Took: 2h15m`). The digest shows the duration next to each completed task
+  and a `⏱ Tracked:` total for the period, in the TUI, the standup Markdown,
+  and `digest --json` (`TookMinutes` per item). Durations are honest wall-clock
+  time between switches, deliberately uncapped — the journal is plain Markdown,
+  so an overnight entry can simply be edited. Tasks set before this release, or
+  a `now.md` whose marker was hand-edited away, keep the old entry format.
+
 ## v0.0.8 — 2026-08-07
 
 An audit release: one escape-sequence gap in the new digest view is closed, task switching can no longer lose a concurrent edit, the CLI honors its documented exit-code contract, and about 170 lines of dead code and two direct dependencies are gone.

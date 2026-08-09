@@ -72,6 +72,7 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 - **🌿 Vnímání projektů a Git**: Poznámky se automaticky organizují podle repozitáře, Git worktree nebo adresáře.
 - **⚡ Responzivní TUI rozhraní**: Postavené na [Bubble Tea](https://github.com/charmbracelet/bubbletea). Na úzkých terminálech (<70 sloupců) se automaticky přepne na jednosloupcový režim.
 - **🎯 Aktuální úkol a deník práce zdarma**: `t` (nebo `herdr-logbook now "…"`) nastaví aktuální úkol v `now.md`. Při každém přepnutí se předchozí úkol založí do měsíčního inboxu — deník se píše sám.
+- **⏱ Měření času bez námahy**: Přepnutí úkolu zaznamená, jak dlouho ten dokončený trval (`Task done: … — Took: 2h15m`), a digest sečte odpracovaný čas za den či týden. Žádné stopky — stačí deník, který už vedete.
 - **⚖️ Architektonická rozhodnutí (ADR)**: Vestavěná šablona pro záznam technických rozhodnutí a důsledků (`d`).
 - **🔍 Okamžité vyhledávání**: Bleskové fuzzy vyhledávání napříč všemi projekty (`/`) nebo filtrování podle projektu (`p`).
 - **📊 Přehled aktivity a standup**: Jedna klávesa (`s`) zobrazí mapu aktivity a vygeneruje standup report — `y` ho zkopíruje do schránky.
@@ -303,7 +304,7 @@ herdr-logbook now "Rotace podpisových tokenů" # nastaví ho
 herdr-logbook now --project-root ~/src/api "Oprava padajícího login testu"
 ```
 
-Přepnutí úkolu připojí ten předchozí do měsíčního souboru v inboxu jako `Task done: …` s časovým razítkem a větví. Zbytek `now.md` zůstane nedotčený — sekce `## Next steps`, `## Blockers` a `## Context` se nepřepisují.
+Přepnutí úkolu připojí ten předchozí do měsíčního souboru v inboxu jako `Task done: …` s časovým razítkem, větví a — pokud byl úkol nastaven přes Logbook — s dobou trvání (`— Took: 2h15m`). Doba je poctivý reálný čas mezi přepnutími; úkol nechaný přes noc zaznamená noc, a protože deník je obyčejný Markdown, můžete záznam kdykoli upravit. Zbytek `now.md` zůstane nedotčený — sekce `## Next steps`, `## Blockers` a `## Context` se nepřepisují.
 
 > Přepínače musí být před textem úkolu (`now --project-root CESTA "úkol"`) a samotný text nesmí obsahovat Markdown nadpisy — ty by sekci předčasně ukončily.
 
@@ -311,7 +312,7 @@ Přepnutí úkolu připojí ten předchozí do měsíčního souboru v inboxu ja
 
 ## 📊 Přehled aktivity (`digest`)
 
-Vygeneruje standup report z toho, co máte zaznamenané — úkoly, rychlá zachycení a rozhodnutí:
+Vygeneruje standup report z toho, co máte zaznamenané — úkoly (včetně doby trvání a součtu odpracovaného času), rychlá zachycení a rozhodnutí:
 
 ```bash
 herdr-logbook digest                     # dnešní standup (Markdown)
