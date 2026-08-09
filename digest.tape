@@ -47,7 +47,11 @@ Enter
 # live on camera, so the standup section grows while you watch.
 Type "herdr-logbook init >/dev/null && herdr-logbook capture -text 'Postgres pool exhausted under load - raise max_connections' >/dev/null && herdr-logbook decision -title 'Use opaque refresh tokens instead of long-lived JWTs' -no-edit >/dev/null"
 Enter
-Type `S=$(ls -d /tmp/hl-digest-home/.local/state/herdr/plugins/herdr-logbook/store/projects/p_*) && printf '# Now\n\n## Current task\nImplement token rotation for the API gateway.\n\n## Next steps\n- [ ] Add replay detection.\n- [ ] Rotate signing keys before v2 launch.\n' > $S/now.md`
+Type `S=$(ls -d /tmp/hl-digest-home/.local/state/herdr/plugins/herdr-logbook/store/projects/p_*) && printf '# Now\n\n## Next steps\n- [ ] Add replay detection.\n- [ ] Rotate signing keys before v2 launch.\n' > $S/now.md && herdr-logbook now 'Implement token rotation for the API gateway.' >/dev/null`
+Enter
+# Backdate the started-at marker so the on-camera task switch records a real
+# duration ("— Took: 2h15m") instead of the second the recording takes.
+Type `started() { date -u -v-135M "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d "135 minutes ago" "+%Y-%m-%dT%H:%M:%SZ"; }; sed -i.bak "s|<!-- herdr-logbook: started .* -->|<!-- herdr-logbook: started $(started) -->|" $S/now.md && rm -f $S/now.md.bak`
 Enter
 
 # Backfill four weeks of history. Entries land in the current monthly inbox
@@ -56,6 +60,10 @@ Enter
 # shade (block() steps at 1, 2, 4 and 6), weekends left blank, days 1-5 kept
 # busy so the streak counter has something to count.
 Type `ago() { date -v-$1d "+%Y-%m-%d" 2>/dev/null || date -d "$1 days ago" "+%Y-%m-%d"; }; msgs=("Drafted the zero-downtime rotation runbook." "Added replay detection to the auth middleware." "Benchmarked the token cache under load." "Paired on the v2 migration plan." "Triaged a flaky gateway integration test." "Reviewed the token rotation plan." "Cut the release candidate for v2." "Chased down a connection leak in the pool."); n=0; for spec in 1:3 2:6 3:2 4:4 5:1 8:2 9:5 10:3 11:1 12:4 15:2 16:6 17:3 18:2 19:4 22:1 23:3 24:2 25:5; do d=${spec%%:*}; c=${spec##*:}; for k in $(seq $c); do printf '## %s %02d:%02d\n\n%s\n\n' "$(ago $d)" $((8 + k)) $((d + k)) "${msgs[$((n % 8))]}" >> $S/inbox/$(date "+%Y-%m").md; n=$((n+1)); done; done`
+Enter
+# A few finished tasks with recorded durations earlier this week, so the
+# weekly standup shows per-task times and a bigger "⏱ Tracked:" total.
+Type `printf '## %s 16:40 — Took: 1h20m\n\nTask done: Added replay detection to the auth middleware.\n\n## %s 11:05 — Took: 45m\n\nTask done: Benchmarked the token cache under load.\n\n## %s 17:30 — Took: 3h10m\n\nTask done: Drafted the zero-downtime rotation runbook.\n\n' "$(ago 1)" "$(ago 2)" "$(ago 3)" >> $S/inbox/$(date "+%Y-%m").md`
 Enter
 Type `herdr-logbook index rebuild >/dev/null`
 Enter
