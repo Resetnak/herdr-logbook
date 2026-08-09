@@ -2,7 +2,12 @@
 
 All notable changes will be documented here. The project has not published a stable release.
 
-## Unreleased
+## v0.0.9 — 2026-08-09
+
+Zero-effort time tracking: the task switches you already make now record how
+long each task took, and the digest tells you where the day went. Pre-release;
+the platform status in [docs/herdr-compatibility.md](docs/herdr-compatibility.md)
+is unchanged.
 
 - Added zero-effort time tracking: setting a task stores an invisible
   started-at marker in `now.md` (an HTML comment under `## Current task`), and
