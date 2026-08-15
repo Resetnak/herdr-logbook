@@ -1512,6 +1512,57 @@ func TestHubDeleteConfirmsThenRemoves(t *testing.T) {
 	}
 }
 
+func TestHubDeleteCancelAndFailureKeepTheNote(t *testing.T) {
+	note := Note{Path: "/store/inbox/2026-08.md", Title: "Inbox — 2026-08", Type: NoteProjectInbox}
+	model := NewHub([]Note{note}, "api", "main", "central").
+		WithDelete(func(Note) (string, []Note, error) {
+			return "", nil, errors.New("remove failed")
+		}).WithView("all")
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if view := model.View(); !strings.Contains(view, "whole monthly journal") {
+		t.Fatalf("journal warning is missing:\n%s", view)
+	}
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 80, Height: 24})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyEsc})
+	if model.confirmingDelete {
+		t.Fatal("Esc did not cancel deletion")
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	model, cmd := updateHub(model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil || !model.saving || !strings.Contains(model.View(), "Deleting") {
+		t.Fatalf("delete did not enter saving state: saving=%v view=%q", model.saving, model.View())
+	}
+	model, _ = updateHub(model, cmd())
+	if len(model.notes) != 1 || model.captureErr != "remove failed" || model.confirmingDelete {
+		t.Fatalf("failed delete changed state: notes=%#v error=%q confirming=%v", model.notes, model.captureErr, model.confirmingDelete)
+	}
+}
+
+func TestHubDeleteHandlesUnavailableAndStaleSelections(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if !strings.Contains(model.flashMsg, "Nothing to delete") {
+		t.Fatalf("empty delete flash = %q", model.flashMsg)
+	}
+
+	note := Note{Path: "/store/notes/cache.md", Title: "Cache", Type: NoteProjectNote}
+	model = NewHub([]Note{note}, "api", "main", "central").WithView("project")
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if !strings.Contains(model.flashMsg, "unavailable") {
+		t.Fatalf("unavailable delete flash = %q", model.flashMsg)
+	}
+
+	model = model.WithDelete(func(Note) (string, []Note, error) { return "", nil, nil })
+	model.confirmingDelete = true
+	model.notes = nil
+	model, cmd := updateHub(model, tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil || model.confirmingDelete {
+		t.Fatalf("stale selection started delete: command=%v confirming=%v", cmd != nil, model.confirmingDelete)
+	}
+}
+
 func TestSearchNoteKeepsIndexTypes(t *testing.T) {
 	got := searchNote(searchindex.Entry{Path: "/store/now.md", NoteType: "now", Title: "Now"})
 	if got.Type != NoteNow {
@@ -1521,23 +1572,33 @@ func TestSearchNoteKeepsIndexTypes(t *testing.T) {
 	if got.Type != NoteProjectInbox {
 		t.Fatalf("search inbox type = %q", got.Type)
 	}
+	got = searchNote(searchindex.Entry{Path: "/store/decisions/cache.md", NoteType: "decision", Title: "Cache"})
+	if got.Type != NoteDecision {
+		t.Fatalf("search decision type = %q", got.Type)
+	}
+	got = searchNote(searchindex.Entry{Path: "/store/notes/cache.md", NoteType: "unknown", Title: "Cache"})
+	if got.Type != NoteProjectNote {
+		t.Fatalf("search fallback type = %q", got.Type)
+	}
 }
 
 func TestDeleteDropsTheNoteFromSearchResults(t *testing.T) {
 	note := Note{Path: "/store/notes/cache.md", Title: "Cache", Type: NoteProjectNote}
+	kept := Note{Path: "/store/notes/keep.md", Title: "Keep", Type: NoteProjectNote}
 	model := NewHub([]Note{note}, "api", "main", "central").
 		WithDelete(func(got Note) (string, []Note, error) {
 			return got.Path, nil, nil
 		})
 	model.searchQuery = "cache"
-	model.searchResults = []Note{note}
-	model.searchEntries = []searchindex.Entry{{Path: note.Path, Title: "Cache"}}
+	model.searchResults = []Note{note, kept}
+	model.searchEntries = []searchindex.Entry{{Path: note.Path, Title: "Cache"}, {Path: kept.Path, Title: "Keep"}}
 	model.noteIndex = 0
 
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	model, cmd := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	model, _ = updateHub(model, cmd())
-	if len(model.searchResults) != 0 || len(model.searchEntries) != 0 {
+	if len(model.searchResults) != 1 || model.searchResults[0].Path != kept.Path ||
+		len(model.searchEntries) != 1 || model.searchEntries[0].Path != kept.Path {
 		t.Fatalf("deleted note stayed in search: results %#v entries %#v", model.searchResults, model.searchEntries)
 	}
 }

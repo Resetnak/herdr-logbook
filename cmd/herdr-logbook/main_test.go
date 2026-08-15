@@ -741,6 +741,30 @@ func TestDeleteFromHubRemovesANoteAndRefusesNow(t *testing.T) {
 	}
 }
 
+func TestLockForNoteUsesTheOwningStoreLock(t *testing.T) {
+	state, _ := hubState(t, nil)
+	globalNote := filepath.Join(state.StateDir, "store", "global", "notes", "global.md")
+	if got, want := lockForNote(state, globalNote), filepath.Join(state.StateDir, "locks", "global.lock"); got != want {
+		t.Fatalf("global lock = %q, want %q", got, want)
+	}
+
+	externalStore := filepath.Join(t.TempDir(), "external-store")
+	registryPath, registryLock := registryPaths(state.StateDir)
+	if err := project.UpdateRegistry(registryPath, registryLock, 2*time.Second,
+		project.Project{ID: "external", Name: "external", Root: externalStore},
+		"central", externalStore, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	externalNote := filepath.Join(externalStore, "notes", "external.md")
+	if got, want := lockForNote(state, externalNote), filepath.Join(state.StateDir, "locks", "external.lock"); got != want {
+		t.Fatalf("registered store lock = %q, want %q", got, want)
+	}
+
+	if got := lockForNote(state, filepath.Join(t.TempDir(), "outside.md")); got != state.Layout.Lock {
+		t.Fatalf("fallback lock = %q, want %q", got, state.Layout.Lock)
+	}
+}
+
 func TestEditorCommandForGuardsThePathAndResolvesTheEditor(t *testing.T) {
 	state, getenv := hubState(t, map[string]string{"EDITOR": "logbook-test-editor"})
 	editorPath := fakeEditor(t, "logbook-test-editor")

@@ -49,3 +49,41 @@ func TestAtomicWriteCleansTemporaryFileAfterRenameFailure(t *testing.T) {
 		t.Fatalf("AtomicWrite() left temporary files: %#v", entries)
 	}
 }
+
+func TestReadForRewriteHandlesMissingAndRegularFiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "note.md")
+	data, err := ReadForRewrite(path)
+	if err != nil || data != nil {
+		t.Fatalf("ReadForRewrite() missing file = %q, %v", data, err)
+	}
+
+	if err := os.WriteFile(path, []byte("# Note\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	data, err = ReadForRewrite(path)
+	if err != nil || string(data) != "# Note\n" {
+		t.Fatalf("ReadForRewrite() regular file = %q, %v", data, err)
+	}
+}
+
+func TestReadForRewriteRefusesNonRegularFiles(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := ReadForRewrite(dir); err == nil {
+		t.Fatal("ReadForRewrite() accepted a directory")
+	}
+
+	if runtime.GOOS == "windows" {
+		return
+	}
+	target := filepath.Join(dir, "target.md")
+	link := filepath.Join(dir, "link.md")
+	if err := os.WriteFile(target, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadForRewrite(link); err == nil {
+		t.Fatal("ReadForRewrite() followed a symlink")
+	}
+}

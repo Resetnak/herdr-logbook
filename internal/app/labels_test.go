@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestListTitlePrefersCurrentTaskBody(t *testing.T) {
@@ -38,6 +39,45 @@ func TestListLineAddsKindInAllNotes(t *testing.T) {
 	note.ProjectName = "api"
 	if got := listLine(note, false); got != "Collect more metrics · api" {
 		t.Fatalf("listLine() with project = %q", got)
+	}
+}
+
+func TestKindLabelDescribesEveryNoteType(t *testing.T) {
+	tests := []struct {
+		noteType NoteType
+		want     string
+	}{
+		{NoteNow, "current task"},
+		{NoteProjectInbox, "project journal"},
+		{NoteGlobalInbox, "global journal"},
+		{NoteProjectNote, "note"},
+		{NoteDecision, "decision"},
+		{NoteGlobalNote, "global note"},
+		{NoteGlobalDecision, "global decision"},
+		{NoteType("future-type"), "future-type"},
+	}
+	for _, test := range tests {
+		if got := kindLabel(test.noteType); got != test.want {
+			t.Errorf("kindLabel(%q) = %q, want %q", test.noteType, got, test.want)
+		}
+	}
+}
+
+func TestListTitleFallsBackToSafeReadableLabels(t *testing.T) {
+	if got := listTitle(Note{Type: NoteProjectNote, Path: "/store/notes/cache-policy.md"}); got != "cache-policy" {
+		t.Fatalf("untitled note = %q", got)
+	}
+	if got := listTitle(Note{Type: NoteProjectInbox, Path: "/store/inbox/2026-07.md"}); got != "July 2026 journal" {
+		t.Fatalf("journal path month = %q", got)
+	}
+	if got := listTitle(Note{Type: NoteProjectInbox, Path: "/store/inbox/unknown.md"}); got != "Journal" {
+		t.Fatalf("journal without month = %q", got)
+	}
+
+	task := strings.Repeat("ž", 81)
+	got := listTitle(Note{Type: NoteNow, Content: "# Now\n\n## Current task\n\n" + task + "\n"})
+	if utf8.RuneCountInString(got) != 80 {
+		t.Fatalf("long current task has %d runes, want 80", utf8.RuneCountInString(got))
 	}
 }
 
