@@ -18,7 +18,7 @@ func TestHubWideViewShowsThreePanesAndActionableEmptyState(t *testing.T) {
 	model := NewHub(nil, "api", "feature/login", "central")
 	updated, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	view := updated.(HubModel).View()
-	for _, want := range []string{"Scopes", "Notes", "Preview", "Current context is unavailable", "Reopen Logbook"} {
+	for _, want := range []string{"Scopes", "Notes", "Preview", "Current task file is missing", "Reopen Logbook"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("wide View() missing %q:\n%s", want, view)
 		}
@@ -105,12 +105,12 @@ func TestHubScopeNavigationFiltersNotes(t *testing.T) {
 
 func TestHubEmptyStatesDescribeScopeActions(t *testing.T) {
 	wants := map[string]string{
-		"Now":           "Reopen Logbook",
-		"Project Inbox": "Press c to capture",
-		"Project Notes": "Press n to create",
-		"Decisions":     "Press d to create",
-		"Global Inbox":  "Press C to capture",
-		"All Notes":     "Press c to capture or n to create",
+		"Current task":      "Reopen Logbook",
+		"Project journal":   "Press c to capture",
+		"Project notes":     "Press n to create",
+		"Project decisions": "Press d to",
+		"Global journal":    "Press C to capture",
+		"All notes":         "Press c to capture or n to create",
 	}
 	model := NewHub(nil, "api", "main", "central")
 	for index, scope := range model.scopes {
@@ -524,8 +524,8 @@ func TestHubPanelAndScopeKeysMoveFocusAndSelection(t *testing.T) {
 	model := NewHub(notes, "api", "main", "central")
 
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyTab})
-	if model.panel != panelNotes {
-		t.Fatalf("Tab panel = %d", model.panel)
+	if model.panel != panelPreview {
+		t.Fatalf("Tab on current task skipped the one-item list, panel = %d", model.panel)
 	}
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyShiftTab})
 	if model.panel != panelScopes {
@@ -537,6 +537,9 @@ func TestHubPanelAndScopeKeysMoveFocusAndSelection(t *testing.T) {
 		t.Fatalf("h at the left edge = %d", model.panel)
 	}
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	if model.panel != panelPreview {
+		t.Fatalf("l on current task = %d", model.panel)
+	}
 	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	if model.panel != panelScopes {
 		t.Fatalf("l then h = %d", model.panel)
@@ -1381,6 +1384,161 @@ func TestSpinnerRendersInStatusBarAndDigest(t *testing.T) {
 	digestView := model.View()
 	if !strings.Contains(digestView, model.spinner.View()+" Loading…") {
 		t.Fatalf("expected the spinner beside the digest loading hint:\n%s", digestView)
+	}
+}
+
+func TestCurrentTaskModalDoesNotAdvertiseHeadings(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+	view := model.View()
+	if !strings.Contains(view, "No Markdown headings") {
+		t.Fatalf("current-task modal missing the heading warning:\n%s", view)
+	}
+	if strings.Contains(view, "Markdown supported: # title") {
+		t.Fatalf("current-task modal still advertised headings:\n%s", view)
+	}
+
+	model, _ = NewHub(nil, "api", "main", "central").BeginCapture(false, false)
+	if !strings.Contains(model.View(), "Markdown supported: # title") {
+		t.Fatalf("capture modal lost the Markdown hint:\n%s", model.View())
+	}
+}
+
+func TestHubListShowsTaskBodyAndJournalMonth(t *testing.T) {
+	model := NewHub([]Note{
+		{
+			Title: "Now", Type: NoteNow,
+			Content: "# Now\n\n## Current task\n\nRotate the signing tokens\n",
+		},
+		{
+			Title: "Inbox — 2026-08", Type: NoteProjectInbox, Path: "/inbox/2026-08.md",
+			Content: "# Inbox — 2026-08\n",
+		},
+		{Title: "Collect more metrics", Type: NoteProjectNote, Path: "/notes/collect.md"},
+	}, "api", "main", "central")
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	view := model.View()
+	if !strings.Contains(view, "Current task") || !strings.Contains(view, "Rotate the signing tokens") {
+		t.Fatalf("current-task scope/list missing:\n%s", view)
+	}
+	if strings.Contains(view, "▶ Current task") {
+		t.Fatalf("singleton current task used the collection chevron:\n%s", view)
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyDown})
+	if view := model.View(); !strings.Contains(view, "August 2026 journal") {
+		t.Fatalf("journal list title missing:\n%s", view)
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyDown})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyDown})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyDown})
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyDown})
+	if view := model.View(); !strings.Contains(view, "Collect more metrics · note") {
+		t.Fatalf("All notes missing kind metadata:\n%s", view)
+	}
+}
+
+func TestHubTwoPaneKeyHidesTheNotesColumn(t *testing.T) {
+	model := NewHub([]Note{
+		{Title: "Alpha", Type: NoteProjectNote, Content: "# Alpha"},
+		{Title: "Beta", Type: NoteProjectNote, Content: "# Beta"},
+	}, "api", "main", "central").WithView("project")
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 30})
+	if view := model.View(); !strings.Contains(view, "Notes") || !strings.Contains(view, "Preview") {
+		t.Fatalf("wide view should start in three panes:\n%s", view)
+	}
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	if !model.twoPane {
+		t.Fatal("2 did not enable two-pane layout")
+	}
+	view := model.View()
+	if !strings.Contains(view, "Notes") {
+		t.Fatalf("2-pane from scopes dropped the notes list:\n%s", view)
+	}
+	if strings.Contains(view, "Preview") {
+		t.Fatalf("2-pane from scopes still showed preview:\n%s", view)
+	}
+}
+
+func TestHubDeleteConfirmsThenRemoves(t *testing.T) {
+	deleted := ""
+	note := Note{Path: "/store/notes/cache.md", Title: "Cache", Type: NoteProjectNote, Content: "# Cache"}
+	model := NewHub([]Note{note}, "api", "main", "central").
+		WithDelete(func(got Note) (string, []Note, error) {
+			deleted = got.Path
+			return got.Path, nil, nil
+		}).WithView("project")
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if !model.confirmingDelete || !strings.Contains(model.View(), "Delete") {
+		t.Fatalf("x did not open delete confirm:\n%s", model.View())
+	}
+
+	model, cmd := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	if cmd == nil {
+		t.Fatal("confirm produced no delete command")
+	}
+	model, _ = updateHub(model, cmd())
+	if deleted != note.Path {
+		t.Fatalf("deleted path = %q", deleted)
+	}
+	if model.confirmingDelete || len(model.notes) != 0 {
+		t.Fatalf("after delete confirming=%v notes=%#v", model.confirmingDelete, model.notes)
+	}
+
+	nowModel := NewHub([]Note{{Path: "/store/now.md", Title: "Now", Type: NoteNow}}, "api", "main", "central")
+	nowModel, _ = updateHub(nowModel, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if nowModel.confirmingDelete {
+		t.Fatal("x offered to delete now.md")
+	}
+	if !strings.Contains(nowModel.flashMsg, "cannot be deleted") {
+		t.Fatalf("now.md delete flash = %q", nowModel.flashMsg)
+	}
+
+	// Search used to classify every hit as a project note, which would have
+	// offered to delete now.md from the result list.
+	searchNow := NewHub(nil, "api", "main", "central").
+		WithSearch([]searchindex.Entry{{
+			Path: "/store/now.md", Title: "Now", NoteType: "now", Content: "# Now\n",
+		}}, nil)
+	searchNow.searchQuery = "now"
+	searchNow.updateSearchResults()
+	searchNow, _ = updateHub(searchNow, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if searchNow.confirmingDelete {
+		t.Fatal("x offered to delete now.md from search results")
+	}
+}
+
+func TestSearchNoteKeepsIndexTypes(t *testing.T) {
+	got := searchNote(searchindex.Entry{Path: "/store/now.md", NoteType: "now", Title: "Now"})
+	if got.Type != NoteNow {
+		t.Fatalf("search now type = %q", got.Type)
+	}
+	got = searchNote(searchindex.Entry{Path: "/store/inbox/2026-08.md", NoteType: "inbox", Title: "Inbox — 2026-08"})
+	if got.Type != NoteProjectInbox {
+		t.Fatalf("search inbox type = %q", got.Type)
+	}
+}
+
+func TestDeleteDropsTheNoteFromSearchResults(t *testing.T) {
+	note := Note{Path: "/store/notes/cache.md", Title: "Cache", Type: NoteProjectNote}
+	model := NewHub([]Note{note}, "api", "main", "central").
+		WithDelete(func(got Note) (string, []Note, error) {
+			return got.Path, nil, nil
+		})
+	model.searchQuery = "cache"
+	model.searchResults = []Note{note}
+	model.searchEntries = []searchindex.Entry{{Path: note.Path, Title: "Cache"}}
+	model.noteIndex = 0
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	model, cmd := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	model, _ = updateHub(model, cmd())
+	if len(model.searchResults) != 0 || len(model.searchEntries) != 0 {
+		t.Fatalf("deleted note stayed in search: results %#v entries %#v", model.searchResults, model.searchEntries)
 	}
 }
 

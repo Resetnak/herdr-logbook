@@ -44,15 +44,15 @@ Aktivní úkoly, rychlé poznámky a architektonická rozhodnutí, uložené jak
 Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachytil. **Herdr Logbook** drží tento kontext v terminálu jako čistý, standardní Markdown — soubory, které vám zůstanou s pluginem i bez něj, s Herdrem i bez něj, ať už tento repozitář udržuji, nebo ne.
 
 ```text
-┌ Scopes ─────────┬ Notes ─────────────────────┬ Preview ───────────────────────┐
-│ ● Now           │ now.md                     │ # Now                         │
-│ Project Inbox   │ auth-notes.md              │ ## Current task               │
-│ Project Notes   │ architecture-adr.md        │ Implement token rotation.     │
-│ Decisions       │                            │                               │
-│ Global Inbox    │                            │ ## Next steps                  │
-│ All Notes       │                            │ - [ ] Add replay detection.   │
-└─────────────────┴────────────────────────────┴────────────────────────────────┘
- api-gateway · feature/token-rotation · central store · / search · ? help
+┌ Scopes · api-gateway ─┬ Notes ──────────────────┬ Preview ────────────────────┐
+│ ● Current task        │ Rotate the signing tokens│ # Now                      │
+│ Project journal       │ Collect more metrics     │ ## Current task            │
+│ Project notes         │ Use opaque refresh tokens│ Rotate the signing tokens. │
+│ Project decisions     │                          │                            │
+│ Global journal        │                          │ ## Next steps              │
+│ All notes             │                          │ - [ ] Add replay detection.│
+└───────────────────────┴──────────────────────────┴────────────────────────────┘
+ project api-gateway · feature/token-rotation · central store · / search · ? help
 ```
 
 ---
@@ -115,6 +115,8 @@ Vše je čistý Markdown, takže na kterýkoli z těchto nástrojů můžete kdy
 | `n` | Vytvořit novou projektovou poznámku |
 | `d` | Zaznamenat architektonické rozhodnutí (ADR) |
 | `e` | Otevřít vybranou poznámku v `$EDITOR` (`vi` / `nvim`) |
+| `x` | Smazat vybranou samostatnou poznámku, rozhodnutí nebo měsíční deník (nejdřív se zeptá) |
+| `2` | Přepnout dvoupanelové rozložení (na širokém terminálu se seznam schová, když je v něm jen jedna položka) |
 | `s` | Otevřít přehled aktivity a standup |
 | `r` | Obnovit index poznámek |
 | `?` | Zobrazit interaktivní nápovědu a Onboarding |
@@ -135,7 +137,7 @@ Vše je čistý Markdown, takže na kterýkoli z těchto nástrojů můžete kdy
 | `Ctrl+E` | **Uložit & upravit** (uloží poznámku a spustí `$EDITOR`) |
 | `Esc` | Zrušit |
 
-> 💡 **Markdown Tip**: Poznámky podporují běžnou syntaxi (`# Nadpis`, `**tučně**`, `- seznam`, `` `kód` ``, `#tag`).
+> 💡 **Markdown Tip**: Poznámky podporují běžnou syntaxi (`# Nadpis`, `**tučně**`, `- seznam`, `` `kód` ``, `#tag`). Pole aktuálního úkolu (`t`) je holý text — nadpisy by rozdělily sekci `## Current task` v `now.md`. Titulek v seznamu bere první `#` nadpis; název souboru se při jeho změně nemění.
 
 ---
 

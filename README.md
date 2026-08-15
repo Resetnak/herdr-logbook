@@ -44,15 +44,15 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 The notes around a coding task should outlive the tool that captured them. **Herdr Logbook** keeps that context in your terminal as clean, standard Markdown — files that stay yours with or without the plugin, with or without Herdr, with or without me maintaining this repo.
 
 ```text
-┌ Scopes ─────────┬ Notes ─────────────────────┬ Preview ───────────────────────┐
-│ ● Now           │ now.md                     │ # Now                         │
-│ Project Inbox   │ auth-notes.md              │ ## Current task               │
-│ Project Notes   │ architecture-adr.md        │ Implement token rotation.     │
-│ Decisions       │                            │                               │
-│ Global Inbox    │                            │ ## Next steps                  │
-│ All Notes       │                            │ - [ ] Add replay detection.   │
-└─────────────────┴────────────────────────────┴────────────────────────────────┘
- api-gateway · feature/token-rotation · central store · / search · ? help
+┌ Scopes · api-gateway ─┬ Notes ──────────────────┬ Preview ────────────────────┐
+│ ● Current task        │ Rotate the signing tokens│ # Now                      │
+│ Project journal       │ Collect more metrics     │ ## Current task            │
+│ Project notes         │ Use opaque refresh tokens│ Rotate the signing tokens. │
+│ Project decisions     │                          │                            │
+│ Global journal        │                          │ ## Next steps              │
+│ All notes             │                          │ - [ ] Add replay detection.│
+└───────────────────────┴──────────────────────────┴────────────────────────────┘
+ project api-gateway · feature/token-rotation · central store · / search · ? help
 ```
 
 ---
@@ -115,6 +115,8 @@ Everything is plain Markdown, so you can migrate to — or combine with — any 
 | `n` | Create new project note |
 | `d` | Record architectural decision (ADR) |
 | `e` | Edit selected note in `$EDITOR` (`vi` / `nvim`) |
+| `x` | Delete the selected standalone note, decision, or monthly journal (asks first) |
+| `2` | Toggle a 2-pane layout (wide terminals also hide the list when only one item is visible) |
 | `s` | Open activity digest & standup view |
 | `r` | Refresh note index |
 | `?` | Toggle interactive Onboarding & Help screen |
@@ -127,7 +129,7 @@ Everything is plain Markdown, so you can migrate to — or combine with — any 
 | `Ctrl+E` | **Save & edit** (saves note and launches `$EDITOR`) |
 | `Esc` | Cancel capture |
 
-> 💡 **Markdown Hint**: Notes support standard Markdown syntax (`# Heading`, `**bold**`, `- list`, `` `code` ``, `#tag`).
+> 💡 **Markdown Hint**: Notes support standard Markdown syntax (`# Heading`, `**bold**`, `- list`, `` `code` ``, `#tag`). The current-task field (`t`) is plain text — headings would split the `## Current task` section in `now.md`. List titles come from the first `#` heading; the filename stays put if you change it.
 
 ### 📊 Digest View
 | Shortcut | Action |

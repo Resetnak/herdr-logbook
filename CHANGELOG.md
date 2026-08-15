@@ -2,6 +2,25 @@
 
 All notable changes will be documented here. The project has not published a stable release.
 
+## Unreleased
+
+Hub labels and note lifecycle follow the feedback in discussion #18.
+
+- Renamed Hub scopes so the model is visible without opening files: `Current task`,
+  `Project journal`, `Project notes`, `Project decisions`, `Global journal`,
+  `All notes`. The current-task row uses a singleton marker instead of the
+  selection chevron. The footer and scopes header name the project.
+- List titles prefer the current-task body, a human journal month
+  (`August 2026 journal`), or the first `#` heading, with type shown as
+  secondary context in All notes.
+- The current-task modal no longer advertises Markdown headings. Headings are
+  still rejected because they would split `now.md`.
+- `x` asks before deleting a standalone note, decision, or monthly journal
+  file. `now.md` cannot be deleted — including from search results, which no
+  longer arrive typed as generic notes. Press `t` to replace the task.
+- `2` toggles a 2-pane layout. Wide terminals also hide the notes column when
+  the current scope has only one item.
+
 ## v0.0.9 — 2026-08-09
 
 Zero-effort time tracking: the task switches you already make now record how

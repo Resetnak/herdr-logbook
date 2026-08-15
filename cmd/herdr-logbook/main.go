@@ -171,6 +171,8 @@ Actions:
   d    create decision
   t    set the current task in now.md
   e    edit in external editor
+  x    delete selected note or journal
+  2    toggle 2-pane layout
   s    standup digest & activity heatmap
   r    refresh
   ?    help
@@ -351,6 +353,37 @@ func validateEditableNote(state coreState, path string) error {
 	return fmt.Errorf("note path is outside registered memory stores")
 }
 
+func deleteFromHub(state coreState, note app.Note) error {
+	if err := app.CanDelete(note); err != nil {
+		return err
+	}
+	if err := validateEditableNote(state, note.Path); err != nil {
+		return err
+	}
+	return storage.WithLock(lockForNote(state, note.Path), 2*time.Second, func() error {
+		return storage.RemoveFile(note.Path)
+	})
+}
+
+func lockForNote(state coreState, path string) string {
+	globalRoot := filepath.Join(state.StateDir, "store", "global")
+	if storage.ContainsPath(globalRoot, path) {
+		return filepath.Join(state.StateDir, "locks", "global.lock")
+	}
+	if storage.ContainsPath(state.Layout.Root, path) {
+		return state.Layout.Lock
+	}
+	registry, err := project.LoadRegistry(filepath.Join(state.StateDir, "registry", "projects.toml"))
+	if err == nil {
+		for _, record := range registry.Projects {
+			if storage.ContainsPath(record.StorePath, path) {
+				return filepath.Join(state.StateDir, "locks", record.ID+".lock")
+			}
+		}
+	}
+	return state.Layout.Lock
+}
+
 func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("tui", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -458,6 +491,13 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 		WithActions(captureNote, reloadNotes).
 		WithSearch(nil, refreshSearch).
 		WithAuthoring(authorNote, editNote).
+		WithDelete(func(note app.Note) (string, []app.Note, error) {
+			if err := deleteFromHub(state, note); err != nil {
+				return "", nil, err
+			}
+			notes, loadErr := reloadNotes()
+			return note.Path, notes, loadErr
+		}).
 		WithDigest(digestReport)
 	program := tea.NewProgram(model, tea.WithInput(stdin), tea.WithOutput(stdout), tea.WithAltScreen(), tea.WithoutSignalHandler())
 	if _, err := program.Run(); err != nil {

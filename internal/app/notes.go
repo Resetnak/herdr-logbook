@@ -29,12 +29,13 @@ const (
 // Note is one Markdown file loaded for the Hub, body included (bounded by
 // maxPreviewBytes).
 type Note struct {
-	Path     string
-	Title    string
-	Type     NoteType
-	Content  string
-	Modified time.Time
-	Size     int64
+	Path        string
+	Title       string
+	Type        NoteType
+	Content     string
+	Modified    time.Time
+	Size        int64
+	ProjectName string
 }
 
 // LoadNotes reads every note in the project and global stores, skipping

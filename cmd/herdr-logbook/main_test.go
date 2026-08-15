@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Resetnak/herdr-logbook/internal/app"
 	"github.com/Resetnak/herdr-logbook/internal/nowfile"
 	"github.com/Resetnak/herdr-logbook/internal/project"
 	"github.com/Resetnak/herdr-logbook/internal/storage"
@@ -618,7 +619,7 @@ func TestPrintKeybindsListsEveryHubAction(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("keybinds code = %d, stderr = %q", code, stderr.String())
 	}
-	for _, want := range []string{"Navigation:", "Actions:", "t    set the current task", "Ctrl+S", "e    edit in external editor"} {
+	for _, want := range []string{"Navigation:", "Actions:", "t    set the current task", "Ctrl+S", "e    edit in external editor", "x    delete selected note"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("keybinds output missing %q:\n%s", want, stdout.String())
 		}
@@ -714,6 +715,29 @@ func TestAuthorFromHubWritesNotesDecisionsAndTheCurrentTask(t *testing.T) {
 	}
 	if _, err := authorFromHub(state, "note", "###"); err == nil {
 		t.Fatal("authorFromHub accepted an unusable note title")
+	}
+}
+
+func TestDeleteFromHubRemovesANoteAndRefusesNow(t *testing.T) {
+	state, _ := hubState(t, nil)
+	notePath, err := authorFromHub(state, "note", "Scratch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deleteFromHub(state, app.Note{Type: app.NoteProjectNote, Path: notePath}); err != nil {
+		t.Fatalf("delete note: %v", err)
+	}
+	if _, err := os.Lstat(notePath); !os.IsNotExist(err) {
+		t.Fatalf("note still exists: %v", err)
+	}
+	if err := deleteFromHub(state, app.Note{Type: app.NoteNow, Path: state.Layout.Now}); err == nil {
+		t.Fatal("deleteFromHub removed now.md")
+	}
+	if err := deleteFromHub(state, app.Note{Type: app.NoteProjectNote, Path: state.Layout.Now}); err == nil {
+		t.Fatal("deleteFromHub removed now.md when typed as a generic note")
+	}
+	if _, err := os.Lstat(state.Layout.Now); err != nil {
+		t.Fatalf("now.md was touched: %v", err)
 	}
 }
 

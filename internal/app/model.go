@@ -28,6 +28,7 @@ type scopeItem struct {
 	name         string
 	types        map[NoteType]bool
 	emptyMessage string
+	singleton    bool
 }
 
 // CaptureFunc and AuthorFunc report the path they wrote alongside the reloaded
@@ -39,6 +40,7 @@ type ReloadFunc func() ([]Note, error)
 type SearchLoadFunc func() ([]searchindex.Entry, error)
 type AuthorFunc func(kind, title string) (string, []Note, error)
 type EditFunc func(note Note) tea.Cmd
+type DeleteFunc func(note Note) (string, []Note, error)
 type DigestFunc func(days int) (digest.DigestReport, error)
 
 type searchLoadedMsg struct {
@@ -109,6 +111,12 @@ type digestLoadedMsg struct {
 	err    error
 }
 
+type noteDeletedMsg struct {
+	path  string
+	notes []Note
+	err   error
+}
+
 type HubModel struct {
 	notes            []Note
 	scopes           []scopeItem
@@ -144,6 +152,9 @@ type HubModel struct {
 	saving           bool
 	authorFn         AuthorFunc
 	editFn           EditFunc
+	deleteFn         DeleteFunc
+	confirmingDelete bool
+	twoPane          bool
 	previewRenderer  *glamour.TermRenderer
 	previewWidth     int
 	previewCache     string
@@ -208,12 +219,30 @@ func NewHub(notes []Note, projectName, branch, storageMode string) HubModel {
 		digestViewport: viewport.New(40, 18),
 		spinner:        sp,
 		scopes: []scopeItem{
-			{name: "Now", types: map[NoteType]bool{NoteNow: true}, emptyMessage: "Current context is unavailable. Reopen Logbook to restore now.md."},
-			{name: "Project Inbox", types: map[NoteType]bool{NoteProjectInbox: true}, emptyMessage: "No project inbox captures yet. Press c to capture something."},
-			{name: "Project Notes", types: map[NoteType]bool{NoteProjectNote: true}, emptyMessage: "No project notes yet. Press n to create one."},
-			{name: "Decisions", types: map[NoteType]bool{NoteDecision: true}, emptyMessage: "No decisions yet. Press d to create one."},
-			{name: "Global Inbox", types: map[NoteType]bool{NoteGlobalInbox: true}, emptyMessage: "No global inbox captures yet. Press C to capture something."},
-			{name: "All Notes", emptyMessage: "No notes yet. Press c to capture or n to create a project note."},
+			{
+				name: "Current task", singleton: true, types: map[NoteType]bool{NoteNow: true},
+				emptyMessage: "Current task file is missing. Reopen Logbook to restore now.md.",
+			},
+			{
+				name: "Project journal", types: map[NoteType]bool{NoteProjectInbox: true},
+				emptyMessage: "Project journal is empty. Press c to capture. Finished tasks land here when you switch with t.",
+			},
+			{
+				name: "Project notes", types: map[NoteType]bool{NoteProjectNote: true},
+				emptyMessage: "No project notes yet. Press n to create one. The list title is the first # heading.",
+			},
+			{
+				name: "Project decisions", types: map[NoteType]bool{NoteDecision: true},
+				emptyMessage: "No decisions for this project yet. Press d to record one.",
+			},
+			{
+				name: "Global journal", types: map[NoteType]bool{NoteGlobalInbox: true},
+				emptyMessage: "Global journal is empty. Press C to capture something outside a project.",
+			},
+			{
+				name:         "All notes",
+				emptyMessage: "No notes yet. Press c to capture or n to create a project note.",
+			},
 		},
 	}
 	// No render here: WithAutoStyle would probe the terminal background for a
@@ -303,6 +332,11 @@ func (m HubModel) WithAuthoring(authorFn AuthorFunc, editFn EditFunc) HubModel {
 	return m
 }
 
+func (m HubModel) WithDelete(deleteFn DeleteFunc) HubModel {
+	m.deleteFn = deleteFn
+	return m
+}
+
 func (m HubModel) WithDigest(digestFn DigestFunc) HubModel {
 	m.digestFn = digestFn
 	return m
@@ -375,6 +409,22 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	if saved, ok := message.(captureSavedMsg); ok {
 		return m.applyCaptureSaved(saved)
 	}
+	if deleted, ok := message.(noteDeletedMsg); ok {
+		m.saving = false
+		m.confirmingDelete = false
+		if deleted.err != nil {
+			m.captureErr = deleted.err.Error()
+			return m, nil
+		}
+		m.notes = deleted.notes
+		m.captureErr = ""
+		if deleted.path != "" {
+			m.searchResults = dropNotePath(m.searchResults, deleted.path)
+			m.searchEntries = dropSearchPath(m.searchEntries, deleted.path)
+		}
+		m.refreshPreview()
+		return m, tea.Batch(m.refreshSearchCmd(), m.flash("✓ Note deleted"))
+	}
 	if decay, ok := message.(flashDecayMsg); ok {
 		if decay.tick == m.flashTick {
 			if decay.step >= 2 {
@@ -422,6 +472,9 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.capturing {
 		return m.updateCapture(message)
+	}
+	if m.confirmingDelete {
+		return m.updateDeleteConfirm(message)
 	}
 	if m.digest {
 		return m.updateDigest(message)
@@ -474,6 +527,15 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			if m.editFn != nil && len(notes) > 0 {
 				return m, m.editFn(notes[max(0, min(m.noteIndex, len(notes)-1))])
 			}
+		case "x":
+			return m.beginDelete()
+		case "2":
+			m.twoPane = !m.twoPane
+			layout := "Auto layout"
+			if m.twoPane {
+				layout = "2-pane layout"
+			}
+			command = m.flash(layout)
 		case "r":
 			if m.reloadFn != nil {
 				command = m.reloadCmd()
@@ -484,19 +546,17 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.startDigestCmd()
 			}
 		case "tab":
-			m.panel = (m.panel + 1) % 3
+			m.cyclePanel(1, true)
 		case "shift+tab":
-			m.panel = (m.panel + 2) % 3
+			m.cyclePanel(-1, true)
 		case "h", "left":
-			if m.panel > panelScopes {
-				m.panel--
-			}
+			m.cyclePanel(-1, false)
 		case "l", "right":
-			if m.panel < panelPreview {
-				m.panel++
-			}
+			m.cyclePanel(1, false)
 		case "enter":
-			if m.panel == panelScopes && len(m.visibleNotes()) > 0 {
+			if m.hideNotesPane() && m.panel == panelScopes && len(m.visibleNotes()) > 0 {
+				m.panel = panelPreview
+			} else if m.panel == panelScopes && len(m.visibleNotes()) > 0 {
 				m.panel = panelNotes
 			} else if m.panel == panelNotes && len(m.visibleNotes()) > 0 {
 				m.panel = panelPreview
@@ -587,6 +647,9 @@ func (m HubModel) View() string {
 	if m.capturing {
 		return m.captureView()
 	}
+	if m.confirmingDelete {
+		return m.deleteConfirmView()
+	}
 	if m.digest {
 		return m.digestView()
 	}
@@ -604,14 +667,21 @@ func (m HubModel) View() string {
 			"  n / d                      New project note / decision record\n" +
 			"  t                          Set current task (previous one is archived)\n" +
 			"  e                          Edit note in external editor ($EDITOR / vi)\n" +
+			"  x                          Delete selected note or journal (asks first)\n" +
+			"  2                          Toggle 2-pane layout\n" +
 			"  r                          Reload / refresh notes\n" +
 			"  s                          Standup digest & activity heatmap\n" +
 			"  ? / q                      Toggle help / quit\n\n" +
+			lipgloss.NewStyle().Bold(true).Render("What the scopes are:") + "\n" +
+			"  Current task               The one thing you're on (now.md). Press t to set it.\n" +
+			"  Project / global journal   Chronological dump. Captures and finished tasks stay.\n" +
+			"  Project notes / decisions  Standalone write-ups for this project.\n" +
+			"  List titles come from the first # heading. Filenames do not change if you edit it.\n\n" +
 			lipgloss.NewStyle().Bold(true).Render("Capture Modal Shortcuts:") + "\n" +
 			"  Ctrl+S                     Save note\n" +
 			"  Ctrl+E                     Save note & open external editor\n" +
 			"  Esc                        Cancel capture\n\n" +
-			lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Markdown supported: # title · **bold** · - list · `code` · #tag") + "\n" +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Notes: Markdown (# title · **bold** · lists · #tag). Current task (t): no headings.") + "\n" +
 			lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Editor saves: :wq (vim/nvim) or editor's normal save+quit.")
 
 		return m.pane(helpText, max(30, m.width), max(3, m.height-2), true)
@@ -620,7 +690,7 @@ func (m HubModel) View() string {
 	availableHeight := max(3, m.height-2)
 	var body string
 	scopeW := max(16, m.scopeWidth)
-	if m.width >= 110 {
+	if m.width >= 110 && !m.useTwoPanes() {
 		noteWidth := max(28, m.width/3)
 		previewWidth := max(30, m.width-scopeW-noteWidth-4)
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
@@ -630,7 +700,7 @@ func (m HubModel) View() string {
 		)
 	} else if m.width >= 70 {
 		content := m.notesView()
-		if m.panel == panelPreview {
+		if m.panel == panelPreview || m.hideNotesPane() {
 			content = m.previewView()
 		}
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
@@ -648,7 +718,9 @@ func (m HubModel) View() string {
 	}
 
 	var statusParts []string
-	statusParts = append(statusParts, m.projectName)
+	if m.projectName != "" {
+		statusParts = append(statusParts, "project "+m.projectName)
+	}
 	if m.showBranch && m.branch != "" {
 		statusParts = append(statusParts, m.branch)
 	}
@@ -726,7 +798,7 @@ func (m HubModel) captureView() string {
 	if m.captureErr != "" {
 		body += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.captureErr)
 	}
-	mdHint := lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render("Markdown supported: # title · **bold** · - list · #tag")
+	mdHint := lipgloss.NewStyle().Foreground(lipgloss.Color("244")).Render(m.captureHint())
 	keyHint := lipgloss.NewStyle().Foreground(lipgloss.Color("248")).Render("Ctrl+S save · Ctrl+E save & edit in editor · Esc cancel")
 	if m.saving {
 		keyHint = lipgloss.NewStyle().Foreground(lipgloss.Color("248")).Render("Saving…")
@@ -826,13 +898,27 @@ func (m *HubModel) updateSearchResults() {
 }
 
 func searchNote(entry searchindex.Entry) Note {
-	title := entry.Title
-	if entry.ProjectName != "" {
-		title += " · " + entry.ProjectName
-	}
 	return Note{
-		Path: entry.Path, Title: title, Type: NoteProjectNote,
-		Content: entry.Content, Modified: entry.Modified, Size: entry.Size,
+		Path:        entry.Path,
+		Title:       entry.Title,
+		Type:        noteTypeFromIndex(entry.NoteType),
+		Content:     entry.Content,
+		Modified:    entry.Modified,
+		Size:        entry.Size,
+		ProjectName: entry.ProjectName,
+	}
+}
+
+func noteTypeFromIndex(value string) NoteType {
+	switch value {
+	case "now":
+		return NoteNow
+	case "inbox":
+		return NoteProjectInbox
+	case "decision":
+		return NoteDecision
+	default:
+		return NoteProjectNote
 	}
 }
 
@@ -950,13 +1036,17 @@ func (m HubModel) scopesView() string {
 	palette := getThemePalette(m.uiTheme)
 	var output strings.Builder
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.headerFg)
-	output.WriteString(titleStyle.Render("Scopes") + "\n\n")
+	header := "Scopes"
+	if m.projectName != "" {
+		header = "Scopes · " + m.projectName
+	}
+	output.WriteString(titleStyle.Render(header) + "\n\n")
 	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.activeFg)
 	for index, scope := range m.scopes {
 		prefix := "  "
 		line := scope.name
 		if index == m.scopeIndex {
-			if m.panel == panelScopes {
+			if m.panel == panelScopes && !scope.singleton {
 				prefix = "▶ "
 			} else {
 				prefix = "● "
@@ -982,17 +1072,19 @@ func (m HubModel) notesView() string {
 		output.WriteString(m.emptyStateMessage() + "\n")
 		return output.String()
 	}
+	showKind := m.searchQuery == "" && m.scopeShowsEveryType()
 	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.activeFg)
 	for index, note := range notes {
 		prefix := "  "
-		line := note.Title
+		label := listLine(note, showKind)
+		line := label
 		if index == m.noteIndex {
 			if m.panel == panelNotes {
 				prefix = "▶ "
 			} else {
 				prefix = "› "
 			}
-			line = activeStyle.Render(note.Title)
+			line = activeStyle.Render(label)
 		}
 		output.WriteString(prefix + line + "\n")
 	}
@@ -1022,6 +1114,167 @@ func (m HubModel) emptyStateMessage() string {
 		return m.scopes[m.scopeIndex].emptyMessage
 	}
 	return "No notes in this scope yet."
+}
+
+func (m HubModel) captureHint() string {
+	if m.authorKind == "now" {
+		return "Plain task text. No Markdown headings (they would split now.md)."
+	}
+	return "Markdown supported: # title · **bold** · - list · #tag"
+}
+
+func (m HubModel) scopeShowsEveryType() bool {
+	if m.scopeIndex < 0 || m.scopeIndex >= len(m.scopes) {
+		return false
+	}
+	return m.scopes[m.scopeIndex].types == nil
+}
+
+func (m HubModel) hideNotesPane() bool {
+	if m.twoPane || m.searchQuery != "" || len(m.visibleNotes()) != 1 {
+		return false
+	}
+	if m.scopeIndex >= 0 && m.scopeIndex < len(m.scopes) {
+		return m.scopes[m.scopeIndex].singleton
+	}
+	return false
+}
+
+func (m HubModel) useTwoPanes() bool {
+	if m.width < 70 {
+		return false
+	}
+	return m.twoPane || m.width < 110 || m.hideNotesPane()
+}
+
+func (m *HubModel) cyclePanel(delta int, wrap bool) {
+	if m.hideNotesPane() {
+		switch {
+		case delta > 0 && m.panel == panelScopes:
+			m.panel = panelPreview
+		case delta < 0 && m.panel == panelPreview:
+			m.panel = panelScopes
+		case wrap && m.panel == panelScopes:
+			m.panel = panelPreview
+		case wrap:
+			m.panel = panelScopes
+		}
+		return
+	}
+	if wrap {
+		m.panel = (m.panel + delta + 3) % 3
+		return
+	}
+	m.panel = max(panelScopes, min(panelPreview, m.panel+delta))
+}
+
+func (m HubModel) selectedNote() (Note, bool) {
+	notes := m.visibleNotes()
+	if len(notes) == 0 {
+		return Note{}, false
+	}
+	return notes[max(0, min(m.noteIndex, len(notes)-1))], true
+}
+
+func (m HubModel) beginDelete() (HubModel, tea.Cmd) {
+	note, ok := m.selectedNote()
+	if !ok {
+		return m, m.flash("Nothing to delete")
+	}
+	if err := CanDelete(note); err != nil {
+		return m, m.flash(err.Error())
+	}
+	if m.deleteFn == nil {
+		return m, m.flash("Delete is unavailable")
+	}
+	m.confirmingDelete = true
+	return m, nil
+}
+
+func (m HubModel) updateDeleteConfirm(message tea.Msg) (tea.Model, tea.Cmd) {
+	if msg, ok := message.(tea.WindowSizeMsg); ok {
+		m.resize(msg.Width, msg.Height)
+		return m, nil
+	}
+	msg, ok := message.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc", "n", "q":
+		m.confirmingDelete = false
+		return m, nil
+	case "y", "enter":
+		if m.saving {
+			return m, nil
+		}
+		note, ok := m.selectedNote()
+		if !ok {
+			m.confirmingDelete = false
+			return m, nil
+		}
+		deleteFn := m.deleteFn
+		m.saving = true
+		return m, func() tea.Msg {
+			path, notes, err := deleteFn(note)
+			if path == "" {
+				path = note.Path
+			}
+			return noteDeletedMsg{path: path, notes: notes, err: err}
+		}
+	}
+	return m, nil
+}
+
+func (m HubModel) deleteConfirmView() string {
+	note, ok := m.selectedNote()
+	title := "this note"
+	if ok {
+		title = listTitle(note)
+	}
+	body := "Delete \"" + title + "\"?\n\n"
+	switch {
+	case !ok:
+		body = "Nothing to delete.\n"
+	case note.Type == NoteProjectInbox || note.Type == NoteGlobalInbox || isJournalFile(note.Path):
+		body += "This removes the whole monthly journal file and every capture in it.\n"
+	default:
+		body += "This removes the Markdown file from the store. The filename is not recovered.\n"
+	}
+	if m.saving {
+		body += "\nDeleting…"
+	} else {
+		body += "\ny confirm · Esc cancel"
+	}
+	boxWidth := max(36, min(72, m.width-4))
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("9")).
+		Padding(1, 2).
+		Width(boxWidth).
+		Render(body)
+}
+
+func dropNotePath(notes []Note, path string) []Note {
+	kept := make([]Note, 0, len(notes))
+	for _, note := range notes {
+		if note.Path != path {
+			kept = append(kept, note)
+		}
+	}
+	return kept
+}
+
+func dropSearchPath(entries []searchindex.Entry, path string) []searchindex.Entry {
+	kept := make([]searchindex.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Path != path {
+			kept = append(kept, entry)
+		}
+	}
+	return kept
 }
 
 func (m HubModel) visibleNotes() []Note {
