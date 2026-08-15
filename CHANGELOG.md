@@ -4,6 +4,8 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+## v0.0.10 — 2026-08-15
+
 Hub labels and note lifecycle follow the feedback in discussion #18.
 
 - Renamed Hub scopes so the model is visible without opening files: `Current task`,
