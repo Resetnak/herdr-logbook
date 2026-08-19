@@ -18,6 +18,7 @@ Active tasks, quick captures, and architectural decisions, stored as plain
 [![Tested on macOS, reported working on WSL 2](https://img.shields.io/badge/tested-macOS%20%C2%B7%20WSL%202-yellow)](docs/herdr-compatibility.md)
 [![Herdr](https://img.shields.io/badge/Herdr-%E2%89%A50.7.0-2088FF)](herdr-plugin.toml)
 [![Status](https://img.shields.io/badge/status-pre--release-orange)](CHANGELOG.md)
+[![Stars this month](https://repometer.online/badge/Resetnak/herdr-logbook/stars-30d.svg)](https://repometer.online/p/Resetnak/herdr-logbook)
 
 <br>
 
