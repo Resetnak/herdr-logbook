@@ -4,6 +4,8 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+## v0.0.11 — 2026-08-24
+
 Second cut of the discussion #18 feedback: All notes is now a browsable, dated list.
 
 - All notes sorts by last modification, newest first, and each line shows the
