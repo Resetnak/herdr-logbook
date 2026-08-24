@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -1286,7 +1287,18 @@ func (m HubModel) visibleNotes() []Note {
 	}
 	types := m.scopes[m.scopeIndex].types
 	if types == nil {
-		return m.notes
+		// All notes browses across every scope, so recency beats the fixed
+		// type order the scoped lists use. Sort a copy: the backing slice's
+		// load order is what those scoped lists filter over.
+		all := make([]Note, len(m.notes))
+		copy(all, m.notes)
+		sort.SliceStable(all, func(i, j int) bool {
+			if !all[i].Modified.Equal(all[j].Modified) {
+				return all[i].Modified.After(all[j].Modified)
+			}
+			return all[i].Path < all[j].Path
+		})
+		return all
 	}
 	result := make([]Note, 0, len(m.notes))
 	for _, note := range m.notes {

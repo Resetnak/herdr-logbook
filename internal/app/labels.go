@@ -36,6 +36,11 @@ func listLine(note Note, showKind bool) string {
 	if name := strings.TrimSpace(note.ProjectName); name != "" {
 		extra = append(extra, name)
 	}
+	// All notes flattens every scope and date, so the line carries the date;
+	// scoped lists stay short.
+	if showKind && !note.Modified.IsZero() {
+		extra = append(extra, note.Modified.Format("2006-01-02"))
+	}
 	if len(extra) == 0 {
 		return title
 	}

@@ -82,6 +82,18 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 
 ---
 
+## 🧠 Co Logbook je (a co není)
+
+Logbook je pracovní paměť vedle vašeho kódu, ne zápisník, do kterého se věci zakládají. Tři objekty, nic víc:
+
+- **Aktuální úkol** (`now.md`) — jeden soubor na projekt s tím, na čem právě děláte. Klávesou `t` ho nahradíte; úkol, který opouštíte, se sám zapíše do deníku.
+- **Deník** — jeden Markdown soubor na měsíc a projekt (plus jeden globální). Rychlé záznamy a dokončené úkoly v něm přistanou a zůstanou. Je to trvalý chronologický záznam, ne inbox čekající na roztřídění — není co zakládat, povyšovat ani archivovat.
+- **Poznámky a rozhodnutí** — samostatné soubory pro věci, které chcete uchovat záměrně. Ty vytváříte, upravujete a mažete (`x`).
+
+Pokud hledáte GTD pipeline nebo dlouhodobou znalostní bázi, tady záměrně nejsou — srovnání níže ukazuje, kde je najdete.
+
+---
+
 ## 🧭 Srovnání s jinými nástroji
 
 Herdr Logbook nenahrazuje vaši znalostní bázi — zachycuje pracovní kontext *kolem vývojového úkolu*, automaticky navázaný na projekt, ve kterém právě jste.

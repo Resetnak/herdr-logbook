@@ -4,6 +4,17 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+Second cut of the discussion #18 feedback: All notes is now a browsable, dated list.
+
+- All notes sorts by last modification, newest first, and each line shows the
+  modification date next to the kind and project. Scoped lists keep their fixed
+  order and stay date-free.
+- README gained a "What Logbook Is (and Isn't)" section stating the mental model
+  up front: working memory (current task, permanent journal, deliberate
+  notes/decisions), not a notebook with a filing lifecycle.
+- Regression test for external edits: rewriting a note's first `#` heading in
+  your editor changes the list title on the next reload (`r`).
+
 ## v0.0.10 — 2026-08-15
 
 Hub labels and note lifecycle follow the feedback in discussion #18.

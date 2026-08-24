@@ -758,6 +758,20 @@ func TestNarrowViewFollowsTheFocusedPanelAndEmptyScopes(t *testing.T) {
 	}
 }
 
+func TestAllNotesOrdersByRecency(t *testing.T) {
+	older := Note{Title: "Old", Type: NoteProjectNote, Path: "/a.md", Modified: time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)}
+	newer := Note{Title: "New", Type: NoteDecision, Path: "/b.md", Modified: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)}
+	model := NewHub([]Note{older, newer}, "api", "main", "central").WithView("all")
+	visible := model.visibleNotes()
+	if len(visible) != 2 || visible[0].Title != "New" || visible[1].Title != "Old" {
+		t.Fatalf("All notes order = %#v", visible)
+	}
+	// The backing slice keeps its load order; scoped views still rely on it.
+	if model.notes[0].Title != "Old" {
+		t.Fatalf("visibleNotes mutated the backing slice: %#v", model.notes)
+	}
+}
+
 func TestVisibleNotesToleratesAnOutOfRangeScope(t *testing.T) {
 	model := NewHub([]Note{{Title: "Cache", Type: NoteProjectNote}}, "api", "main", "central")
 	model.scopeIndex = len(model.scopes) + 3

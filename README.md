@@ -82,6 +82,18 @@ The notes around a coding task should outlive the tool that captured them. **Her
 
 ---
 
+## 🧠 What Logbook Is (and Isn't)
+
+Logbook is working memory next to your code, not a notebook you file things into. Three objects, that's it:
+
+- **Current task** (`now.md`) — one file per project, holding what you're on right now. Press `t` to replace it; the task you just left files itself into the journal.
+- **Journal** — one Markdown file per month, per project (plus a global one). Quick captures and finished tasks land there and stay there. It's a permanent chronological record, not an inbox waiting to be triaged — there is nothing to file, promote, or archive.
+- **Notes & decisions** — standalone files for the things worth keeping on purpose. These you create, edit, and delete (`x`).
+
+If you came looking for a GTD pipeline or a long-term knowledge base, that's deliberately not here — the comparison below shows where those live.
+
+---
+
 ## 🧭 How It Compares
 
 Herdr Logbook doesn't replace your knowledge base — it captures the working context *around a coding task*, scoped to the project you're in.

@@ -7,6 +7,40 @@ import (
 	"testing"
 )
 
+// Regression for discussion #18: an external editor rewriting the first # heading
+// must change the list title on the next reload — the Hub list never serves a
+// cached title.
+func TestLoadNotesPicksUpAnExternallyEditedHeading(t *testing.T) {
+	projectRoot := t.TempDir()
+	path := filepath.Join(projectRoot, "notes", "we-should-be-collecting-more-metrics.md")
+	writeNote(t, path, "Body without a heading\n")
+
+	notes, err := LoadNotes(projectRoot, "", 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 1 || listTitle(notes[0]) != "we-should-be-collecting-more-metrics" {
+		t.Fatalf("before edit: %#v", notes)
+	}
+
+	// vim-style replace: write a temp file and rename it over the original.
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte("# Collect more metrics\n\nBody\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		t.Fatal(err)
+	}
+
+	notes, err = LoadNotes(projectRoot, "", 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 1 || listTitle(notes[0]) != "Collect more metrics" {
+		t.Fatalf("after edit: %#v", notes)
+	}
+}
+
 func TestLoadNotesOrdersNowFirstAndClassifiesScopes(t *testing.T) {
 	projectRoot := t.TempDir()
 	globalRoot := t.TempDir()

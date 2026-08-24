@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -39,6 +40,21 @@ func TestListLineAddsKindInAllNotes(t *testing.T) {
 	note.ProjectName = "api"
 	if got := listLine(note, false); got != "Collect more metrics · api" {
 		t.Fatalf("listLine() with project = %q", got)
+	}
+}
+
+func TestListLineAddsModifiedDateInAllNotes(t *testing.T) {
+	note := Note{
+		Type:     NoteProjectNote,
+		Title:    "Collect more metrics",
+		Modified: time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC),
+	}
+	if got := listLine(note, true); got != "Collect more metrics · note · 2026-08-12" {
+		t.Fatalf("listLine() with date = %q", got)
+	}
+	// Scoped lists stay date-free; the scope already narrows the context.
+	if got := listLine(note, false); got != "Collect more metrics" {
+		t.Fatalf("listLine() outside All notes = %q", got)
 	}
 }
 
