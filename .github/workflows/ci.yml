@@ -34,7 +34,10 @@ jobs:
             gofmt -l .
             exit 1
           fi
-      - run: go test ./...
+      # On Linux the coverage-floor step below runs the suite; running it here
+      # too would compile and execute everything twice.
+      - if: runner.os != 'Linux'
+        run: go test ./...
       - name: Coverage floor
         if: runner.os == 'Linux'
         run: |
@@ -45,10 +48,16 @@ jobs:
             || { echo "::error::coverage ${total}% is below the 90% floor advertised by the README badge"; exit 1; }
       - run: go test -race ./...
       - run: go vet ./...
-      - run: go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
-      - run: staticcheck ./...
-      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-      - run: govulncheck ./...
+      # Static analysis and vuln scanning are platform-independent; one OS is
+      # enough and the installs are the slowest steps on macOS/Windows.
+      - if: runner.os == 'Linux'
+        run: go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+      - if: runner.os == 'Linux'
+        run: staticcheck ./...
+      - if: runner.os == 'Linux'
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+      - if: runner.os == 'Linux'
+        run: govulncheck ./...
       - run: go build -ldflags "-X main.version=ci" -o herdr-logbook${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/herdr-logbook
       - if: runner.os != 'Windows'
         run: bash -n scripts/open.sh scripts/install.sh scripts/dev-link.sh scripts/dev_link_test.sh
