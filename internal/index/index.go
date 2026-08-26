@@ -143,7 +143,7 @@ func Search(entries []Entry, query string, limit int) []Result {
 	results := make([]Result, 0)
 	for _, entry := range entries {
 		title := strings.ToLower(entry.Title)
-		path := strings.ToLower(filepath.ToSlash(entry.Path))
+		name := strings.ToLower(noteName(entry.Path))
 		score := 0
 		switch {
 		case title == query:
@@ -151,7 +151,7 @@ func Search(entries []Entry, query string, limit int) []Result {
 		case strings.HasPrefix(title, query):
 			score = 500000
 		default:
-			if fuzzyScore := bestFuzzyScore(query, title, path); fuzzyScore != 0 {
+			if fuzzyScore := bestFuzzyScore(query, title, name); fuzzyScore != 0 {
 				score = 400000 + fuzzyScore
 			} else if containsTag(entry.Tags, query) {
 				score = 300000
@@ -248,6 +248,19 @@ func indexFold(haystack, needle string) int {
 		offset = start + width
 	}
 	return -1
+}
+
+// noteName is the part of a path a human would recognise — the filename and the
+// directory holding it. Fuzzy-matching the absolute path instead makes every
+// note a hit, because the state directory, the project hash, and the home
+// directory all sit in front of it and a subsequence match finds anything there.
+func noteName(path string) string {
+	slash := filepath.ToSlash(path)
+	segments := strings.Split(slash, "/")
+	if len(segments) > 2 {
+		segments = segments[len(segments)-2:]
+	}
+	return strings.Join(segments, "/")
 }
 
 func containsTag(tags []string, query string) bool {

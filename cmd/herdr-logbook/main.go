@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -139,6 +140,8 @@ func run(args []string, getenv func(string) string, stdin io.Reader, stdout, std
 		return runNow(args[1:], getenv, stdout, stderr)
 	case "digest":
 		return runDigest(args[1:], getenv, stdout, stderr)
+	case "search":
+		return runSearch(args[1:], getenv, stdout, stderr)
 	case "tui":
 		return runTUI(args[1:], getenv, stdin, stdout, stderr)
 	case "index":
@@ -198,8 +201,8 @@ func runIndex(args []string, getenv func(string) string, stdout, stderr io.Write
 	flags.SetOutput(stderr)
 	projectRoot := flags.String("project-root", "", "project root")
 	cwd := flags.String("cwd", "", "fallback working directory")
-	if err := flags.Parse(args[1:]); err != nil || flags.NArg() != 0 {
-		return 2
+	if code, ok := parseFlags(flags, args[1:], stderr); !ok {
+		return code
 	}
 	state, failure := loadCore(*projectRoot, *cwd, "", getenv)
 	if failure != nil {
@@ -244,6 +247,11 @@ func indexStores(state coreState) (stores []searchindex.Store, cachePath, lockPa
 	stores = make([]searchindex.Store, 0, len(registry.Projects)+1)
 	for _, record := range registry.Projects {
 		stores = append(stores, searchindex.Store{ProjectID: record.ID, ProjectName: record.Name, Root: record.StorePath})
+	}
+	// A project is only registered after its first write, so a read-only command
+	// (search) in a fresh project would otherwise find none of its own notes.
+	if state.Layout.Root != "" && !slices.ContainsFunc(stores, func(store searchindex.Store) bool { return store.Root == state.Layout.Root }) {
+		stores = append(stores, searchindex.Store{ProjectID: state.Project.ID, ProjectName: state.Project.Name, Root: state.Layout.Root})
 	}
 	stores = append(stores, searchindex.Store{ProjectID: "global", ProjectName: "Global", Root: filepath.Join(state.StateDir, "store", "global")})
 	return stores,
@@ -392,8 +400,8 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 	cwd := flags.String("cwd", "", "fallback working directory")
 	contextJSON := flags.String("context-json", "", "Herdr invocation context JSON")
 	editorCmd := flags.String("editor", "", "editor command for e, e.g. vim, nano (overrides config/$EDITOR)")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		return 2
+	if code, ok := parseFlags(flags, args, stderr); !ok {
+		return code
 	}
 	effectiveView := *view
 	if effectiveView == "" {
@@ -534,8 +542,25 @@ func runDecision(args []string, getenv func(string) string, stdin io.Reader, std
 	projectRoot := flags.String("project-root", "", "project root")
 	cwd := flags.String("cwd", "", "fallback working directory")
 	noEdit := flags.Bool("no-edit", false, "create without opening an editor")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
+	}
+	// Same shape as `capture TEXT` and `now TASK`: the title is the argument,
+	// and --title stays for scripts that already pass it.
+	positional, err := positionalText(flags.Args(), args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if positional != "" {
+		if strings.TrimSpace(*title) != "" {
+			fmt.Fprintln(stderr, "decision takes the title once, either as TITLE or --title")
+			return 2
+		}
+		*title = positional
 	}
 	if strings.TrimSpace(*title) == "" {
 		fmt.Fprint(stdout, "Decision title: ")
@@ -557,7 +582,7 @@ func runDecision(args []string, getenv func(string) string, stdin io.Reader, std
 		return failure.code
 	}
 	var path string
-	err := storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
+	err = storage.WithLock(state.Layout.Lock, 2*time.Second, func() error {
 		if err := storage.Initialize(state.Layout); err != nil {
 			return err
 		}
@@ -604,7 +629,17 @@ func runCapture(args []string, getenv func(string) string, stdin io.Reader, stdo
 	cwd := flags.String("cwd", "", "fallback working directory")
 	branch := flags.String("branch", "", "branch metadata")
 	sourceCWD := flags.String("source-cwd", "", "source cwd metadata")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	// `capture "quick thought"` is what everyone types first; it used to exit 2
+	// without printing anything. The text is joined the same way `now TASK` does.
+	positional, err := positionalText(flags.Args(), args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 	if *scope != "project" && *scope != "global" {
@@ -612,6 +647,9 @@ func runCapture(args []string, getenv func(string) string, stdin io.Reader, stdo
 		return 2
 	}
 	inputCount := 0
+	if positional != "" {
+		inputCount++
+	}
 	if *textValue != "" {
 		inputCount++
 	}
@@ -622,7 +660,7 @@ func runCapture(args []string, getenv func(string) string, stdin io.Reader, stdo
 		inputCount++
 	}
 	if inputCount > 1 {
-		fmt.Fprintln(stderr, "capture requires exactly one of --text, --stdin, or --selected")
+		fmt.Fprintln(stderr, "capture requires exactly one of TEXT, --text, --stdin, or --selected")
 		return 2
 	}
 	state, failure := loadCore(*projectRoot, *cwd, "", getenv)
@@ -634,6 +672,9 @@ func runCapture(args []string, getenv func(string) string, stdin io.Reader, stdo
 		return runCaptureTUI(state, *scope == "global", stdin, stdout, stderr)
 	}
 	content := *textValue
+	if positional != "" {
+		content = positional
+	}
 	if *readStdin {
 		data, err := io.ReadAll(io.LimitReader(stdin, state.Config.Capture.MaxSelectionBytes+1))
 		if err != nil {
@@ -763,9 +804,16 @@ func runNow(args []string, getenv func(string) string, stdout, stderr io.Writer)
 	projectRoot := flags.String("project-root", "", "project root")
 	cwd := flags.String("cwd", "", "fallback working directory")
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
-	task := strings.TrimSpace(strings.Join(flags.Args(), " "))
+	task, err := positionalText(flags.Args(), args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
 	state, failure := loadCore(*projectRoot, *cwd, "", getenv)
 	if failure != nil {
 		fmt.Fprintln(stderr, failure.err)
@@ -872,8 +920,8 @@ func runDigest(args []string, getenv func(string) string, stdout, stderr io.Writ
 	cwd := flags.String("cwd", "", "fallback working directory")
 	days := flags.Int("days", 1, "number of days to include (default 1)")
 	jsonOutput := flags.Bool("json", false, "output as JSON")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		return 2
+	if code, ok := parseFlags(flags, args, stderr); !ok {
+		return code
 	}
 	if *days < 1 {
 		*days = 1
@@ -897,6 +945,159 @@ func runDigest(args []string, getenv func(string) string, stdout, stderr io.Writ
 	}
 	fmt.Fprint(stdout, digest.FormatMarkdown(report))
 	return 0
+}
+
+// parseFlags parses a subcommand's flags and returns the exit code to use when
+// it refuses. Leftover positional arguments used to exit 2 without printing
+// anything, so `capture "quick thought"` failed in silence, and an explicit
+// --help exited 2 even though the user got exactly what they asked for.
+func parseFlags(flags *flag.FlagSet, args []string, stderr io.Writer) (int, bool) {
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0, false
+		}
+		return 2, false
+	}
+	if flags.NArg() != 0 {
+		fmt.Fprintf(stderr, "%s takes no positional arguments (unexpected: %s)\n",
+			flags.Name(), strings.Join(flags.Args(), " "))
+		flags.Usage()
+		return 2, false
+	}
+	return 0, true
+}
+
+// positionalText joins the trailing words of a command that takes free text and
+// refuses flags written after that text. Flag parsing stops at the first
+// positional, so `now "task" --project-root PATH` used to fold the flags into
+// the task and resolve the project from the process directory instead — a
+// silent write to the wrong store. `--` still passes text starting with a dash.
+func positionalText(parsed, raw []string) (string, error) {
+	if !slices.Contains(raw, "--") {
+		for _, arg := range parsed {
+			if len(arg) > 1 && strings.HasPrefix(arg, "-") {
+				return "", fmt.Errorf("flags must come before the text, but %q follows it; write the flags first or use -- for text starting with a dash", arg)
+			}
+		}
+	}
+	return strings.TrimSpace(strings.Join(parsed, " ")), nil
+}
+
+// searchHit is the narrow projection of an index entry that `search --json`
+// publishes: enough to decide which note to open, without note bodies. The
+// Markdown on disk stays the way to read a note.
+type searchHit struct {
+	Path        string    `json:"path"`
+	Title       string    `json:"title"`
+	Type        string    `json:"type"`
+	ProjectID   string    `json:"project_id"`
+	ProjectName string    `json:"project"`
+	Modified    time.Time `json:"modified"`
+	Score       int       `json:"score"`
+}
+
+type searchReport struct {
+	Query   string      `json:"query"`
+	Count   int         `json:"count"`
+	Results []searchHit `json:"results"`
+}
+
+func runSearch(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("search", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	projectRoot := flags.String("project-root", "", "project root")
+	cwd := flags.String("cwd", "", "fallback working directory")
+	jsonOutput := flags.Bool("json", false, "output as JSON")
+	limit := flags.Int("limit", 20, "maximum number of results")
+	scope := flags.String("project", "all", "all, current, or a project name or id")
+	kind := flags.String("type", "", "restrict to now, inbox, note, or decision")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	query, err := positionalText(flags.Args(), args)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if query == "" {
+		fmt.Fprintln(stderr, "usage: herdr-logbook search QUERY [--json] [--limit N] [--project all|current|NAME] [--type now|inbox|note|decision]")
+		return 2
+	}
+	if *limit < 1 {
+		fmt.Fprintln(stderr, "search --limit must be at least 1")
+		return 2
+	}
+	switch *kind {
+	case "", "now", "inbox", "note", "decision":
+	default:
+		fmt.Fprintln(stderr, "search --type must be now, inbox, note, or decision")
+		return 2
+	}
+	state, failure := loadCore(*projectRoot, *cwd, "", getenv)
+	if failure != nil {
+		fmt.Fprintln(stderr, failure.err)
+		return failure.code
+	}
+	entries, err := rebuildSearchIndex(state)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 4
+	}
+	results := searchindex.Search(filterEntries(entries, state.Project.ID, *scope, *kind), query, *limit)
+	report := searchReport{Query: query, Count: len(results), Results: make([]searchHit, 0, len(results))}
+	for _, result := range results {
+		report.Results = append(report.Results, searchHit{
+			Path: result.Entry.Path, Title: result.Entry.Title, Type: result.Entry.NoteType,
+			ProjectID: result.Entry.ProjectID, ProjectName: result.Entry.ProjectName,
+			Modified: result.Entry.Modified.UTC(), Score: result.Score,
+		})
+	}
+	if *jsonOutput {
+		if err := writeJSON(stdout, report); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		return 0
+	}
+	if len(report.Results) == 0 {
+		fmt.Fprintf(stdout, "no matches for %q\n", query)
+		return 0
+	}
+	for _, hit := range report.Results {
+		fmt.Fprintf(stdout, "%s · %s · %s · %s · %s\n",
+			hit.Title, hit.Type, hit.ProjectName, hit.Modified.Local().Format("2006-01-02"), hit.Path)
+	}
+	return 0
+}
+
+// filterEntries narrows the index before ranking, so --limit counts results the
+// caller asked for rather than results it is about to throw away.
+func filterEntries(entries []searchindex.Entry, currentProjectID, scope, kind string) []searchindex.Entry {
+	if (scope == "" || scope == "all") && kind == "" {
+		return entries
+	}
+	filtered := make([]searchindex.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if kind != "" && entry.NoteType != kind {
+			continue
+		}
+		switch scope {
+		case "", "all":
+		case "current":
+			if entry.ProjectID != currentProjectID {
+				continue
+			}
+		default:
+			if !strings.EqualFold(entry.ProjectID, scope) && !strings.EqualFold(entry.ProjectName, scope) {
+				continue
+			}
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
 }
 
 func runCompatibility(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -931,8 +1132,8 @@ func runInit(args []string, getenv func(string) string, stdout, stderr io.Writer
 	mode := flags.String("storage", "", "central or repo")
 	projectRoot := flags.String("project-root", "", "project root")
 	cwd := flags.String("cwd", "", "fallback working directory")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		return 2
+	if code, ok := parseFlags(flags, args, stderr); !ok {
+		return code
 	}
 	state, failure := loadCore(*projectRoot, *cwd, *mode, getenv)
 	if failure != nil {
@@ -983,8 +1184,8 @@ func runPaths(args []string, getenv func(string) string, stdout, stderr io.Write
 	mode := flags.String("storage", "", "central or repo")
 	projectRoot := flags.String("project-root", "", "project root")
 	cwd := flags.String("cwd", "", "fallback working directory")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		return 2
+	if code, ok := parseFlags(flags, args, stderr); !ok {
+		return code
 	}
 	state, failure := loadCore(*projectRoot, *cwd, *mode, getenv)
 	if failure != nil {
@@ -1016,8 +1217,8 @@ func runDoctor(args []string, getenv func(string) string, stdout, stderr io.Writ
 	mode := flags.String("storage", "", "central or repo")
 	projectRoot := flags.String("project-root", "", "project root")
 	cwd := flags.String("cwd", "", "fallback working directory")
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		return 2
+	if code, ok := parseFlags(flags, args, stderr); !ok {
+		return code
 	}
 	state, failure := loadCore(*projectRoot, *cwd, *mode, getenv)
 	if failure != nil {
@@ -1170,5 +1371,5 @@ func waitForClose(reader io.Reader, timeout, grace time.Duration) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, "usage: herdr-logbook tui | capture | decision | now [TASK] | digest [--days N] [--json] | init | paths | doctor [--json] | index rebuild | keybinds | compatibility [--wait] | resolve-cwd | version")
+	fmt.Fprintln(writer, "usage: herdr-logbook tui | capture | decision | now [TASK] | digest [--days N] [--json] | search QUERY [--json] | init | paths | doctor [--json] | index rebuild | keybinds | compatibility [--wait] | resolve-cwd | version")
 }

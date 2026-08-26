@@ -75,7 +75,7 @@ Poznámky kolem vývojového úkolu by měly přežít nástroj, který je zachy
 - **🎯 Aktuální úkol a deník práce zdarma**: `t` (nebo `herdr-logbook now "…"`) nastaví aktuální úkol v `now.md`. Při každém přepnutí se předchozí úkol založí do měsíčního inboxu — deník se píše sám.
 - **⏱ Měření času bez námahy**: Přepnutí úkolu zaznamená, jak dlouho ten dokončený trval (`Task done: … — Took: 2h15m`), a digest sečte odpracovaný čas za den či týden. Žádné stopky — stačí deník, který už vedete.
 - **⚖️ Architektonická rozhodnutí (ADR)**: Vestavěná šablona pro záznam technických rozhodnutí a důsledků (`d`).
-- **🔍 Okamžité vyhledávání**: Bleskové fuzzy vyhledávání napříč všemi projekty (`/`) nebo filtrování podle projektu (`p`).
+- **🔍 Okamžité vyhledávání**: Bleskové fuzzy vyhledávání napříč všemi projekty (`/`) nebo filtrování podle projektu (`p`), a `herdr-logbook search --json` pro skripty a kódovací agenty.
 - **📊 Přehled aktivity a standup**: Jedna klávesa (`s`) zobrazí mapu aktivity a vygeneruje standup report — `y` ho zkopíruje do schránky.
 - **📝 Vlastní editor**: Úpravy souborů deleguje na váš oblíbený `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
 - **🔒 100% Offline & Soukromí**: Žádná telemetrie, žádný cloud, žádné automatické Git operace ani závislost na AI.
@@ -340,6 +340,28 @@ V TUI stiskněte `s` pro vizuální přehled s mapou aktivity ve stylu GitHubu, 
 <p align="center">
   <img src="assets/digest.gif" alt="Přehled aktivity v Logbooku: čtyřtýdenní mapa aktivity se odkrývá po sloupcích, pod ní standup se splněnými úkoly a rozhodnutími" width="820">
 </p>
+
+---
+
+## 🔎 Hledání z shellu (`search`)
+
+V Hubu je `/`, jenže skript ani kódovací agent klávesnici nemá. `search` řadí stejný index jako TUI a vypíše ho:
+
+```bash
+herdr-logbook search "refresh tokens"              # řádek na nález, cesta na konci
+herdr-logbook search --json "refresh tokens"       # strukturovaný výstup
+herdr-logbook search --type decision "auth"        # now, inbox, note nebo decision
+herdr-logbook search --project current "flaky"     # jen tenhle projekt (nebo jméno, nebo global)
+herdr-logbook search --limit 5 "postgres"          # výchozí je 20
+```
+
+JSON nese `path`, `title`, `type`, `project`, `project_id`, `modified` a `score` — žádná těla poznámek. Obsah si přečtěte ze souboru na `path`; je to Markdown a je to ta kanonická kopie. Prázdný výsledek končí kódem 0, takže skript rozezná „nic jsem nenašel“ od „něco se rozbilo“.
+
+```bash
+herdr-logbook search --json --type decision auth | jq -r '.results[].path' | xargs cat
+```
+
+> Přepínače patří před dotaz, stejně jako u `now`. `herdr-logbook search auth --json` skončí chybou místo toho, aby hledal doslovné „auth --json“.
 
 ---
 

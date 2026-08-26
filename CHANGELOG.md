@@ -4,6 +4,31 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+`search` gives scripts and agents the read surface the TUI already had (issue #19),
+plus the CLI fixes found while building it.
+
+- `herdr-logbook search QUERY` ranks the same index the Hub searches and prints
+  one line per hit. `--json` emits `path`, `title`, `type`, `project`,
+  `project_id`, `modified`, and `score` — no note bodies; the Markdown on disk
+  stays the way to read a note. `--type`, `--project`, and `--limit` narrow the
+  result set before ranking. No matches exits 0.
+- Fuzzy search matched the absolute path of every note, so the state directory,
+  the project hash, and your home directory turned nearly any query into a hit
+  on nearly any note. Only the note's own filename and the directory holding it
+  are matched now.
+- Flags written after the text of `now`, `capture`, and `search` are refused.
+  Flag parsing stops at the first positional, so `now "task" --project-root PATH`
+  used to fold the flags into the task text and resolve the project from the
+  process directory — a silent write into a store nobody asked for. Use `--` for
+  text that starts with a dash.
+- `capture "quick thought"` and `decision "Use opaque tokens"` work. The text no
+  longer has to go through `--text` / `--title`, and a stray argument to a
+  command that takes none now says which one it was instead of exiting 2 in
+  silence.
+- `SUBCOMMAND --help` exits 0. Asking for help was reported as a usage error.
+- A project that has never been written to is included in the search index, so
+  `search` finds notes in a project whose first write has not happened yet.
+
 ## v0.0.11 — 2026-08-24
 
 Second cut of the discussion #18 feedback: All notes is now a browsable, dated list.

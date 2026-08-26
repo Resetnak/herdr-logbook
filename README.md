@@ -75,7 +75,7 @@ The notes around a coding task should outlive the tool that captured them. **Her
 - **🎯 Active Task & Free Work Journal**: `t` (or `herdr-logbook now "…"`) sets the current task in `now.md`. Every switch files the task you just left into the monthly inbox, so your journal writes itself.
 - **⏱ Zero-Effort Time Tracking**: Switching tasks records how long the finished one took (`Task done: … — Took: 2h15m`), and the digest sums the tracked time per day or week. No timers to start or stop — the journal you already keep does it.
 - **⚖️ Architectural Decisions (ADR)**: Built-in templates for logging technical choices and consequences (`d`).
-- **🔍 Instant Fuzzy Search**: Real-time cross-project search (`/`) or project-filtered search (`p`).
+- **🔍 Instant Fuzzy Search**: Real-time cross-project search (`/`) or project-filtered search (`p`), and `herdr-logbook search --json` for scripts and coding agents.
 - **📊 Activity Digest & Standup**: One-keystroke (`s`) activity heatmap and standup report generator — copy to clipboard with `y`.
 - **📝 Bring Your Own Editor**: Delegates full editing to your preferred `$EDITOR` (`nvim`, `vim`, `nano`, `code`).
 - **🔒 100% Offline & Private**: Zero telemetry, no cloud sync, no background Git operations, no AI lock-in.
@@ -340,6 +340,28 @@ Inside the TUI, press `s` to see the visual digest with a GitHub-style activity 
 <p align="center">
   <img src="assets/digest.gif" alt="The Logbook digest view: a four-week activity heatmap reveals a column at a time, followed by a standup summary of completed tasks and decisions" width="820">
 </p>
+
+---
+
+## 🔎 Search from the Shell (`search`)
+
+The Hub has `/`, but scripts and coding agents do not have a keyboard. `search` ranks the same index the TUI uses and prints it:
+
+```bash
+herdr-logbook search "refresh tokens"              # one line per hit, path last
+herdr-logbook search --json "refresh tokens"       # structured output
+herdr-logbook search --type decision "auth"        # now, inbox, note, or decision
+herdr-logbook search --project current "flaky"     # this project only (or a name, or global)
+herdr-logbook search --limit 5 "postgres"          # default is 20
+```
+
+The JSON carries `path`, `title`, `type`, `project`, `project_id`, `modified`, and `score` — no note bodies. Read the file at `path` when you want the content; it is Markdown, and it is the canonical copy. An empty result set exits 0, so a script can tell "found nothing" apart from "something broke".
+
+```bash
+herdr-logbook search --json --type decision auth | jq -r '.results[].path' | xargs cat
+```
+
+> Flags go before the query, same as `now`. `herdr-logbook search auth --json` is refused rather than searched for the literal words "auth --json".
 
 ---
 

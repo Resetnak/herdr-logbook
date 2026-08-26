@@ -1213,7 +1213,7 @@ func TestUsageListsEverySubcommandAndKeybindsReportsBadArguments(t *testing.T) {
 		t.Fatalf("empty args code = %d, want 2", code)
 	}
 	usage := stderr.String()
-	for _, want := range []string{"tui", "capture", "decision", "now", "init", "paths", "doctor", "index rebuild", "keybinds", "compatibility", "resolve-cwd", "version"} {
+	for _, want := range []string{"tui", "capture", "decision", "now", "digest", "search", "init", "paths", "doctor", "index rebuild", "keybinds", "compatibility", "resolve-cwd", "version"} {
 		if !strings.Contains(usage, want) {
 			t.Fatalf("usage does not mention %q: %s", want, usage)
 		}
@@ -1235,5 +1235,205 @@ func TestPrintKeybindsCoversTheProjectFilter(t *testing.T) {
 	printKeybinds(&out)
 	if !strings.Contains(out.String(), "p ") {
 		t.Fatalf("keybinds do not mention the project filter:\n%s", out.String())
+	}
+}
+
+// search is the read surface agents get instead of the TUI (issue #19): it must
+// stay machine-readable, filterable, and free of note bodies.
+func TestRunSearchJSONIsANarrowFilterableReadSurface(t *testing.T) {
+	repo := t.TempDir()
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	logbook := func(args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(args, getenv, strings.NewReader(""), &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+
+	for _, args := range [][]string{
+		{"capture", "--project-root", repo, "--text", "token rotation is broken in staging"},
+		{"capture", "--project-root", repo, "--scope", "global", "--text", "renew the domain"},
+		{"decision", "--project-root", repo, "--no-edit", "--title", "Use opaque refresh tokens"},
+	} {
+		if code, _, stderr := logbook(args...); code != 0 {
+			t.Fatalf("%v code = %d, stderr = %q", args, code, stderr)
+		}
+	}
+
+	decode := func(t *testing.T, args ...string) searchReport {
+		t.Helper()
+		code, stdout, stderr := logbook(args...)
+		if code != 0 {
+			t.Fatalf("%v code = %d, stderr = %q", args, code, stderr)
+		}
+		var report searchReport
+		if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+			t.Fatalf("search JSON = %q: %v", stdout, err)
+		}
+		if report.Count != len(report.Results) {
+			t.Fatalf("count %d does not match %d results", report.Count, len(report.Results))
+		}
+		return report
+	}
+
+	report := decode(t, "search", "--project-root", repo, "--json", "opaque refresh tokens")
+	if len(report.Results) == 0 || report.Query != "opaque refresh tokens" {
+		t.Fatalf("search report = %+v", report)
+	}
+	first := report.Results[0]
+	if first.Type != "decision" || first.Title != "Decision: Use opaque refresh tokens" || first.Score <= 0 {
+		t.Fatalf("first hit = %+v", first)
+	}
+	if first.ProjectID == "" || first.ProjectName == "" || first.Modified.IsZero() {
+		t.Fatalf("first hit is missing identity or timestamp: %+v", first)
+	}
+	// No note bodies: the Markdown on disk stays the way to read a note.
+	var raw map[string]any
+	_, stdout, _ := logbook("search", "--project-root", repo, "--json", "opaque")
+	if err := json.Unmarshal([]byte(stdout), &raw); err != nil {
+		t.Fatal(err)
+	}
+	hit := raw["results"].([]any)[0].(map[string]any)
+	for _, forbidden := range []string{"content", "body", "tags"} {
+		if _, present := hit[forbidden]; present {
+			t.Fatalf("search --json leaked %q: %v", forbidden, hit)
+		}
+	}
+
+	if report := decode(t, "search", "--project-root", repo, "--json", "--type", "decision", "token"); len(report.Results) != 1 {
+		t.Fatalf("--type decision returned %d results: %+v", len(report.Results), report.Results)
+	}
+	// The global capture lives outside the project, so --project current hides it.
+	if report := decode(t, "search", "--project-root", repo, "--json", "--project", "current", "domain"); len(report.Results) != 0 {
+		t.Fatalf("--project current leaked a global note: %+v", report.Results)
+	}
+	if report := decode(t, "search", "--project-root", repo, "--json", "--project", "global", "domain"); len(report.Results) != 1 {
+		t.Fatalf("--project global returned %d results", len(report.Results))
+	}
+	if report := decode(t, "search", "--project-root", repo, "--json", "--limit", "1", "token"); len(report.Results) != 1 {
+		t.Fatalf("--limit 1 returned %d results", len(report.Results))
+	}
+	// An empty result set is a normal answer, not a failure.
+	if report := decode(t, "search", "--project-root", repo, "--json", "nothingmatchesthis"); len(report.Results) != 0 {
+		t.Fatalf("nonsense query matched: %+v", report.Results)
+	}
+
+	// Without --json a human gets one greppable line per hit, path last.
+	code, stdout, stderr := logbook("search", "--project-root", repo, "opaque refresh tokens")
+	if code != 0 {
+		t.Fatalf("plain search code = %d, stderr = %q", code, stderr)
+	}
+	line := strings.SplitN(stdout, "\n", 2)[0]
+	if !strings.Contains(line, "Decision: Use opaque refresh tokens") || !strings.Contains(line, "decision") ||
+		!strings.HasSuffix(line, ".md") {
+		t.Fatalf("plain search line = %q", line)
+	}
+	if _, stdout, _ := logbook("search", "--project-root", repo, "nothingmatchesthis"); !strings.Contains(stdout, "no matches") {
+		t.Fatalf("empty plain search printed %q", stdout)
+	}
+
+	for _, args := range [][]string{
+		{"search", "--project-root", repo},
+		{"search", "--project-root", repo, "--limit", "0", "token"},
+		{"search", "--project-root", repo, "--type", "invented", "token"},
+	} {
+		if code, _, stderr := logbook(args...); code != 2 || stderr == "" {
+			t.Fatalf("%v code = %d, stderr = %q, want 2 with a message", args, code, stderr)
+		}
+	}
+}
+
+// Flag parsing stops at the first positional, so flags written after the text
+// used to be folded into it and the project resolved from the process
+// directory — a silent write into a store the user never asked for.
+func TestTextCommandsRefuseFlagsWrittenAfterTheText(t *testing.T) {
+	repo := t.TempDir()
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	logbook := func(args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(args, getenv, strings.NewReader(""), &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+
+	for _, args := range [][]string{
+		{"now", "rotate the signing tokens", "--project-root", repo},
+		{"capture", "rotate the signing tokens", "--project-root", repo},
+		{"search", "rotate", "--project-root", repo},
+		{"decision", "rotate", "--project-root", repo},
+	} {
+		code, _, stderr := logbook(args...)
+		if code != 2 || !strings.Contains(stderr, "flags must come before the text") {
+			t.Fatalf("%v code = %d, stderr = %q", args, code, stderr)
+		}
+	}
+
+	// -- still passes text that legitimately starts with a dash.
+	if code, _, stderr := logbook("now", "--project-root", repo, "--", "-1 flaky test to chase"); code != 0 {
+		t.Fatalf("now with -- code = %d, stderr = %q", code, stderr)
+	}
+	code, stdout, stderr := logbook("now", "--project-root", repo)
+	if code != 0 || !strings.Contains(stdout, "-1 flaky test to chase") {
+		t.Fatalf("now readback code = %d, stdout = %q, stderr = %q", code, stdout, stderr)
+	}
+}
+
+// `capture "quick thought"` is the first thing anyone types; it used to exit 2
+// in total silence.
+func TestRunCaptureAcceptsPositionalTextAndReportsBadArguments(t *testing.T) {
+	repo := t.TempDir()
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	logbook := func(args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(args, getenv, strings.NewReader(""), &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+
+	code, stdout, stderr := logbook("capture", "--project-root", repo, "Postgres pool exhausted under load")
+	if code != 0 {
+		t.Fatalf("positional capture code = %d, stderr = %q", code, stderr)
+	}
+	written, err := os.ReadFile(strings.TrimSpace(stdout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(written), "Postgres pool exhausted under load") {
+		t.Fatalf("capture did not store the positional text:\n%s", written)
+	}
+
+	if code, _, stderr := logbook("capture", "--project-root", repo, "--text", "one", "two"); code != 2 ||
+		!strings.Contains(stderr, "exactly one of") {
+		t.Fatalf("conflicting capture input code = %d, stderr = %q", code, stderr)
+	}
+
+	// decision takes its title the same way, so the three text commands agree.
+	code, stdout, stderr = logbook("decision", "--project-root", repo, "--no-edit", "Use opaque refresh tokens")
+	if code != 0 || !strings.HasSuffix(strings.TrimSpace(stdout), "use-opaque-refresh-tokens.md") {
+		t.Fatalf("positional decision code = %d, stdout = %q, stderr = %q", code, stdout, stderr)
+	}
+	if code, _, stderr := logbook("decision", "--project-root", repo, "--no-edit", "--title", "one", "two"); code != 2 ||
+		!strings.Contains(stderr, "either as TITLE or --title") {
+		t.Fatalf("conflicting decision title code = %d, stderr = %q", code, stderr)
+	}
+
+	// A subcommand that takes no positionals must say so instead of exiting mute.
+	if code, _, stderr := logbook("digest", "--project-root", repo, "bogus"); code != 2 ||
+		!strings.Contains(stderr, "no positional arguments") {
+		t.Fatalf("digest with a stray argument code = %d, stderr = %q", code, stderr)
+	}
+}
+
+// Asking for help is not a usage error, whichever subcommand you ask.
+func TestSubcommandHelpExitsZero(t *testing.T) {
+	getenv := func(string) string { return "" }
+	for _, name := range []string{"capture", "decision", "now", "digest", "search", "init", "paths", "doctor", "tui"} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{name, "--help"}, getenv, strings.NewReader(""), &stdout, &stderr); code != 0 {
+			t.Fatalf("%s --help code = %d, want 0", name, code)
+		}
+		if stdout.Len()+stderr.Len() == 0 {
+			t.Fatalf("%s --help printed nothing", name)
+		}
 	}
 }

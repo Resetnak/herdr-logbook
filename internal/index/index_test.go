@@ -296,3 +296,25 @@ func TestIndexFoldFindsTheQueryRegardlessOfCase(t *testing.T) {
 		})
 	}
 }
+
+// Notes live under a state directory, a project hash, and a home directory.
+// Fuzzy-matching that whole absolute path made almost every query match almost
+// every note, because a subsequence match finds its letters somewhere in the
+// prefix. Only the note's own name and its directory are matched now.
+func TestSearchIgnoresTheDirectoriesAboveTheNote(t *testing.T) {
+	entries := []Entry{
+		{Path: "/home/user/.local/state/herdr/store/projects/p_abc/inbox/2026-08.md", Title: "Inbox — 2026-08", NoteType: "inbox", Content: "nothing relevant here"},
+		{Path: "/home/user/.local/state/herdr/store/projects/p_abc/decisions/2026-08-01-rotate-tokens.md", Title: "Decision: Rotate tokens", NoteType: "decision", Content: "body"},
+	}
+	results := Search(entries, "rotate", 10)
+	if len(results) != 1 {
+		t.Fatalf("Search() returned %d results, want only the decision: %#v", len(results), results)
+	}
+	if !strings.HasSuffix(results[0].Entry.Path, "2026-08-01-rotate-tokens.md") {
+		t.Fatalf("Search() ranked %q first", results[0].Entry.Path)
+	}
+	// The directory holding the note still matches, so "decisions" narrows.
+	if got := Search(entries, "decisions", 10); len(got) != 1 {
+		t.Fatalf("Search(\"decisions\") returned %d results", len(got))
+	}
+}
