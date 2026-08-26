@@ -4,6 +4,8 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+## v0.0.12 — 2026-08-26
+
 `search` gives scripts and agents the read surface the TUI already had (issue #19),
 plus the CLI fixes found while building it.
 
