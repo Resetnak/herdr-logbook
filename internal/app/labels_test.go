@@ -113,3 +113,32 @@ func TestCanDeleteRejectsNowAndEmptyPath(t *testing.T) {
 		t.Fatal("CanDelete allowed now.md when the type was a generic note")
 	}
 }
+
+// The decision template writes "# Decision: X" so the file reads well on its
+// own, but the list already labels the kind; the row must not say it twice.
+func TestListTitleStripsDecisionPrefix(t *testing.T) {
+	note := Note{Type: NoteDecision, Title: "Decision: Stick to logbook"}
+	if got := listTitle(note); got != "Stick to logbook" {
+		t.Fatalf("listTitle() = %q", got)
+	}
+	if got := listLine(note, true); got != "Stick to logbook · decision" {
+		t.Fatalf("listLine() = %q", got)
+	}
+	plain := Note{Type: NoteProjectNote, Title: "Decision: keep the prefix here"}
+	if got := listTitle(plain); got != "Decision: keep the prefix here" {
+		t.Fatalf("listTitle() on plain note = %q", got)
+	}
+}
+
+func TestTruncateListLabelFitsPane(t *testing.T) {
+	long := strings.Repeat("x", 120)
+	if got := truncateListLabel(long, 40); len([]rune(got)) != 34 {
+		t.Fatalf("truncateListLabel() rune count = %d, want 34", len([]rune(got)))
+	}
+	if got := truncateListLabel(long, 10); got != long {
+		t.Fatalf("truncateListLabel() below minimum should not truncate")
+	}
+	if got := truncateListLabel("short", 40); got != "short" {
+		t.Fatalf("truncateListLabel() = %q", got)
+	}
+}

@@ -677,7 +677,7 @@ func (m HubModel) View() string {
 			"  Current task               The one thing you're on (now.md). Press t to set it.\n" +
 			"  Project / global journal   Chronological dump. Captures and finished tasks stay.\n" +
 			"  Project notes / decisions  Standalone write-ups for this project.\n" +
-			"  List titles come from the first # heading. Filenames do not change if you edit it.\n\n" +
+			"  List titles come from the first # heading, else the first line. Filenames stay put.\n\n" +
 			lipgloss.NewStyle().Bold(true).Render("Capture Modal Shortcuts:") + "\n" +
 			"  Ctrl+S                     Save note\n" +
 			"  Ctrl+E                     Save note & open external editor\n" +
@@ -696,11 +696,11 @@ func (m HubModel) View() string {
 		previewWidth := max(30, m.width-scopeW-noteWidth-4)
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
 			m.pane(m.scopesView(), scopeW, availableHeight, m.panel == panelScopes),
-			m.pane(m.notesView(), noteWidth, availableHeight, m.panel == panelNotes),
+			m.pane(m.notesView(noteWidth), noteWidth, availableHeight, m.panel == panelNotes),
 			m.pane(m.previewView(), previewWidth, availableHeight, m.panel == panelPreview),
 		)
 	} else if m.width >= 70 {
-		content := m.notesView()
+		content := m.notesView(max(30, m.width-scopeW-2))
 		if m.panel == panelPreview || m.hideNotesPane() {
 			content = m.previewView()
 		}
@@ -711,7 +711,7 @@ func (m HubModel) View() string {
 	} else {
 		content := m.scopesView()
 		if m.panel == panelNotes {
-			content = m.notesView()
+			content = m.notesView(max(20, m.width))
 		} else if m.panel == panelPreview {
 			content = m.previewView()
 		}
@@ -1059,7 +1059,7 @@ func (m HubModel) scopesView() string {
 	return output.String()
 }
 
-func (m HubModel) notesView() string {
+func (m HubModel) notesView(width int) string {
 	notes := m.visibleNotes()
 	palette := getThemePalette(m.uiTheme)
 	var output strings.Builder
@@ -1077,7 +1077,7 @@ func (m HubModel) notesView() string {
 	activeStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.activeFg)
 	for index, note := range notes {
 		prefix := "  "
-		label := listLine(note, showKind)
+		label := truncateListLabel(listLine(note, showKind), width)
 		line := label
 		if index == m.noteIndex {
 			if m.panel == panelNotes {

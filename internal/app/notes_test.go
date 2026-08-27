@@ -19,7 +19,7 @@ func TestLoadNotesPicksUpAnExternallyEditedHeading(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(notes) != 1 || listTitle(notes[0]) != "we-should-be-collecting-more-metrics" {
+	if len(notes) != 1 || listTitle(notes[0]) != "Body without a heading" {
 		t.Fatalf("before edit: %#v", notes)
 	}
 

@@ -13,8 +13,30 @@ func TestTitleUsesFirstH1OutsideFencedCode(t *testing.T) {
 }
 
 func TestTitleFallsBackToFilename(t *testing.T) {
-	if got := Title("No heading\n", "auth-notes.md"); got != "auth-notes" {
+	if got := Title("", "auth-notes.md"); got != "auth-notes" {
 		t.Fatalf("Title() = %q", got)
+	}
+	if got := Title("   \n\n", "auth-notes.md"); got != "auth-notes" {
+		t.Fatalf("Title() on whitespace = %q", got)
+	}
+}
+
+// Discussion #18 repro: a note created as "something very important", edited to
+// an empty body, then edited to "hello world" kept showing the filename slug in
+// the list. A heading-less note takes its title from the first plain line.
+func TestTitleFallsBackToFirstLineBeforeFilename(t *testing.T) {
+	if got := Title("hello world\n", "something-very-important.md"); got != "hello world" {
+		t.Fatalf("Title() = %q", got)
+	}
+	if got := Title("- a list item\n", "note.md"); got != "a list item" {
+		t.Fatalf("Title() list marker = %q", got)
+	}
+	if got := Title("---\ntitle: Cache\n---\nbody line\n", "note.md"); got != "body line" {
+		t.Fatalf("Title() frontmatter = %q", got)
+	}
+	long := strings.Repeat("x", 200)
+	if got := Title(long+"\n", "note.md"); len([]rune(got)) != 80 {
+		t.Fatalf("Title() long line rune count = %d", len([]rune(got)))
 	}
 }
 
@@ -32,9 +54,13 @@ func TestTitleStripsTerminalControlCharacters(t *testing.T) {
 		t.Fatalf("Title() = %q", got)
 	}
 
+	if got := Title("\x1b]52;c;aGFja2Vk\aplain line\n", "fallback.md"); strings.ContainsAny(got, "\x1b\a") {
+		t.Fatalf("Title() first-line fallback kept control characters: %q", got)
+	}
+
 	// A filename is not a safer source than a heading: every byte except / and
 	// NUL is legal in one, so the fallback needs the same treatment.
-	if got := Title("no heading\n", "\x1b]0;pwned\a.md"); strings.ContainsAny(got, "\x1b\a") {
+	if got := Title("", "\x1b]0;pwned\a.md"); strings.ContainsAny(got, "\x1b\a") {
 		t.Fatalf("Title() fallback kept control characters: %q", got)
 	}
 }

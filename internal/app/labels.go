@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/Resetnak/herdr-logbook/internal/nowfile"
 )
 
@@ -20,7 +22,13 @@ func listTitle(note Note) string {
 	case NoteProjectInbox, NoteGlobalInbox:
 		return journalListTitle(note)
 	default:
-		if title := strings.TrimSpace(note.Title); title != "" {
+		title := strings.TrimSpace(note.Title)
+		if note.Type == NoteDecision || note.Type == NoteGlobalDecision {
+			// The template H1 is "# Decision: X" so the file reads well on its
+			// own; lists already label the kind, so the prefix is noise there.
+			title = strings.TrimSpace(strings.TrimPrefix(title, "Decision:"))
+		}
+		if title != "" {
 			return title
 		}
 		return strings.TrimSuffix(filepath.Base(note.Path), filepath.Ext(note.Path))
@@ -119,6 +127,17 @@ func truncateRunes(text string, limit int) string {
 		return text
 	}
 	return string([]rune(text)[:limit])
+}
+
+// truncateListLabel fits one notes-list row into the pane so a long title
+// cannot wrap and break the column alignment. width is the full pane width;
+// border, padding, and the selection prefix eat six cells of it.
+func truncateListLabel(label string, width int) string {
+	limit := width - 6
+	if limit < 8 {
+		return label
+	}
+	return ansi.Truncate(label, limit, "…")
 }
 
 // CanDelete reports whether the Hub may offer a confirmed removal of note.

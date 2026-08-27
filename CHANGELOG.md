@@ -4,6 +4,16 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+Follow-ups from discussion #18.
+
+- A heading-less note is listed by its first line instead of the filename slug,
+  so editing away the `# ` heading no longer freezes the list title on the
+  original slug while the preview shows the new body.
+- Decision rows no longer read `Decision: … · decision`; the `Decision:` prefix
+  stays in the file's H1 but is dropped in lists that already label the kind.
+- Long titles are truncated to the notes pane width instead of wrapping and
+  misaligning the list.
+
 ## v0.0.12 — 2026-08-26
 
 `search` gives scripts and agents the read surface the TUI already had (issue #19),
