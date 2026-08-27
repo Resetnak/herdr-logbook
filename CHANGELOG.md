@@ -4,7 +4,10 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
-Follow-ups from discussion #18.
+## v0.0.13 — 2026-08-27
+
+Follow-ups from discussion #18: the list-title repro and the two smaller
+polish items from the follow-up feedback.
 
 - A heading-less note is listed by its first line instead of the filename slug,
   so editing away the `# ` heading no longer freezes the list title on the
