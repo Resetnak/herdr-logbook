@@ -395,6 +395,10 @@ $HERDR_PLUGIN_STATE_DIR/
 
 Návrhy, hlášení chyb a PR jsou vítány! Podívejte se do [CONTRIBUTING.md](CONTRIBUTING.md) pro lokální nastavení a instrukce k testování a do [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) pro pravidla komunity.
 
+## 👤 Autor
+
+Herdr Logbook vytváří a udržuje [Alexandr Rešetňak](https://resetnak.cz/) ([@Resetnak](https://github.com/Resetnak)), senior PHP backend developer z Prahy, který chtěl, aby jeho pracovní kontext přežil nástroje, ve kterých vznikl.
+
 ## 📄 Licence
 
 [MIT](LICENSE) © 2026 Alexandr Rešetňak

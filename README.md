@@ -395,6 +395,10 @@ $HERDR_PLUGIN_STATE_DIR/
 
 Contributions, bug reports, and feature requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup and testing guidelines, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.
 
+## 👤 Author
+
+Herdr Logbook is built and maintained by [Alexandr Rešetňak](https://resetnak.cz/en/) ([@Resetnak](https://github.com/Resetnak)), a senior PHP backend developer in Prague who wanted his working context to outlive his tools.
+
 ## 📄 License
 
 [MIT](LICENSE) © 2026 Alexandr Rešetňak
