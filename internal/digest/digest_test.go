@@ -384,6 +384,23 @@ Implement heatmap rendering
 	}
 }
 
+// A fresh store's now.md holds the template text, which means "no task", not a
+// task literally named "Describe the task currently in progress."
+func TestCollect_NowTemplateIsNoTask(t *testing.T) {
+	tempDir := t.TempDir()
+	template := "# Now\n\n## Current task\n\nDescribe the task currently in progress.\n\n## Next steps\n\n- [ ] Add the next concrete action.\n"
+	if err := os.WriteFile(filepath.Join(tempDir, "now.md"), []byte(template), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	report, err := Collect(tempDir, "test-project", "main", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.CurrentTask != "" || strings.Contains(FormatMarkdown(report), "Currently Working On") {
+		t.Fatalf("template reported as a current task: %q", report.CurrentTask)
+	}
+}
+
 func TestCollect_Heatmap(t *testing.T) {
 	tempDir := t.TempDir()
 	report, err := Collect(tempDir, "test-project", "main", 7)

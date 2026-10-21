@@ -4,6 +4,11 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- The digest no longer lists a fresh project's template text ("Describe the
+  task currently in progress.") under Currently Working On, or returns it as
+  `CurrentTask` in `digest --json`. It now reads `now.md` the same way `now`
+  and the Hub do, so all three agree that no task is set.
+
 ## v0.0.13 — 2026-08-27
 
 Follow-ups from discussion #18: the list-title repro and the two smaller

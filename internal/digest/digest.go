@@ -9,6 +9,7 @@ import (
 	"time"
 
 	md "github.com/Resetnak/herdr-logbook/internal/markdown"
+	"github.com/Resetnak/herdr-logbook/internal/nowfile"
 )
 
 // heatmapDays is the window the activity grid covers: four full weeks.
@@ -303,28 +304,12 @@ func parseDecisionFile(path, projectName string) (ActivityItem, bool) {
 	return ActivityItem{}, false
 }
 
+// parseNowFile reads the current task the way `now` and the Hub do, so a fresh
+// store's template text counts as no task rather than work in progress.
 func parseNowFile(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
-
-	inTask := false
-	var taskBody []string
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "## Current task") {
-			inTask = true
-			continue
-		} else if inTask && strings.HasPrefix(line, "## ") {
-			break
-		}
-		if inTask {
-			// Skip the invisible started-at marker nowfile stores under the task.
-			if strings.HasPrefix(strings.TrimSpace(line), "<!--") {
-				continue
-			}
-			taskBody = append(taskBody, line)
-		}
-	}
-	return md.StripTerminalControl(strings.TrimSpace(strings.Join(taskBody, "\n")))
+	return md.StripTerminalControl(nowfile.CurrentTask(string(data)))
 }
