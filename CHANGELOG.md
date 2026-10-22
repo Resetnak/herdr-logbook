@@ -4,6 +4,15 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- `digest --all` reports across every registered project, grouped by project;
+  `--sort time` gives one newest-first list with each line tagged by project.
+  `--json` carries each project's report plus a combined one (summed heatmap,
+  streak across projects). The global journal is not included.
+- In the Hub's digest view, `a` cycles scope (this project, all projects, each
+  other project) with the heatmap and summary following, and `o` switches the
+  all-projects summary between grouped and time-sorted. `y` copies the visible
+  scope.
+
 ## v0.0.13 — 2026-08-27
 
 Follow-ups from discussion #18: the list-title repro and the two smaller

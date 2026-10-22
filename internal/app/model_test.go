@@ -1286,6 +1286,338 @@ func TestDigestViewLoadsRendersAndTogglesRange(t *testing.T) {
 	}
 }
 
+func multiDigestFixture() digest.MultiReport {
+	now := time.Now()
+	api := digest.DigestReport{
+		Generated: now, Days: 1, Project: "api", CurrentTask: "Rotate tokens",
+		Items: []digest.ActivityItem{{Kind: "task", Summary: "Ship auth fix", Project: "api", Time: now.Add(-time.Hour), TookMinutes: 30}},
+	}
+	web := digest.DigestReport{
+		Generated: now, Days: 1, Project: "web",
+		Items: []digest.ActivityItem{{Kind: "capture", Summary: "Fix the footer", Project: "web", Time: now}},
+	}
+	return digest.MultiReport{
+		Projects: []digest.DigestReport{api, web},
+		Combined: digest.DigestReport{
+			Generated: now, Days: 1, Project: digest.CombinedName, Streak: 5,
+			Items: []digest.ActivityItem{web.Items[0], api.Items[0]},
+		},
+	}
+}
+
+func TestDigestScopesCycleThroughProjects(t *testing.T) {
+	var requested []int
+	model := NewHub(nil, "api", "main", "central").WithDigestAll(func(days int) (digest.MultiReport, error) {
+		requested = append(requested, days)
+		return multiDigestFixture(), nil
+	})
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 60})
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
+
+	press := func(key string) {
+		model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
+	}
+
+	// The current project comes first, exactly as the single-project digest did.
+	view := model.View()
+	for _, want := range []string{"api (1/3)", "Ship auth fix", "Rotate tokens", "[a] Scope"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("current-project scope missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "Fix the footer") || strings.Contains(view, "[o]") {
+		t.Fatalf("current-project scope leaks other projects or offers sorting:\n%s", view)
+	}
+
+	press("a")
+	view = model.View()
+	for _, want := range []string{"All projects (2/3)", "5 day streak", "[o] By time"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("combined scope missing %q:\n%s", want, view)
+		}
+	}
+	// Grouped by project: a heading per project, no repeated "(project)" tag.
+	if !strings.Contains(view, " api ") || !strings.Contains(view, " web ") || strings.Contains(view, "(api)") || strings.Contains(view, "(web)") {
+		t.Fatalf("combined scope is not grouped by project:\n%s", view)
+	}
+	if !strings.Contains(view, "Ship auth fix") || !strings.Contains(view, "Fix the footer") {
+		t.Fatalf("combined scope is missing a project's items:\n%s", view)
+	}
+
+	press("o")
+	view = model.View()
+	if !strings.Contains(view, "[o] By project") || !strings.Contains(view, "(api)") || !strings.Contains(view, "(web)") {
+		t.Fatalf("time-sorted combined scope should tag each line with its project:\n%s", view)
+	}
+	if strings.Index(view, "Fix the footer") > strings.Index(view, "Ship auth fix") {
+		t.Fatalf("time-sorted combined scope is not newest first:\n%s", view)
+	}
+	if !strings.Contains(view, "api: Rotate tokens") {
+		t.Fatalf("time-sorted combined scope should name the project on its current task:\n%s", view)
+	}
+
+	press("a")
+	view = model.View()
+	if !strings.Contains(view, "web (3/3)") || strings.Contains(view, "Ship auth fix") || strings.Contains(view, "[o]") {
+		t.Fatalf("third scope should be only the web project:\n%s", view)
+	}
+	// o does nothing outside the combined scope.
+	press("o")
+	if !model.digestByTime {
+		t.Fatal("o changed the sort order outside the combined scope")
+	}
+
+	press("a")
+	if !strings.Contains(model.View(), "api (1/3)") {
+		t.Fatalf("scopes did not wrap around to the current project:\n%s", model.View())
+	}
+
+	// Changing the range reloads but keeps the scope.
+	press("a")
+	model, command = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
+	if !strings.Contains(model.View(), "All projects (2/3)") {
+		t.Fatalf("t reset the scope:\n%s", model.View())
+	}
+	if len(requested) != 2 || requested[1] != 7 {
+		t.Fatalf("digest requested days = %v, want [1 7]", requested)
+	}
+}
+
+func TestDigestScopesNeedMoreThanOneProject(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central").WithDigestAll(func(int) (digest.MultiReport, error) {
+		multi := multiDigestFixture()
+		multi.Projects = multi.Projects[:1]
+		return multi, nil
+	})
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 60})
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
+
+	model, _ = updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	view := model.View()
+	if strings.Contains(view, "[a] Scope") || strings.Contains(view, "All projects") || !strings.Contains(view, "Ship auth fix") {
+		t.Fatalf("a single project should keep the plain digest:\n%s", view)
+	}
+}
+
+// openMultiDigest opens the digest view over loader and returns it loaded.
+func openMultiDigest(t *testing.T, loader DigestAllFunc) HubModel {
+	t.Helper()
+	model := NewHub(nil, "api", "main", "central").WithDigestAll(loader)
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 120, Height: 60})
+	model, command := updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
+	return model
+}
+
+func pressKey(model HubModel, key string) (HubModel, tea.Cmd) {
+	return updateHub(model, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
+}
+
+// captureClipboard swaps the digest's clipboard writer for the test's duration.
+func captureClipboard(t *testing.T) *[]string {
+	t.Helper()
+	var copied []string
+	previous := copyToClipboard
+	copyToClipboard = func(text string) { copied = append(copied, text) }
+	t.Cleanup(func() { copyToClipboard = previous })
+	return &copied
+}
+
+func TestDigestCopyFollowsTheVisibleScope(t *testing.T) {
+	copied := captureClipboard(t)
+	multi := multiDigestFixture()
+	load := func(int) (digest.MultiReport, error) { return multi, nil }
+
+	// Combined, grouped by project.
+	model := openMultiDigest(t, load)
+	model, _ = pressKey(model, "a")
+	model, command := pressKey(model, "y")
+	if model.digest || command == nil {
+		t.Fatalf("y did not close the digest and confirm (digest=%v, command=%v)", model.digest, command != nil)
+	}
+	if len(*copied) != 1 || (*copied)[0] != digest.FormatMarkdownAll(multi, false) {
+		t.Fatalf("combined copy = %q, want the grouped all-projects standup", *copied)
+	}
+
+	// Combined, sorted by time.
+	model = openMultiDigest(t, load)
+	model, _ = pressKey(model, "a")
+	model, _ = pressKey(model, "o")
+	pressKey(model, "y")
+	if len(*copied) != 2 || (*copied)[1] != digest.FormatMarkdownAll(multi, true) {
+		t.Fatalf("time-sorted copy = %q", *copied)
+	}
+
+	// A single project copies only that project, as before.
+	model = openMultiDigest(t, load)
+	pressKey(model, "y")
+	if len(*copied) != 3 || (*copied)[2] != digest.FormatMarkdown(multi.Projects[0]) {
+		t.Fatalf("current-project copy = %q", *copied)
+	}
+	if strings.Contains((*copied)[2], "Fix the footer") {
+		t.Fatalf("current-project copy leaked another project: %q", (*copied)[2])
+	}
+
+	// Another project's scope copies that project.
+	model = openMultiDigest(t, load)
+	model, _ = pressKey(model, "a")
+	model, _ = pressKey(model, "a")
+	pressKey(model, "y")
+	if len(*copied) != 4 || (*copied)[3] != digest.FormatMarkdown(multi.Projects[1]) {
+		t.Fatalf("other-project copy = %q", *copied)
+	}
+}
+
+func TestDigestScopeKeysWaitForTheReload(t *testing.T) {
+	calls := 0
+	model := openMultiDigest(t, func(int) (digest.MultiReport, error) {
+		calls++
+		if calls == 3 {
+			return digest.MultiReport{}, errors.New("store is unreadable")
+		}
+		return multiDigestFixture(), nil
+	})
+	model, _ = pressKey(model, "a")
+
+	// t starts a reload; until it lands the view is on the spinner, so a and o
+	// must not move the scope or the sort underneath it.
+	model, command := pressKey(model, "t")
+	if !model.digestLoading {
+		t.Fatal("t did not start a reload")
+	}
+	model, _ = pressKey(model, "a")
+	model, _ = pressKey(model, "o")
+	if model.digestScope != 1 || model.digestByTime {
+		t.Fatalf("a/o acted while loading (scope=%d, byTime=%v)", model.digestScope, model.digestByTime)
+	}
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
+
+	// A failed reload leaves the error on screen; a and o must not rewrite it.
+	model, command = pressKey(model, "t")
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
+	if model.digestErr == "" {
+		t.Fatal("the failed reload did not set an error")
+	}
+	model, _ = pressKey(model, "a")
+	model, _ = pressKey(model, "o")
+	if model.digestScope != 1 || model.digestByTime {
+		t.Fatalf("a/o acted on an error state (scope=%d, byTime=%v)", model.digestScope, model.digestByTime)
+	}
+	if !strings.Contains(model.View(), "store is unreadable") {
+		t.Fatalf("the error is no longer shown:\n%s", model.View())
+	}
+}
+
+func TestDigestScopeClampsWhenProjectsDisappear(t *testing.T) {
+	third := multiDigestFixture().Projects[1]
+	third.Project = "docs"
+	calls := 0
+	model := openMultiDigest(t, func(int) (digest.MultiReport, error) {
+		calls++
+		multi := multiDigestFixture()
+		if calls == 1 {
+			multi.Projects = append(multi.Projects, third)
+		}
+		return multi, nil
+	})
+
+	// Four scopes: api, all, web, docs. Park on the last one.
+	for range 3 {
+		model, _ = pressKey(model, "a")
+	}
+	if model.digestScope != 3 || !strings.Contains(model.View(), "docs (4/4)") {
+		t.Fatalf("expected to be on the last scope:\n%s", model.View())
+	}
+
+	// The reload has one project fewer, so scope 3 no longer exists.
+	model, command := pressKey(model, "t")
+	model, _ = updateHub(model, runFor[digestLoadedMsg](t, command))
+	if model.digestScope != 2 {
+		t.Fatalf("scope = %d after a project disappeared, want it clamped to 2", model.digestScope)
+	}
+	if view := model.View(); !strings.Contains(view, "web (3/3)") {
+		t.Fatalf("clamped scope should show the last remaining project:\n%s", view)
+	}
+}
+
+func TestDigestCombinedViewWithNothingToReport(t *testing.T) {
+	now := time.Now()
+	quiet := func(name string) digest.DigestReport {
+		return digest.DigestReport{Generated: now, Days: 1, Project: name}
+	}
+	model := openMultiDigest(t, func(int) (digest.MultiReport, error) {
+		return digest.MultiReport{
+			Projects: []digest.DigestReport{quiet("api"), quiet("web")},
+			Combined: digest.DigestReport{Generated: now, Days: 1, Project: digest.CombinedName},
+		}, nil
+	})
+	model, _ = pressKey(model, "a")
+
+	for _, byTime := range []bool{false, true} {
+		if model.digestByTime != byTime {
+			model, _ = pressKey(model, "o")
+		}
+		view := model.View()
+		if !strings.Contains(view, "No activity recorded in this period.") {
+			t.Fatalf("byTime=%v: empty combined view should say so:\n%s", byTime, view)
+		}
+		if strings.Contains(view, "Total tracked") {
+			t.Fatalf("byTime=%v: empty combined view shows a tracked total:\n%s", byTime, view)
+		}
+	}
+}
+
+func TestWithDigestAllKeepsTheSingleProjectLoaderWorking(t *testing.T) {
+	multi := multiDigestFixture()
+	var loadErr error
+	model := NewHub(nil, "api", "main", "central").WithDigestAll(func(int) (digest.MultiReport, error) {
+		return multi, loadErr
+	})
+
+	report, err := model.digestFn(1)
+	if err != nil || report.Project != "api" {
+		t.Fatalf("single-project loader = %+v, %v, want the first project", report, err)
+	}
+	multi.Projects = nil
+	if report, err = model.digestFn(1); err != nil || report.Project != "" {
+		t.Fatalf("loader with no projects = %+v, %v, want an empty report", report, err)
+	}
+	loadErr = errors.New("store is unreadable")
+	if _, err = model.digestFn(1); err == nil {
+		t.Fatal("loader swallowed the error")
+	}
+}
+
+func TestDigestWithNoProjectsReturnedStaysUsable(t *testing.T) {
+	model := openMultiDigest(t, func(int) (digest.MultiReport, error) {
+		return digest.MultiReport{Combined: digest.DigestReport{Generated: time.Now(), Days: 1}}, nil
+	})
+	model, _ = pressKey(model, "a")
+	model, _ = pressKey(model, "o")
+	view := model.View()
+	if model.digestScope != 0 || model.digestByTime || strings.Contains(view, "[a] Scope") || strings.Contains(view, "[o]") {
+		t.Fatalf("an empty result offered scopes (scope=%d, byTime=%v):\n%s", model.digestScope, model.digestByTime, view)
+	}
+	if !strings.Contains(view, "No activity recorded in this period.") {
+		t.Fatalf("an empty result should say so:\n%s", view)
+	}
+}
+
+func TestHubHelpMentionsDigestScopeKeys(t *testing.T) {
+	model := NewHub(nil, "api", "main", "central")
+	model, _ = updateHub(model, tea.WindowSizeMsg{Width: 140, Height: 60})
+	model, _ = pressKey(model, "?")
+	view := model.View()
+	for _, want := range []string{"Standup digest", "a / o", "Cycle project scope"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("help is missing %q:\n%s", want, view)
+		}
+	}
+}
+
 func TestFlashMessageColorDecay(t *testing.T) {
 	model := NewHub(nil, "api", "main", "central")
 	command := model.flash("✓ Saved to inbox")

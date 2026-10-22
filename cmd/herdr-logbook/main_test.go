@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -374,6 +375,164 @@ func TestRunNowRecordsTaskDuration(t *testing.T) {
 	}
 }
 
+func TestRunDigestAllSpansProjects(t *testing.T) {
+	root := t.TempDir()
+	api, web := filepath.Join(root, "api"), filepath.Join(root, "web")
+	for _, dir := range []string{api, web} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	logbook := func(stdin string, args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(args, getenv, strings.NewReader(stdin), &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+
+	if code, _, stderr := logbook("Postgres pool exhausted\n", "capture", "--stdin", "--project-root", api); code != 0 {
+		t.Fatalf("capture api code = %d, stderr = %q", code, stderr)
+	}
+	if code, _, stderr := logbook("", "now", "--project-root", web, "Ship the docs"); code != 0 {
+		t.Fatalf("now web code = %d, stderr = %q", code, stderr)
+	}
+
+	// Without --all the digest still covers one project.
+	_, stdout, _ := logbook("", "digest", "--project-root", api)
+	if strings.Contains(stdout, "Ship the docs") {
+		t.Fatalf("digest without --all leaked another project:\n%s", stdout)
+	}
+
+	code, stdout, stderr := logbook("", "digest", "--all", "--project-root", api)
+	if code != 0 {
+		t.Fatalf("digest --all code = %d, stderr = %q", code, stderr)
+	}
+	for _, want := range []string{"### api\n", "### web\n", "Postgres pool exhausted", "Ship the docs"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("digest --all missing %q:\n%s", want, stdout)
+		}
+	}
+
+	code, stdout, stderr = logbook("", "digest", "--all", "--sort", "time", "--project-root", api)
+	if code != 0 || strings.Contains(stdout, "### api\n") || !strings.Contains(stdout, "(api)") {
+		t.Fatalf("digest --all --sort time code = %d, stderr = %q:\n%s", code, stderr, stdout)
+	}
+
+	code, stdout, stderr = logbook("", "digest", "--all", "--json", "--project-root", api)
+	if code != 0 {
+		t.Fatalf("digest --all --json code = %d, stderr = %q", code, stderr)
+	}
+	var multi struct {
+		Projects []struct{ Project string } `json:"Projects"`
+		Combined struct {
+			Project string
+			Heatmap []struct{ Count int }
+		} `json:"Combined"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &multi); err != nil {
+		t.Fatalf("digest --all JSON = %q: %v", stdout, err)
+	}
+	if len(multi.Projects) != 2 || multi.Projects[0].Project != "api" || multi.Combined.Project != "All projects" || len(multi.Combined.Heatmap) != 28 {
+		t.Fatalf("digest --all JSON = %+v", multi)
+	}
+}
+
+func TestDigestStoresPutsTheCurrentProjectFirstAndSkipsGlobal(t *testing.T) {
+	root := t.TempDir()
+	dirs := map[string]string{}
+	for _, name := range []string{"api", "web", "docs"} {
+		dirs[name] = filepath.Join(root, name)
+		if err := os.MkdirAll(dirs[name], 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	logbook := func(stdin string, args ...string) (int, string, string) {
+		var stdout, stderr bytes.Buffer
+		code := run(args, getenv, strings.NewReader(stdin), &stdout, &stderr)
+		return code, stdout.String(), stderr.String()
+	}
+
+	// web and docs are registered, in that order; api has never been written to.
+	for _, name := range []string{"web", "docs"} {
+		if code, _, stderr := logbook(name+" capture\n", "capture", "--stdin", "--project-root", dirs[name]); code != 0 {
+			t.Fatalf("capture %s code = %d, stderr = %q", name, code, stderr)
+		}
+	}
+	if code, _, stderr := logbook("Journal-only thought\n", "capture", "--stdin", "--scope", "global", "--project-root", dirs["web"]); code != 0 {
+		t.Fatalf("global capture code = %d, stderr = %q", code, stderr)
+	}
+
+	state, failure := loadCore(dirs["api"], "", "", getenv)
+	if failure != nil {
+		t.Fatal(failure.err)
+	}
+	stores, err := digestStores(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var names []string
+	for _, store := range stores {
+		names = append(names, store.Name)
+		if strings.HasSuffix(store.Root, filepath.Join("store", "global")) {
+			t.Errorf("the global journal is listed as a project: %+v", store)
+		}
+	}
+	if len(stores) != 3 || names[0] != "api" || !stores[0].Keep || stores[0].Root != state.Layout.Root {
+		t.Fatalf("stores = %v, want the unregistered current project first and kept", names)
+	}
+	for _, store := range stores[1:] {
+		if store.Keep {
+			t.Errorf("only the current project should be kept when quiet: %+v", store)
+		}
+	}
+	if !slices.Contains(names, "web") || !slices.Contains(names, "docs") {
+		t.Fatalf("stores = %v, want web and docs after api", names)
+	}
+
+	// The current project is not listed twice once it is registered too.
+	if code, _, stderr := logbook("api capture\n", "capture", "--stdin", "--project-root", dirs["api"]); code != 0 {
+		t.Fatalf("capture api code = %d, stderr = %q", code, stderr)
+	}
+	stores, err = digestStores(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stores) != 3 || stores[0].Name != "api" {
+		t.Fatalf("stores after registering the current project = %+v, want 3 with api first", stores)
+	}
+
+	// And the global capture stays out of the cross-project standup.
+	code, stdout, stderr := logbook("", "digest", "--all", "--project-root", dirs["api"])
+	if code != 0 {
+		t.Fatalf("digest --all code = %d, stderr = %q", code, stderr)
+	}
+	if strings.Contains(stdout, "Journal-only thought") {
+		t.Fatalf("digest --all included the global journal:\n%s", stdout)
+	}
+	if strings.Index(stdout, "### api") > strings.Index(stdout, "### web") || !strings.Contains(stdout, "### docs") {
+		t.Fatalf("digest --all headings are out of order or missing:\n%s", stdout)
+	}
+}
+
+func TestRunDigestSortNeedsAll(t *testing.T) {
+	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir()}
+	getenv := func(key string) string { return env[key] }
+	repo := t.TempDir()
+	for _, args := range [][]string{
+		{"digest", "--sort", "time", "--project-root", repo},
+		{"digest", "--all", "--sort", "bogus", "--project-root", repo},
+	} {
+		var stdout, stderr bytes.Buffer
+		if code := run(args, getenv, strings.NewReader(""), &stdout, &stderr); code != 2 || stderr.Len() == 0 {
+			t.Fatalf("%v code = %d, stderr = %q", args, code, stderr.String())
+		}
+	}
+}
+
 func TestRunDigestReportsTodaysActivity(t *testing.T) {
 	repo := t.TempDir()
 	env := map[string]string{"HERDR_PLUGIN_STATE_DIR": t.TempDir(), "HERDR_PLUGIN_CONFIG_DIR": t.TempDir()}
@@ -619,7 +778,7 @@ func TestPrintKeybindsListsEveryHubAction(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("keybinds code = %d, stderr = %q", code, stderr.String())
 	}
-	for _, want := range []string{"Navigation:", "Actions:", "t    set the current task", "Ctrl+S", "e    edit in external editor", "x    delete selected note"} {
+	for _, want := range []string{"Navigation:", "Actions:", "t    set the current task", "a    cycle scope", "o    all projects: group by project / sort by time", "Ctrl+S", "e    edit in external editor", "x    delete selected note"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("keybinds output missing %q:\n%s", want, stdout.String())
 		}

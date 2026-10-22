@@ -189,6 +189,8 @@ Capture / Authoring Modal:
 Digest View:
   y    copy standup Markdown to clipboard
   t    toggle today / this week
+  a    cycle scope: this project, all projects, each other project
+  o    all projects: group by project / sort by time
   Esc  back to hub`)
 }
 
@@ -492,6 +494,13 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 	digestReport := func(days int) (digest.DigestReport, error) {
 		return digest.Collect(state.Layout.Root, state.Project.Name, state.Project.Branch, days)
 	}
+	digestAll := func(days int) (digest.MultiReport, error) {
+		stores, err := digestStores(state)
+		if err != nil {
+			return digest.MultiReport{}, err
+		}
+		return digest.CollectAll(stores, days)
+	}
 	model := app.NewHub(notes, state.Project.Name, state.Project.Branch, state.Layout.Mode).
 		WithView(effectiveView).
 		WithUIConfig(state.Config.UI.ScopeWidth, state.Config.UI.ShowBranch, state.Config.UI.Theme).
@@ -506,7 +515,8 @@ func runTUI(args []string, getenv func(string) string, stdin io.Reader, stdout, 
 			notes, loadErr := reloadNotes()
 			return note.Path, notes, loadErr
 		}).
-		WithDigest(digestReport)
+		WithDigest(digestReport).
+		WithDigestAll(digestAll)
 	program := tea.NewProgram(model, tea.WithInput(stdin), tea.WithOutput(stdout), tea.WithAltScreen(), tea.WithoutSignalHandler())
 	if _, err := program.Run(); err != nil {
 		fmt.Fprintln(stderr, err)
@@ -920,16 +930,47 @@ func runDigest(args []string, getenv func(string) string, stdout, stderr io.Writ
 	cwd := flags.String("cwd", "", "fallback working directory")
 	days := flags.Int("days", 1, "number of days to include (default 1)")
 	jsonOutput := flags.Bool("json", false, "output as JSON")
+	all := flags.Bool("all", false, "include every registered project, grouped by project")
+	sortBy := flags.String("sort", "", "with --all: group by \"project\" (default) or list by \"time\"")
 	if code, ok := parseFlags(flags, args, stderr); !ok {
 		return code
 	}
 	if *days < 1 {
 		*days = 1
 	}
+	if *sortBy != "" && !*all {
+		fmt.Fprintln(stderr, "digest: --sort needs --all")
+		return 2
+	}
+	if *sortBy != "" && *sortBy != "project" && *sortBy != "time" {
+		fmt.Fprintf(stderr, "digest: --sort must be project or time, got %q\n", *sortBy)
+		return 2
+	}
 	state, failure := loadCore(*projectRoot, *cwd, "", getenv)
 	if failure != nil {
 		fmt.Fprintln(stderr, failure.err)
 		return failure.code
+	}
+	if *all {
+		stores, err := digestStores(state)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 4
+		}
+		multi, err := digest.CollectAll(stores, *days)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
+		if *jsonOutput {
+			if err := writeJSON(stdout, multi); err != nil {
+				fmt.Fprintln(stderr, err)
+				return 1
+			}
+			return 0
+		}
+		fmt.Fprint(stdout, digest.FormatMarkdownAll(multi, *sortBy == "time"))
+		return 0
 	}
 	report, err := digest.Collect(state.Layout.Root, state.Project.Name, state.Project.Branch, *days)
 	if err != nil {
@@ -945,6 +986,23 @@ func runDigest(args []string, getenv func(string) string, stdout, stderr io.Writ
 	}
 	fmt.Fprint(stdout, digest.FormatMarkdown(report))
 	return 0
+}
+
+// digestStores lists every registered project's store for the cross-project
+// digest, the current project first. The global journal is not a project and is
+// left out.
+func digestStores(state coreState) ([]digest.Store, error) {
+	stores, _, _, err := indexStores(state)
+	if err != nil {
+		return nil, err
+	}
+	result := []digest.Store{{Name: state.Project.Name, Branch: state.Project.Branch, Root: state.Layout.Root, Keep: true}}
+	for _, store := range stores {
+		if store.ProjectID != "global" && store.Root != state.Layout.Root {
+			result = append(result, digest.Store{Name: store.ProjectName, Root: store.Root})
+		}
+	}
+	return result, nil
 }
 
 // parseFlags parses a subcommand's flags and returns the exit code to use when
@@ -1371,5 +1429,5 @@ func waitForClose(reader io.Reader, timeout, grace time.Duration) {
 }
 
 func printUsage(writer io.Writer) {
-	fmt.Fprintln(writer, "usage: herdr-logbook tui | capture | decision | now [TASK] | digest [--days N] [--json] | search QUERY [--json] | init | paths | doctor [--json] | index rebuild | keybinds | compatibility [--wait] | resolve-cwd | version")
+	fmt.Fprintln(writer, "usage: herdr-logbook tui | capture | decision | now [TASK] | digest [--days N] [--json] [--all [--sort project|time]] | search QUERY [--json] | init | paths | doctor [--json] | index rebuild | keybinds | compatibility [--wait] | resolve-cwd | version")
 }

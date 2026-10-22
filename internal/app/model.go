@@ -44,6 +44,15 @@ type EditFunc func(note Note) tea.Cmd
 type DeleteFunc func(note Note) (string, []Note, error)
 type DigestFunc func(days int) (digest.DigestReport, error)
 
+// DigestAllFunc loads the digest of every project. When set it replaces
+// DigestFunc, whose report is the first project of the result.
+// copyToClipboard writes through the terminal (OSC 52) instead of shelling out
+// to pbcopy/xclip: works over SSH and needs no helper binary. It is a variable
+// so tests can observe what the digest copies.
+var copyToClipboard = termenv.Copy
+
+type DigestAllFunc func(days int) (digest.MultiReport, error)
+
 type searchLoadedMsg struct {
 	entries []searchindex.Entry
 	err     error
@@ -109,6 +118,7 @@ func digestStaggerCmd(step int) tea.Cmd {
 
 type digestLoadedMsg struct {
 	report digest.DigestReport
+	multi  *digest.MultiReport
 	err    error
 }
 
@@ -174,6 +184,10 @@ type HubModel struct {
 	digestLoading    bool
 	digestStagger    int
 	digestFn         DigestFunc
+	digestAllFn      DigestAllFunc
+	digestMulti      digest.MultiReport
+	digestScope      int
+	digestByTime     bool
 	digestViewport   viewport.Model
 	spinner          spinner.Model
 }
@@ -343,6 +357,19 @@ func (m HubModel) WithDigest(digestFn DigestFunc) HubModel {
 	return m
 }
 
+// WithDigestAll enables the cross-project digest scopes.
+func (m HubModel) WithDigestAll(digestAllFn DigestAllFunc) HubModel {
+	m.digestAllFn = digestAllFn
+	m.digestFn = func(days int) (digest.DigestReport, error) {
+		multi, err := digestAllFn(days)
+		if err != nil || len(multi.Projects) == 0 {
+			return digest.DigestReport{}, err
+		}
+		return multi.Projects[0], nil
+	}
+	return m
+}
+
 func (m HubModel) BeginCapture(global, quitAfterCapture bool) (HubModel, tea.Cmd) {
 	m.quitAfterCapture = quitAfterCapture
 	return m.openCapture(global)
@@ -444,6 +471,11 @@ func (m HubModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.digestErr = loaded.err.Error()
 		} else {
 			m.digestReport = loaded.report
+			if loaded.multi != nil {
+				m.digestMulti = *loaded.multi
+				m.digestScope = min(m.digestScope, m.digestScopeCount()-1)
+				m.digestReport = m.activeDigest()
+			}
 			m.digestErr = ""
 			m.digestStagger = 1
 			m.refreshDigestViewport()
@@ -672,6 +704,7 @@ func (m HubModel) View() string {
 			"  2                          Toggle 2-pane layout\n" +
 			"  r                          Reload / refresh notes\n" +
 			"  s                          Standup digest & activity heatmap\n" +
+			"    (in the digest) a / o    Cycle project scope / sort all-projects by time\n" +
 			"  ? / q                      Toggle help / quit\n\n" +
 			lipgloss.NewStyle().Bold(true).Render("What the scopes are:") + "\n" +
 			"  Current task               The one thing you're on (now.md). Press t to set it.\n" +
@@ -949,8 +982,12 @@ func (m HubModel) busy() bool {
 func (m *HubModel) startDigestCmd() tea.Cmd {
 	m.digestLoading = true
 	m.digestStagger = 1
-	digestFn, days := m.digestFn, m.digestDays
+	digestFn, digestAllFn, days := m.digestFn, m.digestAllFn, m.digestDays
 	return tea.Batch(m.spinner.Tick, func() tea.Msg {
+		if digestAllFn != nil {
+			multi, err := digestAllFn(days)
+			return digestLoadedMsg{multi: &multi, err: err}
+		}
 		report, err := digestFn(days)
 		return digestLoadedMsg{report: report, err: err}
 	})
@@ -1414,11 +1451,29 @@ func (m HubModel) updateDigest(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "y":
 			if m.digestErr == "" {
-				// OSC 52 through the terminal instead of shelling out to
-				// pbcopy/xclip: works over SSH and needs no helper binary.
-				termenv.Copy(digest.FormatMarkdown(m.digestReport))
+				if m.digestCombined() {
+					copyToClipboard(digest.FormatMarkdownAll(m.digestMulti, m.digestByTime))
+				} else {
+					copyToClipboard(digest.FormatMarkdown(m.digestReport))
+				}
 				m.digest = false
 				return m, m.flash("✓ Standup copied to clipboard")
+			}
+			return m, nil
+		case "a":
+			// Scopes cycle: current project, all projects, then the others.
+			if count := m.digestScopeCount(); count > 1 && !m.digestLoading && m.digestErr == "" {
+				m.digestScope = (m.digestScope + 1) % count
+				m.digestReport = m.activeDigest()
+				m.digestStagger = 1
+				m.refreshDigestViewport()
+				return m, digestStaggerCmd(m.digestStagger)
+			}
+			return m, nil
+		case "o":
+			if m.digestCombined() && !m.digestLoading && m.digestErr == "" {
+				m.digestByTime = !m.digestByTime
+				m.refreshDigestViewport()
 			}
 			return m, nil
 		case "t":
@@ -1460,9 +1515,18 @@ func (m HubModel) digestView() string {
 	if m.digestDays == 7 {
 		rangeLabel = "Today"
 	}
-	keyHint := lipgloss.NewStyle().Faint(true).Render(
-		"[y] Copy Markdown · [t] " + rangeLabel + " · [Esc] Back to Hub",
-	)
+	hint := "[y] Copy Markdown · [t] " + rangeLabel
+	if m.digestScopeCount() > 1 {
+		hint += " · [a] Scope"
+	}
+	if m.digestCombined() {
+		sortLabel := "By time"
+		if m.digestByTime {
+			sortLabel = "By project"
+		}
+		hint += " · [o] " + sortLabel
+	}
+	keyHint := lipgloss.NewStyle().Faint(true).Render(hint + " · [Esc] Back to Hub")
 
 	content := body.String() + "\n" + keyHint
 	return m.pane(content, max(30, m.width), max(3, m.height-2), true)
@@ -1477,7 +1541,15 @@ func (m *HubModel) refreshDigestViewport() {
 	var content strings.Builder
 
 	// Title
-	content.WriteString(titleStyle.Render("📊 Activity Heatmap (Last 4 Weeks)") + "\n\n")
+	heatmapTitle := "📊 Activity Heatmap (Last 4 Weeks)"
+	if m.digestScopeCount() > 1 {
+		name := m.digestReport.Project
+		if m.digestCombined() {
+			name = digest.CombinedName
+		}
+		heatmapTitle += " — " + name + fmt.Sprintf(" (%d/%d)", m.digestScope+1, m.digestScopeCount())
+	}
+	content.WriteString(titleStyle.Render(heatmapTitle) + "\n\n")
 
 	// Heatmap
 	stagger := m.digestStagger
@@ -1497,8 +1569,129 @@ func (m *HubModel) refreshDigestViewport() {
 	}
 	content.WriteString(titleStyle.Render("📝 Standup Summary — "+rangeLabel) + "\n\n")
 
+	if m.digestCombined() {
+		m.writeCombinedSummary(&content, sectionStyle, faintStyle)
+	} else {
+		body := m.digestItemsView(m.digestReport.Items, "", false)
+		if body != "" {
+			content.WriteString(body)
+		}
+		if m.digestReport.CurrentTask != "" {
+			content.WriteString(sectionStyle.Render("⚡ Currently Working On") + "\n")
+			content.WriteString(indentLines(m.digestReport.CurrentTask, ""))
+			content.WriteString("\n")
+		}
+		if body == "" && m.digestReport.CurrentTask == "" {
+			content.WriteString(faintStyle.Render("No activity recorded in this period.") + "\n")
+		}
+	}
+
+	m.digestViewport.Width = max(20, m.width-4)
+	m.digestViewport.Height = max(3, m.height-8)
+	m.digestViewport.SetContent(content.String())
+}
+
+// digestScopeCount is how many views the digest cycles through: just the
+// current project, or that plus the combined view and every other project.
+func (m HubModel) digestScopeCount() int {
+	if len(m.digestMulti.Projects) < 2 {
+		return 1
+	}
+	return len(m.digestMulti.Projects) + 1
+}
+
+// digestCombined reports whether the all-projects view is selected.
+func (m HubModel) digestCombined() bool {
+	return m.digestScopeCount() > 1 && m.digestScope == 1
+}
+
+// activeDigest is the report for the selected scope: 0 is the current project,
+// 1 the combined view, and 2 onward the remaining projects in order.
+func (m HubModel) activeDigest() digest.DigestReport {
+	switch {
+	case len(m.digestMulti.Projects) == 0:
+		return m.digestReport
+	case m.digestScope == 1 && m.digestScopeCount() > 1:
+		return m.digestMulti.Combined
+	case m.digestScope >= 2 && m.digestScopeCount() > 1:
+		return m.digestMulti.Projects[min(m.digestScope-1, len(m.digestMulti.Projects)-1)]
+	default:
+		return m.digestMulti.Projects[0]
+	}
+}
+
+// writeCombinedSummary lists every project's activity, either one section per
+// project or newest first with the project named on each line.
+func (m HubModel) writeCombinedSummary(content *strings.Builder, sectionStyle, faintStyle lipgloss.Style) {
+	multi := m.digestMulti
+	empty := true
+	if m.digestByTime {
+		if body := m.digestItemsView(multi.Combined.Items, "", true); body != "" {
+			content.WriteString(body)
+			empty = false
+		}
+		var tasks strings.Builder
+		for _, report := range multi.Projects {
+			if report.CurrentTask != "" {
+				tasks.WriteString(indentLines(report.CurrentTask, report.Project+": "))
+			}
+		}
+		if tasks.Len() > 0 {
+			content.WriteString(sectionStyle.Render("⚡ Currently Working On") + "\n" + tasks.String() + "\n")
+			empty = false
+		}
+	} else {
+		for _, report := range multi.Projects {
+			body := m.digestItemsView(report.Items, report.Project, false)
+			if body == "" && report.CurrentTask == "" {
+				continue
+			}
+			empty = false
+			content.WriteString(lipgloss.NewStyle().Bold(true).Underline(true).Render(report.Project) + "\n")
+			content.WriteString(body)
+			if report.CurrentTask != "" {
+				content.WriteString(sectionStyle.Render("⚡ Currently Working On") + "\n")
+				content.WriteString(indentLines(report.CurrentTask, "") + "\n")
+			}
+		}
+	}
+	if total := digest.TrackedMinutes(multi.Combined.Items); total > 0 && len(multi.Projects) > 1 {
+		content.WriteString(faintStyle.Render("⏱ Total tracked: "+digest.FormatTook(total)) + "\n\n")
+	}
+	if empty {
+		content.WriteString(faintStyle.Render("No activity recorded in this period.") + "\n")
+	}
+}
+
+// indentLines indents each non-blank line, prefixing it with label.
+func indentLines(text, label string) string {
+	var out strings.Builder
+	for _, line := range strings.Split(text, "\n") {
+		if strings.TrimSpace(line) != "" {
+			out.WriteString("  " + label + line + "\n")
+		}
+	}
+	return out.String()
+}
+
+// digestItemsView renders the Completed and Decisions sections for items. The
+// "(project)" tag is skipped for hideProject; empty when there is nothing to show.
+//
+// By default tasks are listed before captures; chronological keeps them in the
+// order given, which is how the time-sorted combined view reads.
+func (m HubModel) digestItemsView(items []digest.ActivityItem, hideProject string, chronological bool) string {
+	palette := getThemePalette(m.uiTheme)
+	sectionStyle := lipgloss.NewStyle().Bold(true).Foreground(palette.activeFg)
+	faintStyle := lipgloss.NewStyle().Faint(true)
+	tag := func(item digest.ActivityItem) string {
+		if item.Project != "" && item.Project != hideProject {
+			return faintStyle.Render(" (" + item.Project + ")")
+		}
+		return ""
+	}
+
 	var tasks, captures, decisions []digest.ActivityItem
-	for _, item := range m.digestReport.Items {
+	for _, item := range items {
 		switch item.Kind {
 		case "task":
 			tasks = append(tasks, item)
@@ -1509,58 +1702,40 @@ func (m *HubModel) refreshDigestViewport() {
 		}
 	}
 
+	var content strings.Builder
 	if len(tasks) > 0 || len(captures) > 0 {
 		content.WriteString(sectionStyle.Render("✅ Completed") + "\n")
-		for _, item := range tasks {
-			content.WriteString(fmt.Sprintf("  ✓ %s", item.Summary))
-			if item.Project != "" {
-				content.WriteString(faintStyle.Render(" (" + item.Project + ")"))
+		completed := append(append([]digest.ActivityItem{}, tasks...), captures...)
+		if chronological {
+			completed = completed[:0]
+			for _, item := range items {
+				if item.Kind == "task" || item.Kind == "capture" {
+					completed = append(completed, item)
+				}
 			}
-			if label := digest.FormatTook(item.TookMinutes); label != "" {
-				content.WriteString(faintStyle.Render(" · " + label))
+		}
+		for _, item := range completed {
+			if item.Kind == "task" {
+				content.WriteString(fmt.Sprintf("  ✓ %s", item.Summary) + tag(item))
+				if label := digest.FormatTook(item.TookMinutes); label != "" {
+					content.WriteString(faintStyle.Render(" · " + label))
+				}
+			} else {
+				content.WriteString(fmt.Sprintf("  • %s", item.Summary) + tag(item))
 			}
 			content.WriteString("\n")
 		}
-		for _, item := range captures {
-			content.WriteString(fmt.Sprintf("  • %s", item.Summary))
-			if item.Project != "" {
-				content.WriteString(faintStyle.Render(" (" + item.Project + ")"))
-			}
-			content.WriteString("\n")
-		}
-		if total := digest.TrackedMinutes(m.digestReport.Items); total > 0 {
+		if total := digest.TrackedMinutes(items); total > 0 {
 			content.WriteString(faintStyle.Render("  ⏱ Tracked: "+digest.FormatTook(total)) + "\n")
 		}
 		content.WriteString("\n")
 	}
-
 	if len(decisions) > 0 {
 		content.WriteString(sectionStyle.Render("🏗️ Decisions") + "\n")
 		for _, item := range decisions {
-			content.WriteString(fmt.Sprintf("  ⚖ %s", item.Summary))
-			if item.Project != "" {
-				content.WriteString(faintStyle.Render(" (" + item.Project + ")"))
-			}
-			content.WriteString("\n")
+			content.WriteString(fmt.Sprintf("  ⚖ %s", item.Summary) + tag(item) + "\n")
 		}
 		content.WriteString("\n")
 	}
-
-	if m.digestReport.CurrentTask != "" {
-		content.WriteString(sectionStyle.Render("⚡ Currently Working On") + "\n")
-		for _, line := range strings.Split(m.digestReport.CurrentTask, "\n") {
-			if strings.TrimSpace(line) != "" {
-				content.WriteString("  " + line + "\n")
-			}
-		}
-		content.WriteString("\n")
-	}
-
-	if len(tasks) == 0 && len(captures) == 0 && len(decisions) == 0 && m.digestReport.CurrentTask == "" {
-		content.WriteString(faintStyle.Render("No activity recorded in this period.") + "\n")
-	}
-
-	m.digestViewport.Width = max(20, m.width-4)
-	m.digestViewport.Height = max(3, m.height-8)
-	m.digestViewport.SetContent(content.String())
+	return content.String()
 }

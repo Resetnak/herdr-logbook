@@ -149,6 +149,8 @@ Everything is plain Markdown, so you can migrate to — or combine with — any 
 | :--- | :--- |
 | `y` | **Copy standup Markdown** to system clipboard |
 | `t` | Toggle time range (today / this week) |
+| `a` | Cycle scope: this project → all projects → each other project (heatmap and summary follow) |
+| `o` | In the all-projects scope, group by project / sort by time |
 | `j` / `k` or `↑` / `↓` | Scroll digest content |
 | `Esc` | Return to Hub |
 
@@ -333,9 +335,13 @@ Generate a standup report from your logged activity — tasks (with how long eac
 herdr-logbook digest                     # today's standup (Markdown)
 herdr-logbook digest --days 7            # this week
 herdr-logbook digest --json              # structured JSON for scripting
+herdr-logbook digest --all               # every registered project, grouped by project
+herdr-logbook digest --all --sort time   # one newest-first list, each line tagged with its project
 ```
 
-Inside the TUI, press `s` to see the visual digest with a GitHub-style activity heatmap, then `y` to copy the standup Markdown to your clipboard.
+`--all` covers every project Logbook has seen (the global journal is not a project and is left out), skips projects with no activity, and puts the current project first. With `--json` it returns each project's report plus a `Combined` one whose heatmap and streak add the projects together. `--sort` only applies with `--all`.
+
+Inside the TUI, press `s` to see the visual digest with a GitHub-style activity heatmap, then `y` to copy the standup Markdown to your clipboard. Press `a` to cycle between this project, all projects combined, and each other project — the heatmap, streak, and summary follow the scope, and `y` copies what is on screen.
 
 <p align="center">
   <img src="assets/digest.gif" alt="The Logbook digest view: a four-week activity heatmap reveals a column at a time, followed by a standup summary of completed tasks and decisions" width="820">
