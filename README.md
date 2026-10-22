@@ -299,7 +299,7 @@ command = "herdr-logbook.open"
 description = "Herdr Logbook"
 ```
 
-The shortcut toggles instead of stacking panes: if the Logbook pane is open but not focused it takes you there, and pressing it again from the focused pane closes it.
+The shortcut toggles instead of stacking panes: if the Logbook pane is open but not focused it takes you there, and pressing it again from the focused pane closes it. If the Logbook is open in a different workspace, the shortcut closes it there and opens it in the one you are in.
 
 Reload Herdr configuration:
 ```bash

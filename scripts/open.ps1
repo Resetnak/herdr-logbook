@@ -19,15 +19,22 @@ try {
 } catch {
     $OpenPanes = @()
 }
-if ($OpenPanes.Count -gt 0) {
-    if ($OpenPanes | Where-Object { $_.focused }) {
-        foreach ($Pane in $OpenPanes) {
+# `pane list` spans every workspace; only a pane in this one is toggled.
+$Workspace = $env:HERDR_WORKSPACE_ID
+$LocalPanes = @($OpenPanes | Where-Object { -not $Workspace -or $_.workspace_id -eq $Workspace })
+if ($LocalPanes.Count -gt 0) {
+    if ($LocalPanes | Where-Object { $_.focused }) {
+        foreach ($Pane in $LocalPanes) {
             & $HerdrBin plugin pane close $Pane.pane_id | Out-Null
         }
     } else {
-        & $HerdrBin plugin pane focus $OpenPanes[0].pane_id | Out-Null
+        & $HerdrBin plugin pane focus $LocalPanes[0].pane_id | Out-Null
     }
     exit 0
+}
+# Open only in other workspaces: there is one Logbook at a time, so move it here.
+foreach ($Pane in $OpenPanes) {
+    & $HerdrBin plugin pane close $Pane.pane_id | Out-Null
 }
 
 $Cwd = (& $LogbookBin resolve-cwd | Select-Object -First 1)

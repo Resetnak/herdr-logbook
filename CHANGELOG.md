@@ -4,6 +4,14 @@ All notable changes will be documented here. The project has not published a sta
 
 ## Unreleased
 
+- The open shortcut works from a second workspace. The toggle matched the pane
+  label across every workspace, so with the Hub open in one workspace the
+  shortcut in another only focused or closed that pane and never opened a new
+  one. The toggle now looks at the current workspace only; a Hub open in
+  another workspace is closed and reopened where you are. Needs
+  `HERDR_WORKSPACE_ID`; without it the old behaviour applies. `open.ps1` has
+  the same change but is untested.
+
 ## v0.0.13 — 2026-08-27
 
 Follow-ups from discussion #18: the list-title repro and the two smaller
